@@ -1,22 +1,25 @@
-import express from 'express';
-import axios from 'axios';
-import cheerio from 'cheerio';
-import robotsParser from 'robots-parser';
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+const cheerio = require('cheerio');
+const robotsParser = require('robots-parser');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json());
 
+// 🧠 Category Sites
 const CATEGORIES = {
   news: ['bbc.com', 'cnn.com', 'reuters.com', 'theguardian.com', 'nytimes.com'],
   books: ['gutenberg.org', 'openlibrary.org', 'manybooks.net', 'bartleby.com'],
   science: ['sciencedaily.com', 'arxiv.org', 'nasa.gov', 'nature.com'],
   health: ['webmd.com', 'mayoclinic.org', 'cdc.gov', 'who.int'],
   general: ['wikipedia.org', 'wiktionary.org', 'britannica.com', 'medium.com']
-  // Add more as needed
 };
 
+// 🧠 Category guesser
 function getCategory(query) {
   const q = query.toLowerCase();
   if (q.includes('covid') || q.includes('symptom')) return 'health';
@@ -26,6 +29,7 @@ function getCategory(query) {
   return 'general';
 }
 
+// 🛡️ Obey robots.txt
 async function obeyRobotsTxt(url) {
   try {
     const base = new URL(url).origin;
@@ -33,10 +37,11 @@ async function obeyRobotsTxt(url) {
     const robots = robotsParser(`${base}/robots.txt`, data);
     return robots.isAllowed(url, '*');
   } catch {
-    return true;
+    return true; // Assume allowed if robots.txt fails
   }
 }
 
+// 📄 Extract relevant text
 async function extractSentencesFromPage(url, query) {
   try {
     const allowed = await obeyRobotsTxt(url);
@@ -45,10 +50,10 @@ async function extractSentencesFromPage(url, query) {
     const { data } = await axios.get(url, { timeout: 5000 });
     const $ = cheerio.load(data);
 
-    let texts = [];
+    const texts = [];
     $('p, li, h2, h3').each((_, el) => {
       const text = $(el).text().trim();
-      if (text && text.length > 40 && text.toLowerCase().includes(query.toLowerCase())) {
+      if (text.length > 40 && text.toLowerCase().includes(query.toLowerCase())) {
         texts.push({ sentence: text, source: url });
       }
     });
@@ -59,17 +64,20 @@ async function extractSentencesFromPage(url, query) {
   }
 }
 
+// 🔍 Perform search + crawl
 async function findAnswers(query) {
   const category = getCategory(query);
   const sites = CATEGORIES[category] || CATEGORIES['general'];
 
   const results = [];
+
   for (let site of sites) {
     const searchURL = `https://www.google.com/search?q=site:${site}+${encodeURIComponent(query)}`;
     try {
       const { data } = await axios.get(searchURL, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
+
       const $ = cheerio.load(data);
       const links = [];
 
@@ -85,7 +93,7 @@ async function findAnswers(query) {
         const sentences = await extractSentencesFromPage(link, query);
         if (sentences) results.push(...sentences);
       }
-    } catch (err) {
+    } catch {
       continue;
     }
   }
@@ -93,31 +101,37 @@ async function findAnswers(query) {
   return results;
 }
 
+// 🔁 Endpoint for frontend
 app.post('/search', async (req, res) => {
   const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'No query provided.' });
+  console.log('🔍 Received search query:', query);
 
-  const found = await findAnswers(query);
-  if (!found || found.length === 0) {
-    return res.json({
-      mainAnswer: `❌ No results found for "${query}".`,
-      otherAnswers: [],
-      sources: []
-    });
+  if (!query) {
+    return res.status(400).json({ error: 'No query provided.' });
   }
 
-  const mainAnswer = found[0].sentence;
-  const sources = [...new Set(found.map(f => f.source))];
-  const otherAnswers = found.slice(1, 5).map(f => f.sentence);
+  try {
+    const found = await findAnswers(query);
+    if (!found || found.length === 0) {
+      return res.json({
+        mainAnswer: `❌ No results found for "${query}".`,
+        otherAnswers: [],
+        sources: []
+      });
+    }
 
-  res.json({
-    mainAnswer,
-    otherAnswers,
-    sources
-  });
+    const mainAnswer = found[0].sentence;
+    const sources = [...new Set(found.map(f => f.source))];
+    const otherAnswers = found.slice(1, 5).map(f => f.sentence);
+
+    res.json({ mainAnswer, otherAnswers, sources });
+  } catch (err) {
+    console.error('❌ Internal error:', err.message);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
 });
 
+// ✅ Start server
 app.listen(PORT, () => {
-  console.log(`🧠 fAi server running on port ${PORT}`);
+  console.log(`🚀 Fweb backend running on port ${PORT}`);
 });
-
