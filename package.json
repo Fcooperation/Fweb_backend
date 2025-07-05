@@ -1,16 +1,16 @@
 {
   "name": "fweb-backend",
   "version": "1.0.0",
-  "description": "Backend for Fweb search engine (crawling Wikipedia, saving to Gofile)",
+  "description": "Fweb backend that handles Wikipedia search and Gofile upload",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "axios": "^1.6.8",
-    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "form-data": "^4.0.0"
+    "express": "^4.18.4",
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.6.7"
   }
 }
