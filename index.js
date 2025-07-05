@@ -8,135 +8,124 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const gofileToken = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
+
+const gofileToken = "e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO";
 
 app.use(cors());
 app.use(express.json());
 
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  console.log('Received search query:', query);
+async function uploadToGofile(buffer, filename) {
+  const form = new FormData();
+  form.append('file', buffer, filename);
+  form.append('token', gofileToken);
 
-  let summary = '';
-  let fcards = [];
-  let images = [];
-
-  // Try to crawl Wikipedia page directly
   try {
-    const wikiURL = `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`;
-    const crawlRes = await axios.get(wikiURL);
-    const $ = cheerio.load(crawlRes.data);
+    const res = await axios.post('https://api.gofile.io/uploadFile', form, {
+      headers: form.getHeaders(),
+      timeout: 15000,
+    });
+    return res.data.data.downloadPage;
+  } catch (err) {
+    console.error("Gofile upload error:", err.message);
+    return null;
+  }
+}
 
-    // Get first paragraph
-    summary = $('p').first().text().trim();
+async function crawlWikipedia(query) {
+  const searchUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`;
+  try {
+    const res = await axios.get(searchUrl, { timeout: 10000 });
+    const $ = cheerio.load(res.data);
 
-    // Get first 10 related links for fcards
-    $('a').slice(0, 20).each((i, el) => {
+    const paragraph = $('#mw-content-text p').first().text().trim();
+    const links = [];
+    $('#mw-content-text a[href^="/wiki/"]').each((i, el) => {
+      const title = $(el).attr('title');
       const href = $(el).attr('href');
-      const text = $(el).text().trim();
-      if (href && href.startsWith('/wiki/') && !href.includes(':')) {
-        fcards.push({
-          title: text || href.replace('/wiki/', ''),
-          url: `https://en.wikipedia.org${href}`,
-          icon: 'https://upload.wikimedia.org/wikipedia/commons/6/63/Wikipedia-logo.png'
+      if (title && links.length < 10) {
+        links.push({
+          title,
+          icon: 'https://upload.wikimedia.org/wikipedia/commons/6/63/Wikipedia-logo.png',
+          url: `https://en.wikipedia.org${href}`
         });
       }
     });
 
-    // Get first 20 images
-    $('img').slice(0, 20).each((i, el) => {
+    const images = [];
+    $('img').each((i, el) => {
       const src = $(el).attr('src');
-      if (src && !src.startsWith('data:')) {
-        const url = src.startsWith('http') ? src : `https:${src}`;
-        images.push(url);
+      if (src && images.length < 20 && !src.includes('logo')) {
+        images.push(`https:${src}`);
       }
     });
 
+    return { paragraph, links, images };
   } catch (err) {
-    console.log('Crawl failed, using Wikipedia API fallback');
+    console.warn("Crawl failed, switching to API...");
+    return null;
+  }
+}
 
-    // Use API fallback
-    const apiURL = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-    const result = await axios.get(apiURL).then(r => r.data).catch(() => null);
-
-    if (result) {
-      summary = result.extract || '';
-      fcards.push({
-        title: result.title,
-        url: result.content_urls.desktop.page,
-        icon: result.thumbnail?.source || 'https://upload.wikimedia.org/wikipedia/commons/6/63/Wikipedia-logo.png'
-      });
-
-      // Get 20 images via media endpoint
-      const mediaURL = `https://en.wikipedia.org/api/rest_v1/page/media/${encodeURIComponent(result.title)}`;
-      const mediaRes = await axios.get(mediaURL).then(r => r.data).catch(() => null);
-      if (mediaRes?.items) {
-        images = mediaRes.items
-          .filter(item => item.type === 'image')
-          .slice(0, 20)
-          .map(img => img.original?.source || img.src);
+async function searchWikipediaAPI(query) {
+  try {
+    const res = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json'
       }
-    }
-  }
-
-  // Create temp HTML + TXT for upload
-  const tempDir = './temp';
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
-  const safeQuery = query.replace(/[^a-z0-9]/gi, '_');
-  const txtPath = path.join(tempDir, `${safeQuery}.txt`);
-  const htmlPath = path.join(tempDir, `${safeQuery}.html`);
-
-  fs.writeFileSync(txtPath, summary || 'No summary found.');
-
-  const htmlContent = `
-    <html><body>
-    <h2>${query} - Related Sites</h2>
-    ${fcards.map(f => `
-      <div style="margin: 10px 0; display: flex; align-items: center;">
-        <img src="${f.icon}" style="width:32px; height:32px; margin-right:10px"/>
-        <a href="${f.url}" target="_blank">${f.title}</a>
-      </div>
-    `).join('')}
-    </body></html>
-  `;
-  fs.writeFileSync(htmlPath, htmlContent);
-
-  // Upload to Gofile
-  async function uploadToGofile(filePath) {
-    const form = new FormData();
-    form.append('token', gofileToken);
-    form.append('file', fs.createReadStream(filePath));
-    const uploadRes = await axios.post('https://api.gofile.io/uploadFile', form, {
-      headers: form.getHeaders()
     });
-    return uploadRes.data.data.downloadPage;
+
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+    const paragraph = summaryRes.data.extract;
+
+    const links = res.data.query.search.slice(0, 10).map(item => ({
+      title: item.title,
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/6/63/Wikipedia-logo.png',
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title)}`
+    }));
+
+    return { paragraph, links, images: [] };
+  } catch (e) {
+    console.error("Wikipedia API failed:", e.message);
+    return null;
   }
+}
 
-  const [txtLink, htmlLink] = await Promise.all([
-    uploadToGofile(txtPath),
-    uploadToGofile(htmlPath)
-  ]);
+app.post('/search', async (req, res) => {
+  const { query } = req.body;
+  console.log("Received search query:", query);
 
-  // Replace fcard URLs with Gofile download
-  fcards = fcards.slice(0, 10).map(f => ({
-    title: f.title,
-    icon: f.icon,
-    link: htmlLink
+  let data = await crawlWikipedia(query);
+  if (!data) data = await searchWikipediaAPI(query);
+  if (!data) return res.json({ web: [], images: [], sentence: '' });
+
+  // Save to Gofile (html page of links)
+  const htmlContent = `
+    <h2>Search: ${query}</h2>
+    <p>${data.paragraph}</p>
+    <ul>
+      ${data.links.map(l => `<li><a href="${l.url}" target="_blank">${l.title}</a></li>`).join('')}
+    </ul>
+  `;
+  const buffer = Buffer.from(htmlContent, 'utf-8');
+  const savedUrl = await uploadToGofile(buffer, `${query}_fweb.html`);
+
+  // Replace original links with gofile download page link
+  const web = data.links.map(l => ({
+    title: l.title,
+    icon: l.icon,
+    url: savedUrl
   }));
 
-  // Send result to frontend
   res.json({
-    sentence: summary,
-    web: fcards,
-    images: images.slice(0, 20)
+    sentence: data.paragraph,
+    web,
+    images: data.images
   });
-
-  // Cleanup
-  fs.unlinkSync(txtPath);
-  fs.unlinkSync(htmlPath);
 });
 
 app.listen(PORT, () => {
-  console.log(`Fweb backend listening on port ${PORT}`);
+  console.log(`Fweb backend running on port ${PORT}`);
 });
