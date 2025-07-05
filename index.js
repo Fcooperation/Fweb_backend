@@ -1,18 +1,21 @@
 const express = require('express');
-const cors = require('cors');
+const cors = require('cors'); // Allow requests from frontend
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-app.use(cors());
-app.use(express.json());
+// Middleware
+app.use(cors()); // Enable CORS so frontend can talk to backend
+app.use(express.json()); // Parse JSON bodies
 
+// Add a test endpoint
 app.post('/search', (req, res) => {
   const { query } = req.body;
-  console.log('Received search query:', query);
-  res.json({ message: 'Hello from backend', yourQuery: query });
+  console.log('Received query:', query);
+  res.json({ message: 'Backend received', query });
 });
 
+// Start server
 app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
