@@ -1,89 +1,68 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
+import express from 'express';
+import cors from 'cors';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 app.use(express.json());
 
-async function fetchFromWikipedia(query) {
-  try {
-    // Summary extract
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
-    const summaryText = summaryRes?.data?.extract || "No summary found.";
-
-    // Search results
-    const searchRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json',
-        origin: '*'
-      }
-    });
-
-    const searchResults = searchRes.data?.query?.search || [];
-
-    const web = searchResults.slice(0, 10).map(result => ({
-      title: result.title,
-      snippet: result.snippet.replace(/<\/?[^>]+(>|$)/g, ""),
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(result.title)}`
-    }));
-
-    // Image results
-    const imageRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
-      params: {
-        action: 'query',
-        prop: 'images',
-        titles: query,
-        format: 'json',
-        origin: '*'
-      }
-    });
-
-    const pages = imageRes?.data?.query?.pages || {};
-    const images = [];
-
-    for (const page of Object.values(pages)) {
-      if (page.images) {
-        for (const img of page.images) {
-          const filename = img.title.replace('File:', '');
-          if (/\.(jpg|jpeg|png|gif)$/i.test(filename)) {
-            images.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`);
-            if (images.length >= 20) break;
-          }
-        }
-      }
-      if (images.length >= 20) break;
-    }
-
-    return {
-      sentence: summaryText,
-      web,
-      images
-    };
-
-  } catch (err) {
-    console.error("API error:", err.message);
-    return {
-      sentence: "Not found",
-      web: [],
-      images: []
-    };
-  }
-}
-
 app.post('/search', async (req, res) => {
   const { query } = req.body;
-  console.log("Received search query:", query);
+  console.log('Received search query:', query);
 
-  const result = await fetchFromWikipedia(query);
-  res.json(result); // ✅ structured correctly
+  if (!query) return res.status(400).json({ error: 'No query provided' });
+
+  const searchTerm = query.trim().replace(/\s+/g, '_');
+  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(searchTerm)}`;
+
+  try {
+    const { data: html } = await axios.get(wikiUrl);
+    const $ = cheerio.load(html);
+
+    // 🧠 Get first paragraph as summary
+    const firstParagraph = $('#mw-content-text p').first().text().trim();
+
+    // 🖼 Collect up to 20 images
+    const imageUrls = [];
+    $('#mw-content-text img').each((i, el) => {
+      if (imageUrls.length >= 20) return false;
+      const src = $(el).attr('src');
+      if (src && !src.includes('icon') && !src.includes('logo')) {
+        const full = src.startsWith('//') ? 'https:' + src : 'https://en.wikipedia.org' + src;
+        imageUrls.push(full);
+      }
+    });
+
+    // 📄 Collect up to 10 internal links for fcards
+    const fcards = [];
+    $('#mw-content-text a[href^="/wiki/"]').each((i, el) => {
+      if (fcards.length >= 10) return false;
+      const href = $(el).attr('href');
+      const text = $(el).text().trim();
+      if (href && text && !href.includes(':')) {
+        fcards.push({
+          title: text,
+          url: 'https://en.wikipedia.org' + href,
+          icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Wikipedia-logo.png/50px-Wikipedia-logo.png'
+        });
+      }
+    });
+
+    return res.json({
+      sentence: firstParagraph || 'No summary found.',
+      images: imageUrls,
+      web: fcards
+    });
+  } catch (err) {
+    console.error('❌ Wikipedia crawl error:', err.message);
+    return res.json({
+      sentence: 'Not found.',
+      images: [],
+      web: []
+    });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Fweb backend listening on port ${PORT}`);
-});
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
