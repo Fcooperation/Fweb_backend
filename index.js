@@ -8,12 +8,13 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Helper to fetch from Wikipedia API
 async function fetchFromWikipedia(query) {
   try {
+    // Summary extract
     const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
-    const summaryText = summaryRes.data.extract || "No summary found.";
+    const summaryText = summaryRes?.data?.extract || "No summary found.";
 
+    // Search results
     const searchRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
       params: {
         action: 'query',
@@ -24,15 +25,16 @@ async function fetchFromWikipedia(query) {
       }
     });
 
-    const searchResults = searchRes.data.query?.search || [];
+    const searchResults = searchRes.data?.query?.search || [];
 
     const web = searchResults.slice(0, 10).map(result => ({
       title: result.title,
-      snippet: result.snippet.replace(/<\/?[^>]+(>|$)/g, ""), // remove HTML tags
+      snippet: result.snippet.replace(/<\/?[^>]+(>|$)/g, ""),
       url: `https://en.wikipedia.org/wiki/${encodeURIComponent(result.title)}`
     }));
 
-    const imagesRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+    // Image results
+    const imageRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
       params: {
         action: 'query',
         prop: 'images',
@@ -42,15 +44,15 @@ async function fetchFromWikipedia(query) {
       }
     });
 
-    // Extract images (limit 20)
-    const pages = imagesRes.data.query?.pages || {};
+    const pages = imageRes?.data?.query?.pages || {};
     const images = [];
+
     for (const page of Object.values(pages)) {
       if (page.images) {
         for (const img of page.images) {
-          if (img.title && /\.(jpg|jpeg|png|gif)$/i.test(img.title)) {
-            const imageTitle = img.title.replace('File:', '');
-            images.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(imageTitle)}`);
+          const filename = img.title.replace('File:', '');
+          if (/\.(jpg|jpeg|png|gif)$/i.test(filename)) {
+            images.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`);
             if (images.length >= 20) break;
           }
         }
@@ -63,8 +65,9 @@ async function fetchFromWikipedia(query) {
       web,
       images
     };
+
   } catch (err) {
-    console.error("API flow error:", err.message);
+    console.error("API error:", err.message);
     return {
       sentence: "Not found",
       web: [],
@@ -73,16 +76,14 @@ async function fetchFromWikipedia(query) {
   }
 }
 
-// POST /search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   console.log("Received search query:", query);
 
-  const results = await fetchFromWikipedia(query);
-  res.json(results); // Send to frontend directly
+  const result = await fetchFromWikipedia(query);
+  res.json(result); // ✅ structured correctly
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Fweb backend listening on port ${PORT}`);
 });
