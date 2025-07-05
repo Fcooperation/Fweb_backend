@@ -9,10 +9,10 @@ app.use(express.json());
 
 app.post('/search', (req, res) => {
   const { query } = req.body;
-  console.log('Received query:', query);
-  res.json({ message: 'Backend received', query });
+  console.log('Received search query:', query);
+  res.json({ message: 'Backend received your query', yourQuery: query });
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
