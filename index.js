@@ -5,9 +5,9 @@ import FormData from 'form-data';
 const app = express();
 app.use(express.json());
 
-const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO'; // Your token
+const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
 
-// Search Wikipedia API helper
+// Search Wikipedia API helper - returns basic search results (title, snippet, url)
 async function searchWikipedia(query) {
   const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&utf8=1&origin=*`;
   const res = await fetch(url);
@@ -15,25 +15,34 @@ async function searchWikipedia(query) {
 
   if (!data.query || !data.query.search) return [];
 
-  // Map search results
   return data.query.search.map(item => ({
+    pageid: item.pageid,
     title: item.title,
     snippet: item.snippet.replace(/<\/?[^>]+(>|$)/g, ""), // strip HTML tags
     url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`
   }));
 }
 
+// Fetch extract (summary) and main image for a page by pageid
+async function fetchPageDetails(pageid) {
+  const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageimages&pageids=${pageid}&explaintext=1&exintro=1&pithumbsize=200&origin=*`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.query || !data.query.pages || !data.query.pages[pageid]) return {};
+
+  const page = data.query.pages[pageid];
+  return {
+    extract: page.extract || '',
+    thumbnail: page.thumbnail ? page.thumbnail.source : null
+  };
+}
+
 // Upload JSON to Gofile
 async function uploadToGofile(content, filename = 'search_result.json') {
-  // Step 1: Create an upload session
-  const createSessionRes = await fetch(`https://api.gofile.io/createAccount?token=${GOFILE_TOKEN}`);
-  // Gofile docs don't explicitly say createAccount is necessary here,
-  // but assuming you have an account with token ready.
-
-  // Step 2: Upload file to Gofile
   const form = new FormData();
   form.append('token', GOFILE_TOKEN);
-  form.append('file', Buffer.from(JSON.stringify(content)), filename);
+  form.append('file', Buffer.from(JSON.stringify(content, null, 2)), filename);
 
   const uploadRes = await fetch('https://api.gofile.io/uploadFile', {
     method: 'POST',
@@ -51,21 +60,35 @@ async function uploadToGofile(content, filename = 'search_result.json') {
 app.post('/search', async (req, res) => {
   try {
     const { query } = req.body;
-    if (!query) return res.status(400).json({ error: 'Missing query' });
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return res.status(400).json({ error: 'Missing or invalid query' });
+    }
 
     // Search Wikipedia
-    const results = await searchWikipedia(query);
+    const results = await searchWikipedia(query.trim());
 
-    // Upload to Gofile
+    // For each search result, fetch extract and thumbnail image
+    const detailedResults = await Promise.all(results.map(async (item) => {
+      const details = await fetchPageDetails(item.pageid);
+      return {
+        title: item.title,
+        snippet: item.snippet,
+        url: item.url,
+        extract: details.extract,
+        thumbnail: details.thumbnail
+      };
+    }));
+
+    // Upload detailed results to Gofile
     let gofileLink = null;
     try {
-      gofileLink = await uploadToGofile(results, `search_${Date.now()}.json`);
+      gofileLink = await uploadToGofile(detailedResults, `search_${Date.now()}.json`);
     } catch (uploadErr) {
       console.error('Gofile upload error:', uploadErr);
     }
 
-    // Respond with results and optionally gofile link
-    res.json({ web: results, gofileLink });
+    // Respond with detailed results and gofile link
+    res.json({ web: detailedResults, gofileLink });
   } catch (err) {
     console.error('Search error:', err);
     res.status(500).json({ error: 'Internal server error' });
