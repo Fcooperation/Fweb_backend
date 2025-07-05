@@ -1,9 +1,6 @@
-// index.js
-
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
@@ -11,7 +8,7 @@ const FormData = require('form-data');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Gofile token (your real token should go here)
+// Replace with your real Gofile token
 const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
 
 app.use(cors());
@@ -22,59 +19,73 @@ app.post('/search', async (req, res) => {
   console.log('Received search query:', query);
 
   try {
-    const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`;
-    const html = await axios.get(wikiUrl).then(res => res.data);
-    const $ = cheerio.load(html);
-
-    // Extract summary sentence (first paragraph)
-    const sentence = $('p').first().text().trim();
-
-    // Extract 10 links
-    const links = [];
-    $('a[href^="/wiki/"]').each((_, el) => {
-      const href = $(el).attr('href');
-      const title = $(el).text().trim();
-      if (title && links.length < 10 && !href.includes(':')) {
-        links.push({
-          title,
-          url: `https://en.wikipedia.org${href}`,
-          icon: 'https://en.wikipedia.org/static/favicon/wikipedia.ico',
-        });
-      }
+    // 1. Fetch summary + page links
+    const searchRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json',
+        srlimit: 10,
+      },
     });
 
-    // Extract 20 image URLs
-    const images = [];
-    $('img').each((_, el) => {
-      let src = $(el).attr('src');
-      if (src && !src.startsWith('http')) {
-        src = 'https:' + src;
-      }
-      if (images.length < 20 && src) {
-        images.push(src);
-      }
+    const searchResults = searchRes.data.query.search || [];
+
+    // 2. Get the first page summary
+    let sentence = '';
+    if (searchResults.length) {
+      const pageTitle = searchResults[0].title;
+      const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`);
+      sentence = summaryRes.data.extract || '';
+    }
+
+    // 3. Build 10 fcards (dummy Gofile links for now)
+    const web = searchResults.map(r => ({
+      title: r.title,
+      url: '#', // Placeholder — actual link later from Gofile
+      icon: 'https://en.wikipedia.org/static/favicon/wikipedia.ico',
+    }));
+
+    // 4. Fetch 20 related images using Wikimedia image search
+    const imageRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+      params: {
+        action: 'query',
+        generator: 'images',
+        titles: searchResults[0]?.title || query,
+        prop: 'imageinfo',
+        iiprop: 'url',
+        format: 'json',
+      },
     });
 
-    // ✅ 1. Send results to frontend first
+    let images = [];
+    const pages = imageRes.data.query?.pages || {};
+    for (let id in pages) {
+      const img = pages[id].imageinfo?.[0]?.url;
+      if (img && img.endsWith('.jpg') || img.endsWith('.png')) {
+        images.push(img);
+      }
+    }
+
+    images = images.slice(0, 20); // Limit to 20
+
+    // ✅ 5. Respond to frontend first
     res.json({
       sentence,
-      web: links.map(link => ({
-        title: link.title,
-        url: `#`, // Placeholder; replaced after upload
-        icon: link.icon,
-      })),
+      web,
       images,
       videos: [],
       books: [],
     });
 
-    // 🕓 2. In background, build HTML content to save to Gofile
+    // 🕓 6. Build HTML content and upload to Gofile
     const htmlContent = `
-      <h2>${query} - Wikipedia Extract</h2>
+      <h2>${query} - Wikipedia API Result</h2>
       <p><strong>Summary:</strong> ${sentence}</p>
-      <h3>Related Links</h3>
+      <h3>Related Pages</h3>
       <ul>
-        ${links.map(l => `<li><a href="${l.url}">${l.title}</a></li>`).join('')}
+        ${web.map(w => `<li><img src="${w.icon}" width="16" /> ${w.title}</li>`).join('')}
       </ul>
       <h3>Images</h3>
       ${images.map(img => `<img src="${img}" width="100" style="margin:5px"/>`).join('')}
@@ -83,7 +94,7 @@ app.post('/search', async (req, res) => {
     const filePath = path.join(__dirname, `${query}.html`);
     fs.writeFileSync(filePath, htmlContent);
 
-    // 3. Upload file to Gofile
+    // Upload to Gofile
     const form = new FormData();
     form.append('file', fs.createReadStream(filePath));
     form.append('token', GOFILE_TOKEN);
@@ -92,19 +103,16 @@ app.post('/search', async (req, res) => {
       headers: form.getHeaders(),
     });
 
-    const gofileData = gofileRes.data;
-
-    if (gofileData.status === 'ok') {
-      const fileLink = gofileData.data.downloadPage;
-
-      console.log(`✅ Uploaded to Gofile: ${fileLink}`);
+    if (gofileRes.data.status === 'ok') {
+      const gofileUrl = gofileRes.data.data.downloadPage;
+      console.log(`✅ Gofile upload: ${gofileUrl}`);
     } else {
-      console.error('Gofile upload error:', gofileData);
+      console.error('Gofile upload failed:', gofileRes.data);
     }
 
-    fs.unlinkSync(filePath); // clean up temp file
+    fs.unlinkSync(filePath); // Cleanup
   } catch (err) {
-    console.error('Error during Wikipedia crawl or upload:', err.message);
+    console.error('API flow error:', err.message);
   }
 });
 
