@@ -2,7 +2,6 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const cheerio = require('cheerio');
-const robotsParser = require('robots-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,98 +9,40 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 🧠 Category Sites
-const CATEGORIES = {
-  news: ['bbc.com', 'cnn.com', 'reuters.com', 'theguardian.com', 'nytimes.com'],
-  books: ['gutenberg.org', 'openlibrary.org', 'manybooks.net', 'bartleby.com'],
-  science: ['sciencedaily.com', 'arxiv.org', 'nasa.gov', 'nature.com'],
-  health: ['webmd.com', 'mayoclinic.org', 'cdc.gov', 'who.int'],
-  general: ['wikipedia.org', 'wiktionary.org', 'britannica.com', 'medium.com']
-};
-
-// 🧠 Category guesser
-function getCategory(query) {
-  const q = query.toLowerCase();
-  if (q.includes('covid') || q.includes('symptom')) return 'health';
-  if (q.includes('book') || q.includes('read')) return 'books';
-  if (q.includes('news') || q.includes('politics')) return 'news';
-  if (q.includes('gravity') || q.includes('experiment')) return 'science';
-  return 'general';
-}
-
-// 🛡️ Obey robots.txt
-async function obeyRobotsTxt(url) {
-  try {
-    const base = new URL(url).origin;
-    const { data } = await axios.get(`${base}/robots.txt`);
-    const robots = robotsParser(`${base}/robots.txt`, data);
-    return robots.isAllowed(url, '*');
-  } catch {
-    return true; // Assume allowed if robots.txt fails
-  }
-}
-
-// 📄 Extract relevant text
-async function extractSentencesFromPage(url, query) {
-  try {
-    const allowed = await obeyRobotsTxt(url);
-    if (!allowed) return null;
-
-    const { data } = await axios.get(url, { timeout: 5000 });
-    const $ = cheerio.load(data);
-
-    const texts = [];
-    $('p, li, h2, h3').each((_, el) => {
-      const text = $(el).text().trim();
-      if (text.length > 40 && text.toLowerCase().includes(query.toLowerCase())) {
-        texts.push({ sentence: text, source: url });
-      }
-    });
-
-    return texts;
-  } catch {
-    return null;
-  }
-}
-
-// 🔍 Perform search + crawl
-async function findAnswers(query) {
-  const category = getCategory(query);
-  const sites = CATEGORIES[category] || CATEGORIES['general'];
-
+// 📚 Crawl books.toscrape.com for matching titles
+async function findBooks(query) {
+  const BASE = 'https://books.toscrape.com/catalogue/page-';
   const results = [];
+  const MAX_PAGES = 5;
 
-  for (let site of sites) {
-    const searchURL = `https://www.google.com/search?q=site:${site}+${encodeURIComponent(query)}`;
+  for (let i = 1; i <= MAX_PAGES; i++) {
+    const url = `${BASE}${i}.html`;
+
     try {
-      const { data } = await axios.get(searchURL, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
-
+      const { data } = await axios.get(url);
       const $ = cheerio.load(data);
-      const links = [];
 
-      $('a').each((_, el) => {
-        const href = $(el).attr('href');
-        if (href && href.startsWith('/url?q=')) {
-          const clean = decodeURIComponent(href.split('/url?q=')[1].split('&')[0]);
-          if (!clean.includes('google')) links.push(clean);
+      $('.product_pod').each((_, el) => {
+        const title = $(el).find('h3 a').attr('title') || '';
+        const link = $(el).find('h3 a').attr('href') || '';
+        const price = $(el).find('.price_color').text().trim();
+
+        if (title.toLowerCase().includes(query.toLowerCase())) {
+          results.push({
+            sentence: `📘 ${title} — Price: ${price}`,
+            source: `https://books.toscrape.com/catalogue/${link}`
+          });
         }
       });
-
-      for (let link of links.slice(0, 2)) {
-        const sentences = await extractSentencesFromPage(link, query);
-        if (sentences) results.push(...sentences);
-      }
-    } catch {
-      continue;
+    } catch (err) {
+      console.error(`❌ Error scraping page ${i}:`, err.message);
     }
   }
 
   return results;
 }
 
-// 🔁 Endpoint for frontend
+// 🔁 API endpoint to handle search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   console.log('🔍 Received search query:', query);
@@ -111,18 +52,19 @@ app.post('/search', async (req, res) => {
   }
 
   try {
-    const found = await findAnswers(query);
+    const found = await findBooks(query);
+
     if (!found || found.length === 0) {
       return res.json({
-        mainAnswer: `❌ No results found for "${query}".`,
+        mainAnswer: `❌ No books found for "${query}".`,
         otherAnswers: [],
         sources: []
       });
     }
 
     const mainAnswer = found[0].sentence;
-    const sources = [...new Set(found.map(f => f.source))];
     const otherAnswers = found.slice(1, 5).map(f => f.sentence);
+    const sources = [...new Set(found.map(f => f.source))];
 
     res.json({ mainAnswer, otherAnswers, sources });
   } catch (err) {
@@ -133,5 +75,5 @@ app.post('/search', async (req, res) => {
 
 // ✅ Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Fweb backend running on port ${PORT}`);
+  console.log(`📚 fAi + BooksToScrape server running on http://localhost:${PORT}`);
 });
