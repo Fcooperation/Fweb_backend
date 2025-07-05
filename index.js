@@ -3,105 +3,102 @@ const cors = require('cors');
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
-const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
 
 app.use(cors());
 app.use(express.json());
+
+const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
 
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   console.log('Received search query:', query);
 
+  const result = {
+    sentence: '',
+    web: [],
+    images: []
+  };
+
   try {
-    // 1. Get summary from Wikipedia API
-    const summaryRes = await axios.get(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
-    );
-    const summary = summaryRes.data.extract || 'No summary available.';
-    const pageUrl = summaryRes.data.content_urls?.desktop?.page || null;
+    // 1. Get summary for sentenceCrawl
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+    result.sentence = summaryRes.data.extract || '';
 
-    // 2. Get search results from Wikipedia search API
-    const searchRes = await axios.get(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json`
-    );
+    // 2. Get search results
+    const searchRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json',
+        srlimit: 10
+      }
+    });
 
-    const searchResults = searchRes.data.query.search;
-
-    // 3. Prepare fcards (limit to 10)
-    const webResults = searchResults.slice(0, 10).map(result => ({
-      title: result.title,
-      snippet: result.snippet.replace(/<\/?[^>]+(>|$)/g, ""),
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(result.title)}`
+    const searchResults = searchRes.data.query.search || [];
+    result.web = searchResults.map(item => ({
+      title: item.title,
+      snippet: item.snippet.replace(/<\/?[^>]+(>|$)/g, ""),
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title)}`
     }));
 
-    // 4. Fetch 20 images related to query (using Wikimedia)
-    const imageRes = await axios.get(
-      `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=20&prop=imageinfo&iiprop=url&iiurlwidth=300&origin=*`
-    );
+    // 3. Get related images from Wikimedia
+    const imageRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+      params: {
+        action: 'query',
+        prop: 'pageimages',
+        format: 'json',
+        piprop: 'thumbnail',
+        pithumbsize: 300,
+        generator: 'search',
+        gsrlimit: 20,
+        gsrsearch: query
+      }
+    });
 
     const pages = imageRes.data.query?.pages || {};
-    const imageResults = Object.values(pages)
-      .map(p => p.imageinfo?.[0]?.thumburl)
+    result.images = Object.values(pages)
+      .map(p => p.thumbnail?.source)
       .filter(Boolean)
       .slice(0, 20);
 
-    // Send to frontend first
-    res.json({
-      sentence: summary,
-      web: webResults,
-      images: imageResults
-    });
+    // === ✅ Feed users FIRST ===
+    res.json(result);
 
-    // 5. Save content to a .txt and upload to Gofile
-    const fileContent = `Search: ${query}\n\n${summary}\n\nLinks:\n` +
-      webResults.map(item => `${item.title}: ${item.url}`).join('\n');
+    // === Then silently save to Gofile ===
+    const textContent = `
+Query: ${query}
+Sentence: ${result.sentence}
+Links:
+${result.web.map(r => `${r.title} - ${r.url}`).join('\n')}
+`;
 
-    const filename = `${uuidv4()}-${query}.txt`;
-    const filepath = `./temp/${filename}`;
-    fs.mkdirSync('./temp', { recursive: true });
-    fs.writeFileSync(filepath, fileContent);
+    const filePath = path.join(__dirname, `${Date.now()}-${query}.txt`);
+    fs.writeFileSync(filePath, textContent, 'utf8');
 
-    const gofileUrl = await uploadToGofile(filepath, GOFILE_TOKEN);
-    if (gofileUrl) console.log("Uploaded to Gofile:", gofileUrl);
-    else console.error("Gofile upload failed");
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath));
+    form.append('token', GOFILE_TOKEN);
 
-    fs.unlinkSync(filepath); // cleanup
+    try {
+      const gofileUpload = await axios.post('https://api.gofile.io/uploadFile', form, {
+        headers: form.getHeaders()
+      });
+      console.log('Gofile upload success:', gofileUpload.data?.data?.downloadPage);
+    } catch (gofileErr) {
+      console.log('Gofile upload error:', gofileErr.response?.statusText || gofileErr.message);
+    }
+
+    fs.unlink(filePath, () => {});
   } catch (err) {
-    console.error("API flow error:", err.message);
-
-    res.json({
-      sentence: "Not found.",
-      web: [],
-      images: []
-    });
+    console.error('API flow error:', err.response?.statusText || err.message);
+    return res.json({ sentence: 'Not found', web: [], images: [] });
   }
 });
-
-async function uploadToGofile(filePath, token) {
-  const form = new FormData();
-  form.append('file', fs.createReadStream(filePath));
-
-  try {
-    const res = await axios.post(`https://api.gofile.io/uploadFile?token=${token}`, form, {
-      headers: form.getHeaders(),
-      timeout: 10000
-    });
-
-    if (res.data.status === 'ok') {
-      return res.data.data.downloadPage;
-    } else {
-      console.error("Gofile upload failed:", res.data);
-      return null;
-    }
-  } catch (err) {
-    console.error("Gofile upload error:", err.message);
-    return null;
-  }
-}
 
 app.listen(PORT, () => {
   console.log(`Fweb backend listening on port ${PORT}`);
