@@ -1,9 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const fs = require('fs');
-const FormData = require('form-data');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,95 +8,81 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const GOFILE_TOKEN = 'e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO';
-
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  console.log('Received search query:', query);
-
-  const result = {
-    sentence: '',
-    web: [],
-    images: []
-  };
-
+// Helper to fetch from Wikipedia API
+async function fetchFromWikipedia(query) {
   try {
-    // 1. Get summary for sentenceCrawl
     const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
-    result.sentence = summaryRes.data.extract || '';
+    const summaryText = summaryRes.data.extract || "No summary found.";
 
-    // 2. Get search results
     const searchRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
       params: {
         action: 'query',
         list: 'search',
         srsearch: query,
         format: 'json',
-        srlimit: 10
+        origin: '*'
       }
     });
 
-    const searchResults = searchRes.data.query.search || [];
-    result.web = searchResults.map(item => ({
-      title: item.title,
-      snippet: item.snippet.replace(/<\/?[^>]+(>|$)/g, ""),
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title)}`
+    const searchResults = searchRes.data.query?.search || [];
+
+    const web = searchResults.slice(0, 10).map(result => ({
+      title: result.title,
+      snippet: result.snippet.replace(/<\/?[^>]+(>|$)/g, ""), // remove HTML tags
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(result.title)}`
     }));
 
-    // 3. Get related images from Wikimedia
-    const imageRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
+    const imagesRes = await axios.get(`https://en.wikipedia.org/w/api.php`, {
       params: {
         action: 'query',
-        prop: 'pageimages',
+        prop: 'images',
+        titles: query,
         format: 'json',
-        piprop: 'thumbnail',
-        pithumbsize: 300,
-        generator: 'search',
-        gsrlimit: 20,
-        gsrsearch: query
+        origin: '*'
       }
     });
 
-    const pages = imageRes.data.query?.pages || {};
-    result.images = Object.values(pages)
-      .map(p => p.thumbnail?.source)
-      .filter(Boolean)
-      .slice(0, 20);
-
-    // === ✅ Feed users FIRST ===
-    res.json(result);
-
-    // === Then silently save to Gofile ===
-    const textContent = `
-Query: ${query}
-Sentence: ${result.sentence}
-Links:
-${result.web.map(r => `${r.title} - ${r.url}`).join('\n')}
-`;
-
-    const filePath = path.join(__dirname, `${Date.now()}-${query}.txt`);
-    fs.writeFileSync(filePath, textContent, 'utf8');
-
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath));
-    form.append('token', GOFILE_TOKEN);
-
-    try {
-      const gofileUpload = await axios.post('https://api.gofile.io/uploadFile', form, {
-        headers: form.getHeaders()
-      });
-      console.log('Gofile upload success:', gofileUpload.data?.data?.downloadPage);
-    } catch (gofileErr) {
-      console.log('Gofile upload error:', gofileErr.response?.statusText || gofileErr.message);
+    // Extract images (limit 20)
+    const pages = imagesRes.data.query?.pages || {};
+    const images = [];
+    for (const page of Object.values(pages)) {
+      if (page.images) {
+        for (const img of page.images) {
+          if (img.title && /\.(jpg|jpeg|png|gif)$/i.test(img.title)) {
+            const imageTitle = img.title.replace('File:', '');
+            images.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(imageTitle)}`);
+            if (images.length >= 20) break;
+          }
+        }
+      }
+      if (images.length >= 20) break;
     }
 
-    fs.unlink(filePath, () => {});
+    return {
+      sentence: summaryText,
+      web,
+      images
+    };
   } catch (err) {
-    console.error('API flow error:', err.response?.statusText || err.message);
-    return res.json({ sentence: 'Not found', web: [], images: [] });
+    console.error("API flow error:", err.message);
+    return {
+      sentence: "Not found",
+      web: [],
+      images: []
+    };
   }
+}
+
+// POST /search
+app.post('/search', async (req, res) => {
+  const { query } = req.body;
+  console.log("Received search query:", query);
+
+  const results = await fetchFromWikipedia(query);
+  res.json(results); // Send to frontend directly
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`Fweb backend listening on port ${PORT}`);
 });
