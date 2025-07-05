@@ -1,15 +1,16 @@
 {
   "name": "fweb-backend",
   "version": "1.0.0",
+  "description": "Fweb backend for crawling Wikipedia and sending structured results to the frontend",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "axios": "^1.6.7",
+    "axios": "^1.6.8",
+    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "form-data": "^4.0.0",
-    "uuid": "^9.0.1"
+    "express": "^4.19.2"
   }
 }
