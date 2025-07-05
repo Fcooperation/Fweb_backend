@@ -1,9 +1,9 @@
 {
-  "name": "fweb-backend",
+  "name": "fserver-backend",
   "version": "1.0.0",
-  "description": "Fweb backend for crawling Wikipedia and sending structured results to the frontend",
-  "type": "module",
+  "description": "Backend server for Fweb using Express and sentence-based crawling AI (fAi)",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
@@ -11,6 +11,7 @@
     "axios": "^1.6.8",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "robots-parser": "^3.2.0"
   }
 }
