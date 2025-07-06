@@ -15,31 +15,38 @@ function scoreAnswer(answer, query) {
   return score;
 }
 
-async function fetchFromDuckDuckGo(query) {
+export async function getAnswer(query) {
   try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-    const res = await axios.get(url);
-    const data = res.data;
+    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json',
+      }
+    });
 
-    const main = data.AbstractText?.split('. ')[0] + '.' || null;
-    const source = data.AbstractURL || null;
-    const title = data.Heading || "DuckDuckGo Result";
+    const results = searchRes.data.query.search;
+    if (!results || results.length === 0) return null;
 
-    if (!main || !source) return null;
+    const bestTitle = results[0].title;
+    const encodedTitle = encodeURIComponent(bestTitle);
+
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`);
+    const summaryData = summaryRes.data;
+
+    const main = summaryData.extract?.split('. ')[0] + '.' || "No summary found.";
+    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodedTitle}`;
 
     return {
-      sourceName: 'DuckDuckGo',
+      sourceName: 'Wikipedia',
       main,
-      title,
+      title: bestTitle,
       source
     };
+
   } catch (err) {
-    console.error('❌ DuckDuckGo error:', err.message);
+    console.error('❌ Wikipedia error:', err.message);
     return null;
   }
-}
-
-export async function getAnswer(query) {
-  const duck = await fetchFromDuckDuckGo(query);
-  return duck || null;
 }
