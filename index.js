@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
+import * as cheerio from 'cheerio'; // ES module style
 import cors from 'cors';
 
 const app = express();
@@ -9,10 +9,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Clean and lowercase text
 function cleanText(text) {
   return text.toLowerCase().replace(/[^\w\s]/g, '');
 }
 
+// Score sentence by how many query words it matches
 function scoreSentence(sentence, query) {
   const queryWords = new Set(cleanText(query).split(/\s+/));
   const sentenceWords = new Set(cleanText(sentence).split(/\s+/));
@@ -23,15 +25,32 @@ function scoreSentence(sentence, query) {
   return score;
 }
 
+// Extract the best sentence that matches the query
+function getBestSentence(allSentences, query) {
+  const queryWords = cleanText(query).split(/\s+/);
+  const scored = allSentences.map(text => {
+    const sentence = text.trim();
+    const score = scoreSentence(sentence, query);
+    return { text: sentence, score };
+  }).filter(s => s.score > 0); // Only keep relevant ones
+
+  if (scored.length === 0) return null;
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].text;
+}
+
+// Detect optional categories (used in frontend)
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
   if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
   if (lower.includes('news') || lower.includes('reported')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel') || lower.includes('textbook')) categories.push('books');
+  if (lower.includes('book') || lower.includes('novel')) categories.push('books');
   return categories;
 }
 
+// Main smart crawl logic
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
@@ -54,6 +73,7 @@ async function getSmartCrawl(query) {
     const { data: html } = await axios.get(pageUrl);
     const $ = cheerio.load(html);
 
+    // Extract sentences from all <p> blocks
     const allSentences = [];
     $('p').each((_, el) => {
       const text = $(el).text().trim();
@@ -61,14 +81,8 @@ async function getSmartCrawl(query) {
       allSentences.push(...sentences);
     });
 
-    if (allSentences.length === 0) return null;
-
-    const scored = allSentences.map(s => ({
-      text: s.trim(),
-      score: scoreSentence(s, query)
-    })).sort((a, b) => b.score - a.score);
-
-    const bestSentence = scored.find(s => s.score > 0) || scored[0];
+    const bestSentence = getBestSentence(allSentences, query);
+    if (!bestSentence) return null;
 
     const images = [];
     $('#mw-content-text img').each((_, el) => {
@@ -78,11 +92,10 @@ async function getSmartCrawl(query) {
       }
     });
 
-    const joinedText = allSentences.join(' ');
-    const categories = detectCategories(joinedText);
+    const categories = detectCategories(allSentences.join(' '));
 
     return {
-      main: bestSentence.text,
+      main: bestSentence,
       related: [],
       images: [...new Set(images)].slice(0, 20),
       source: pageUrl,
@@ -95,6 +108,7 @@ async function getSmartCrawl(query) {
   }
 }
 
+// API route
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
@@ -120,6 +134,7 @@ app.post('/search', async (req, res) => {
   });
 });
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`🚀 fAi backend running at port ${PORT}`);
 });
