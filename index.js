@@ -1,8 +1,9 @@
+// index.js
 import express from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import cors from 'cors';
-import { getAnswer } from './fAi.js'; // 👈 Importing from fAi
+import { getAnswer } from './fAi.js'; // Correctly imported
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,7 +47,6 @@ async function getImagesAndCategories(wikiUrl) {
     });
 
     return { images, categories };
-
   } catch (err) {
     console.error(`❌ Error scraping article: ${err.message}`);
     return { images: [], categories: [] };
