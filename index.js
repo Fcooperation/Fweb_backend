@@ -9,11 +9,25 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-async function getSentenceCrawl(query) {
-  console.log(`🔎 Sentence crawling: "${query}"`);
+function cleanText(text) {
+  return text.toLowerCase().replace(/[^\w\s]/gi, '');
+}
+
+function scoreSentence(sentence, query) {
+  const queryWords = new Set(cleanText(query).split(/\s+/));
+  const sentenceWords = new Set(cleanText(sentence).split(/\s+/));
+  let score = 0;
+  queryWords.forEach(word => {
+    if (sentenceWords.has(word)) score++;
+  });
+  return score;
+}
+
+async function getSmartCrawl(query) {
+  console.log(`🔍 Smart crawling: "${query}"`);
 
   try {
-    // Search Wikipedia
+    // Step 1: Search Wikipedia
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
@@ -34,7 +48,7 @@ async function getSentenceCrawl(query) {
 
     console.log(`📄 Crawling Wikipedia: "${bestTitle}"`);
 
-    // Get the article
+    // Step 2: Load the article page
     const { data: html } = await axios.get(pageUrl);
     const $ = cheerio.load(html);
 
@@ -50,11 +64,17 @@ async function getSentenceCrawl(query) {
       return null;
     }
 
-    const main = allSentences[0];
-    const related = allSentences.slice(1, 4);
+    // Step 3: Score and pick best sentence
+    const scored = allSentences.map(s => ({
+      text: s,
+      score: scoreSentence(s, query)
+    })).sort((a, b) => b.score - a.score);
+
+    const best = scored[0];
+    const related = scored.slice(1, 4).map(s => s.text);
 
     return {
-      main,
+      main: best.text,
       related,
       source: pageUrl,
       title: bestTitle
@@ -69,7 +89,7 @@ app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  const data = await getSentenceCrawl(query);
+  const data = await getSmartCrawl(query);
   if (!data) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
@@ -87,5 +107,5 @@ app.post('/search', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Fweb backend ready at port ${PORT}`);
+  console.log(`🚀 fAi backend ready at port ${PORT}`);
 });
