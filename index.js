@@ -1,49 +1,53 @@
-// index.js (fixed version without sentence-transformers)
 const express = require("express");
 const axios = require("axios");
-const app = express();
-const PORT = process.env.PORT || 3000;
+const cheerio = require("cheerio");
 
+const app = express();
 app.use(express.json());
 
-// Smart sentence extractor
-function extractBestSentences(content, query) {
-  const lines = content.split(/(?<=[.?!])\s+/).filter(l => l.length > 30);
-  const matched = lines
-    .map(s => ({
-      text: s,
-      score: s.toLowerCase().includes(query.toLowerCase()) ? 1 : 0
-    }))
-    .filter(s => s.score > 0);
-
-  return {
-    response: matched[0]?.text || lines[0] || "No content found.",
-    related: matched.slice(1, 4).map(x => x.text)
-  };
-}
-
 app.post("/search", async (req, res) => {
-  const query = req.body.query || "";
-  if (!query) return res.json({ response: "❌ Empty query." });
+  const query = req.body.query;
+  console.log(`🔎 Reading search: "${query}"`);
 
-  const fallback = query.split(" ").slice(-1)[0];
-  const pageTitle = fallback.charAt(0).toUpperCase() + fallback.slice(1);
+  const pageTitle = query.split(" ").slice(-1)[0].toLowerCase(); // fallback guess
+  const wikiTitle = query.replace(/\s+/g, "_");
+  const url = `https://en.wikipedia.org/wiki/${wikiTitle}`;
 
   try {
-    const wikiRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/plain/${pageTitle}`);
-    const { response, related } = extractBestSentences(wikiRes.data, query);
+    console.log(`📄 Crawling Wikipedia for: "${wikiTitle}"`);
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+
+    const paragraphs = $("p")
+      .map((i, el) => $(el).text().trim())
+      .get()
+      .filter((txt) => txt.length > 50);
+
+    const match = paragraphs.find((p) =>
+      p.toLowerCase().includes(query.toLowerCase())
+    );
+
+    const mainAnswer = match || paragraphs[0] || "No matching content found.";
+
+    const related = paragraphs
+      .filter((p) => p !== mainAnswer)
+      .slice(0, 5);
 
     res.json({
-      response,
+      response: mainAnswer,
       related,
-      title: pageTitle,
-      source: `https://en.wikipedia.org/wiki/${pageTitle}`
+      source: url,
+      title: `Wikipedia: ${wikiTitle}`
     });
   } catch (err) {
-    res.json({ response: "❌ Not found.", error: err.message });
+    console.log(`❌ Wikipedia crawl error for "${query}": ${err.message}`);
+    res.json({
+      response: "❌ No result found.",
+      related: [],
+      source: null
+    });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ fAi backend running → http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ fAi backend running on port ${PORT}`));
