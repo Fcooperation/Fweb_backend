@@ -1,7 +1,7 @@
-const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const cors = require('cors');
+import express from 'express';
+import axios from 'axios';
+import cheerio from 'cheerio';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 function cleanText(text) {
-  return text.toLowerCase().replace(/[^\w\s]/gi, '');
+  return text.toLowerCase().replace(/[^\w\s]/g, '');
 }
 
 function scoreSentence(sentence, query) {
@@ -23,11 +23,19 @@ function scoreSentence(sentence, query) {
   return score;
 }
 
+function detectCategories(text) {
+  const categories = [];
+  const lower = text.toLowerCase();
+  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
+  if (lower.includes('news') || lower.includes('reported')) categories.push('news');
+  if (lower.includes('book') || lower.includes('novel')) categories.push('books');
+  return categories;
+}
+
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
   try {
-    // Step 1: Search Wikipedia
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
@@ -38,17 +46,11 @@ async function getSmartCrawl(query) {
     });
 
     const results = searchRes.data.query.search;
-    if (!results || results.length === 0) {
-      console.log(`❌ No match found for "${query}"`);
-      return null;
-    }
+    if (!results || results.length === 0) return null;
 
     const bestTitle = results[0].title;
     const pageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
 
-    console.log(`📄 Crawling Wikipedia: "${bestTitle}"`);
-
-    // Step 2: Load the article page
     const { data: html } = await axios.get(pageUrl);
     const $ = cheerio.load(html);
 
@@ -59,12 +61,8 @@ async function getSmartCrawl(query) {
       allSentences.push(...split);
     });
 
-    if (allSentences.length === 0) {
-      console.log(`❌ No sentences found at: ${pageUrl}`);
-      return null;
-    }
+    if (allSentences.length === 0) return null;
 
-    // Step 3: Score and pick best sentence
     const scored = allSentences.map(s => ({
       text: s,
       score: scoreSentence(s, query)
@@ -72,15 +70,26 @@ async function getSmartCrawl(query) {
 
     const best = scored[0];
     const related = scored.slice(1, 4).map(s => s.text);
+    const categories = detectCategories(allSentences.join(' '));
+
+    const images = [];
+    $('#mw-content-text img').each((_, el) => {
+      const src = $(el).attr('src') || '';
+      if (src && !src.includes('icon') && !src.includes('logo')) {
+        images.push(src.startsWith('http') ? src : `https:${src}`);
+      }
+    });
 
     return {
       main: best.text,
       related,
+      images: [...new Set(images)].slice(0, 10),
       source: pageUrl,
-      title: bestTitle
+      title: bestTitle,
+      categories
     };
   } catch (err) {
-    console.error(`❌ Crawl error for "${query}":`, err.message);
+    console.error(`❌ Error: ${err.message}`);
     return null;
   }
 }
@@ -91,21 +100,19 @@ app.post('/search', async (req, res) => {
 
   const data = await getSmartCrawl(query);
   if (!data) {
-    return res.json({
-      response: `❌ Couldn't find anything for "${query}"`,
-      related: [],
-      source: null
-    });
+    return res.json({ response: `❌ Couldn't find anything for "${query}"`, related: [], images: [], categories: [], source: null });
   }
 
   res.json({
     response: data.main,
     related: data.related,
+    images: data.images,
     source: data.source,
-    title: data.title
+    title: data.title,
+    categories: data.categories
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend ready at port ${PORT}`);
+  console.log(`🚀 fAi backend running at port ${PORT}`);
 });
