@@ -1,5 +1,6 @@
 import express from 'express';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 import cors from 'cors';
 
 const app = express();
@@ -21,7 +22,7 @@ async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
   try {
-    // 1. Search for title using Wikipedia's search API
+    // 1. Search for the page title
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
@@ -35,20 +36,34 @@ async function getSmartCrawl(query) {
     if (!results || results.length === 0) return null;
 
     const bestTitle = results[0].title;
+    const encodedTitle = encodeURIComponent(bestTitle);
+    const wikiPageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
 
-    // 2. Get smart summary via REST API
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
+    // 2. Fetch smart summary
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`);
     const summaryData = summaryRes.data;
 
     const main = summaryData.extract || "No summary found.";
-    const image = summaryData.originalimage?.source || null;
-    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
-
+    const source = summaryData.content_urls?.desktop?.page || wikiPageUrl;
     const categories = detectCategories(main);
+
+    // 3. Scrape up to 20 images from the full article
+    const htmlRes = await axios.get(wikiPageUrl);
+    const $ = cheerio.load(htmlRes.data);
+    const images = [];
+
+    $('#mw-content-text img').each((_, el) => {
+      if (images.length >= 20) return;
+      const src = $(el).attr('src') || '';
+      if (src && !src.includes('icon') && !src.includes('logo') && !src.includes('wikimedia-button')) {
+        const fullSrc = src.startsWith('http') ? src : `https:${src}`;
+        images.push(fullSrc);
+      }
+    });
 
     return {
       main,
-      image,
+      images,
       title: bestTitle,
       source,
       categories
@@ -78,7 +93,7 @@ app.post('/search', async (req, res) => {
   res.json({
     response: data.main,
     related: [],
-    images: data.image ? [data.image] : [],
+    images: data.images,
     source: data.source,
     title: data.title,
     categories: data.categories
