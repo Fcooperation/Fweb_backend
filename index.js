@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import cors from 'cors';
-import { getAnswer } from './fai.js'; // 👈 Importing from fAi
+import { getAnswer } from './fAi.js'; // 👈 Importing from fAi
 
 const app = express();
 const PORT = process.env.PORT || 3000;
