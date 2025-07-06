@@ -1,16 +1,15 @@
-// fAi.js
 import axios from 'axios';
 
 function cleanText(text) {
   return text.toLowerCase().replace(/[^\w\s]/g, '');
 }
 
-function scoreAnswer(answer, query) {
+function scoreSentence(sentence, query) {
   const queryWords = new Set(cleanText(query).split(/\s+/));
-  const answerWords = new Set(cleanText(answer).split(/\s+/));
+  const sentenceWords = new Set(cleanText(sentence).split(/\s+/));
   let score = 0;
   queryWords.forEach(word => {
-    if (answerWords.has(word)) score++;
+    if (sentenceWords.has(word)) score++;
   });
   return score;
 }
@@ -35,18 +34,28 @@ export async function getAnswer(query) {
     const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`);
     const summaryData = summaryRes.data;
 
-    const main = summaryData.extract?.split('. ')[0] + '.' || "No summary found.";
-    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodedTitle}`;
+    const fullText = summaryData.extract || '';
+    const sentences = fullText.split(/(?<=[.?!])\s+/).filter(s => s.length > 20);
+
+    if (sentences.length === 0) return null;
+
+    // If sentence starts with direct answer format, return that
+    const direct = sentences.find(s =>
+      /^(yes|no|it|they|he|she|this|that|the)/i.test(s.trim())
+    );
+
+    const best = direct || sentences
+      .map(s => ({ text: s, score: scoreSentence(s, query) }))
+      .sort((a, b) => b.score - a.score)[0].text;
 
     return {
-      sourceName: 'Wikipedia',
-      main,
       title: bestTitle,
-      source
+      main: best,
+      source: summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodedTitle}`
     };
 
   } catch (err) {
-    console.error('❌ Wikipedia error:', err.message);
+    console.error('❌ fAi error:', err.message);
     return null;
   }
 }
