@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import * as cheerio from 'cheerio'; // ES module style
+import * as cheerio from 'cheerio';
 import cors from 'cors';
 
 const app = express();
@@ -9,12 +9,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Clean and lowercase text
 function cleanText(text) {
   return text.toLowerCase().replace(/[^\w\s]/g, '');
 }
 
-// Score sentence by how many query words it matches
 function scoreSentence(sentence, query) {
   const queryWords = new Set(cleanText(query).split(/\s+/));
   const sentenceWords = new Set(cleanText(sentence).split(/\s+/));
@@ -25,22 +23,6 @@ function scoreSentence(sentence, query) {
   return score;
 }
 
-// Extract the best sentence that matches the query
-function getBestSentence(allSentences, query) {
-  const queryWords = cleanText(query).split(/\s+/);
-  const scored = allSentences.map(text => {
-    const sentence = text.trim();
-    const score = scoreSentence(sentence, query);
-    return { text: sentence, score };
-  }).filter(s => s.score > 0); // Only keep relevant ones
-
-  if (scored.length === 0) return null;
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].text;
-}
-
-// Detect optional categories (used in frontend)
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -50,7 +32,34 @@ function detectCategories(text) {
   return categories;
 }
 
-// Main smart crawl logic
+function isDefinitionQuery(q) {
+  return /^(what is|define|explain|meaning of)/i.test(q.trim());
+}
+
+function isYesNoQuery(q) {
+  return /^(is|are|can|do|does|did|should|will|would)/i.test(q.trim());
+}
+
+function chooseSmartSentence(sentences, query) {
+  const cleanedQuery = cleanText(query);
+  const subject = cleanedQuery.split(/\s+/)[1] || cleanedQuery.split(/\s+/)[0];
+
+  for (let s of sentences) {
+    const lc = s.toLowerCase();
+    if (isDefinitionQuery(query) && lc.startsWith(subject + " is")) return s;
+    if (isYesNoQuery(query) && lc.startsWith(subject)) return s;
+    if (isYesNoQuery(query) && lc.includes("not") && lc.includes(subject)) return s;
+  }
+
+  // fallback to best score
+  const scored = sentences.map(s => ({
+    text: s,
+    score: scoreSentence(s, query)
+  })).sort((a, b) => b.score - a.score);
+
+  return scored[0]?.text || null;
+}
+
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
@@ -69,20 +78,20 @@ async function getSmartCrawl(query) {
 
     const bestTitle = results[0].title;
     const pageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
-
     const { data: html } = await axios.get(pageUrl);
     const $ = cheerio.load(html);
 
-    // Extract sentences from all <p> blocks
     const allSentences = [];
     $('p').each((_, el) => {
       const text = $(el).text().trim();
-      const sentences = text.split(/(?<=[.?!])\s+/).filter(s => s.length >= 30 && s.includes('.'));
-      allSentences.push(...sentences);
+      const split = text.split(/(?<=[.?!])\s+/).filter(s => s.length >= 15);
+      allSentences.push(...split);
     });
 
-    const bestSentence = getBestSentence(allSentences, query);
-    if (!bestSentence) return null;
+    const smartSentence = chooseSmartSentence(allSentences, query);
+    if (!smartSentence) return null;
+
+    const categories = detectCategories(allSentences.join(' '));
 
     const images = [];
     $('#mw-content-text img').each((_, el) => {
@@ -92,11 +101,9 @@ async function getSmartCrawl(query) {
       }
     });
 
-    const categories = detectCategories(allSentences.join(' '));
-
     return {
-      main: bestSentence,
-      related: [],
+      main: smartSentence,
+      related: [], // Optional: we’re skipping for now to keep it direct
       images: [...new Set(images)].slice(0, 20),
       source: pageUrl,
       title: bestTitle,
@@ -108,7 +115,6 @@ async function getSmartCrawl(query) {
   }
 }
 
-// API route
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
@@ -120,7 +126,8 @@ app.post('/search', async (req, res) => {
       related: [],
       images: [],
       categories: [],
-      source: null
+      source: null,
+      title: null
     });
   }
 
@@ -134,7 +141,6 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend running at port ${PORT}`);
+  console.log(`🚀 fAi backend running on port ${PORT}`);
 });
