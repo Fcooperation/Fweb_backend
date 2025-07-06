@@ -9,11 +9,24 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-async function getSentenceCrawl(query) {
-  console.log(`🔎 Sentence crawling: "${query}"`);
+function findBestMatch(sentences, query) {
+  const qWords = query.toLowerCase().split(/\s+/);
+  const matches = sentences
+    .map(s => ({
+      text: s,
+      score: qWords.reduce((acc, word) =>
+        s.toLowerCase().includes(word) ? acc + 1 : acc, 0)
+    }))
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return matches.length > 0 ? matches.map(m => m.text).slice(0, 3) : [];
+}
+
+async function getSmartSentenceCrawl(query) {
+  console.log(`🔍 Searching smart: "${query}"`);
 
   try {
-    // Search Wikipedia
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
@@ -25,16 +38,13 @@ async function getSentenceCrawl(query) {
 
     const results = searchRes.data.query.search;
     if (!results || results.length === 0) {
-      console.log(`❌ No match found for "${query}"`);
       return null;
     }
 
     const bestTitle = results[0].title;
     const pageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
+    console.log(`📄 Crawling Wikipedia: "${bestTitle}" → ${pageUrl}`);
 
-    console.log(`📄 Crawling Wikipedia: "${bestTitle}"`);
-
-    // Get the article
     const { data: html } = await axios.get(pageUrl);
     const $ = cheerio.load(html);
 
@@ -45,22 +55,19 @@ async function getSentenceCrawl(query) {
       allSentences.push(...split);
     });
 
-    if (allSentences.length === 0) {
-      console.log(`❌ No sentences found at: ${pageUrl}`);
-      return null;
-    }
+    if (allSentences.length === 0) return null;
 
-    const main = allSentences[0];
-    const related = allSentences.slice(1, 4);
+    const matched = findBestMatch(allSentences, query);
+    const fallback = allSentences[0];
 
     return {
-      main,
-      related,
+      main: matched[0] || fallback,
+      related: matched.slice(1),
       source: pageUrl,
       title: bestTitle
     };
   } catch (err) {
-    console.error(`❌ Crawl error for "${query}":`, err.message);
+    console.error(`❌ Smart crawl failed for "${query}":`, err.message);
     return null;
   }
 }
@@ -69,7 +76,7 @@ app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  const data = await getSentenceCrawl(query);
+  const data = await getSmartSentenceCrawl(query);
   if (!data) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
@@ -87,5 +94,5 @@ app.post('/search', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Fweb backend ready at port ${PORT}`);
+  console.log(`🚀 Smart Fweb backend running on port ${PORT}`);
 });
