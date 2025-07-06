@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-import * as cheerio from 'cheerio'; // ✅ FIXED LINE
+import * as cheerio from 'cheerio';
 import cors from 'cors';
 
 const app = express();
@@ -28,7 +28,7 @@ function detectCategories(text) {
   const lower = text.toLowerCase();
   if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
   if (lower.includes('news') || lower.includes('reported')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel')) categories.push('books');
+  if (lower.includes('book') || lower.includes('novel') || lower.includes('textbook')) categories.push('books');
   return categories;
 }
 
@@ -57,20 +57,18 @@ async function getSmartCrawl(query) {
     const allSentences = [];
     $('p').each((_, el) => {
       const text = $(el).text().trim();
-      const split = text.split(/(?<=[.?!])\s+/).filter(s => s.length >= 30);
-      allSentences.push(...split);
+      const sentences = text.split(/(?<=[.?!])\s+/).filter(s => s.length >= 30 && s.includes('.'));
+      allSentences.push(...sentences);
     });
 
     if (allSentences.length === 0) return null;
 
     const scored = allSentences.map(s => ({
-      text: s,
+      text: s.trim(),
       score: scoreSentence(s, query)
     })).sort((a, b) => b.score - a.score);
 
-    const best = scored[0];
-    const related = scored.slice(1, 4).map(s => s.text);
-    const categories = detectCategories(allSentences.join(' '));
+    const bestSentence = scored.find(s => s.score > 0) || scored[0];
 
     const images = [];
     $('#mw-content-text img').each((_, el) => {
@@ -80,10 +78,13 @@ async function getSmartCrawl(query) {
       }
     });
 
+    const joinedText = allSentences.join(' ');
+    const categories = detectCategories(joinedText);
+
     return {
-      main: best.text,
-      related,
-      images: [...new Set(images)].slice(0, 10),
+      main: bestSentence.text,
+      related: [],
+      images: [...new Set(images)].slice(0, 20),
       source: pageUrl,
       title: bestTitle,
       categories
@@ -100,12 +101,18 @@ app.post('/search', async (req, res) => {
 
   const data = await getSmartCrawl(query);
   if (!data) {
-    return res.json({ response: `❌ Couldn't find anything for "${query}"`, related: [], images: [], categories: [], source: null });
+    return res.json({
+      response: `❌ Couldn't find anything for "${query}"`,
+      related: [],
+      images: [],
+      categories: [],
+      source: null
+    });
   }
 
   res.json({
     response: data.main,
-    related: data.related,
+    related: [],
     images: data.images,
     source: data.source,
     title: data.title,
