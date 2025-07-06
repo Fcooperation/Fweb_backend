@@ -1,3 +1,4 @@
+// fAi.js
 import axios from 'axios';
 
 function cleanText(text) {
@@ -28,9 +29,18 @@ export async function getAnswer(query) {
     const results = searchRes.data.query.search;
     if (!results || results.length === 0) return null;
 
-    const bestTitle = results[0].title;
-    const encodedTitle = encodeURIComponent(bestTitle);
+    // Try exact match
+    const exactMatch = results.find(r => r.title.toLowerCase() === query.toLowerCase());
 
+    // Score based match fallback
+    const best = exactMatch || results
+      .map(r => ({
+        ...r,
+        score: scoreSentence(r.title, query)
+      }))
+      .sort((a, b) => b.score - a.score)[0];
+
+    const encodedTitle = encodeURIComponent(best.title);
     const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`);
     const summaryData = summaryRes.data;
 
@@ -39,18 +49,13 @@ export async function getAnswer(query) {
 
     if (sentences.length === 0) return null;
 
-    // If sentence starts with direct answer format, return that
-    const direct = sentences.find(s =>
-      /^(yes|no|it|they|he|she|this|that|the)/i.test(s.trim())
-    );
-
-    const best = direct || sentences
+    const bestSentence = sentences
       .map(s => ({ text: s, score: scoreSentence(s, query) }))
       .sort((a, b) => b.score - a.score)[0].text;
 
     return {
-      title: bestTitle,
-      main: best,
+      title: best.title,
+      main: bestSentence,
       source: summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodedTitle}`
     };
 
