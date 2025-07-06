@@ -1,6 +1,5 @@
 import express from 'express';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 import cors from 'cors';
 
 const app = express();
@@ -9,61 +8,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-function cleanText(text) {
-  return text.toLowerCase().replace(/[^\w\s]/g, '');
-}
-
-function scoreSentence(sentence, query) {
-  const queryWords = new Set(cleanText(query).split(/\s+/));
-  const sentenceWords = new Set(cleanText(sentence).split(/\s+/));
-  let score = 0;
-  queryWords.forEach(word => {
-    if (sentenceWords.has(word)) score++;
-  });
-  return score;
-}
-
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
   if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
-  if (lower.includes('news') || lower.includes('reported')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel')) categories.push('books');
+  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
+  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
   return categories;
-}
-
-function isDefinitionQuery(q) {
-  return /^(what is|define|explain|meaning of)/i.test(q.trim());
-}
-
-function isYesNoQuery(q) {
-  return /^(is|are|can|do|does|did|should|will|would)/i.test(q.trim());
-}
-
-function chooseSmartSentence(sentences, query) {
-  const cleanedQuery = cleanText(query);
-  const subject = cleanedQuery.split(/\s+/)[1] || cleanedQuery.split(/\s+/)[0];
-
-  for (let s of sentences) {
-    const lc = s.toLowerCase();
-    if (isDefinitionQuery(query) && lc.startsWith(subject + " is")) return s;
-    if (isYesNoQuery(query) && lc.startsWith(subject)) return s;
-    if (isYesNoQuery(query) && lc.includes("not") && lc.includes(subject)) return s;
-  }
-
-  // fallback to best score
-  const scored = sentences.map(s => ({
-    text: s,
-    score: scoreSentence(s, query)
-  })).sort((a, b) => b.score - a.score);
-
-  return scored[0]?.text || null;
 }
 
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
   try {
+    // 1. Search for title using Wikipedia's search API
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'query',
@@ -77,38 +35,25 @@ async function getSmartCrawl(query) {
     if (!results || results.length === 0) return null;
 
     const bestTitle = results[0].title;
-    const pageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
-    const { data: html } = await axios.get(pageUrl);
-    const $ = cheerio.load(html);
 
-    const allSentences = [];
-    $('p').each((_, el) => {
-      const text = $(el).text().trim();
-      const split = text.split(/(?<=[.?!])\s+/).filter(s => s.length >= 15);
-      allSentences.push(...split);
-    });
+    // 2. Get smart summary via REST API
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
+    const summaryData = summaryRes.data;
 
-    const smartSentence = chooseSmartSentence(allSentences, query);
-    if (!smartSentence) return null;
+    const main = summaryData.extract || "No summary found.";
+    const image = summaryData.originalimage?.source || null;
+    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
 
-    const categories = detectCategories(allSentences.join(' '));
-
-    const images = [];
-    $('#mw-content-text img').each((_, el) => {
-      const src = $(el).attr('src') || '';
-      if (src && !src.includes('icon') && !src.includes('logo')) {
-        images.push(src.startsWith('http') ? src : `https:${src}`);
-      }
-    });
+    const categories = detectCategories(main);
 
     return {
-      main: smartSentence,
-      related: [], // Optional: we’re skipping for now to keep it direct
-      images: [...new Set(images)].slice(0, 20),
-      source: pageUrl,
+      main,
+      image,
       title: bestTitle,
+      source,
       categories
     };
+
   } catch (err) {
     console.error(`❌ Error: ${err.message}`);
     return null;
@@ -126,15 +71,14 @@ app.post('/search', async (req, res) => {
       related: [],
       images: [],
       categories: [],
-      source: null,
-      title: null
+      source: null
     });
   }
 
   res.json({
     response: data.main,
     related: [],
-    images: data.images,
+    images: data.image ? [data.image] : [],
     source: data.source,
     title: data.title,
     categories: data.categories
@@ -142,5 +86,5 @@ app.post('/search', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend running on port ${PORT}`);
+  console.log(`🚀 fAi backend running at port ${PORT}`);
 });
