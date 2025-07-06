@@ -2,6 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import cors from 'cors';
+import { getAnswer } from './fai.js'; // 👈 Importing from fAi
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,36 +27,9 @@ function detectCategories(htmlText) {
   return categories;
 }
 
-async function getSmartCrawl(query) {
-  console.log(`🔍 Smart crawling: "${query}"`);
-
+async function getImagesAndCategories(wikiUrl) {
   try {
-    // Step 1: Search Wikipedia for best title
-    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json',
-      }
-    });
-
-    const results = searchRes.data.query.search;
-    if (!results || results.length === 0) return null;
-
-    const bestTitle = results[0].title;
-    const encodedTitle = encodeURIComponent(bestTitle);
-    const wikiPageUrl = `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, '_')}`;
-
-    // Step 2: Fetch smart summary from REST API
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`);
-    const summaryData = summaryRes.data;
-
-    const main = summaryData.extract?.split('. ')[0] + '.' || "No summary found.";
-    const source = summaryData.content_urls?.desktop?.page || wikiPageUrl;
-
-    // Step 3: Fetch full HTML and extract images and categories
-    const htmlRes = await axios.get(wikiPageUrl);
+    const htmlRes = await axios.get(wikiUrl);
     const $ = cheerio.load(htmlRes.data);
 
     const rawText = $('body').text();
@@ -71,28 +45,20 @@ async function getSmartCrawl(query) {
       }
     });
 
-    return {
-      main,
-      images,
-      title: bestTitle,
-      source,
-      categories
-    };
+    return { images, categories };
 
   } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
-    return null;
+    console.error(`❌ Error scraping article: ${err.message}`);
+    return { images: [], categories: [] };
   }
 }
 
 app.post('/search', async (req, res) => {
   const { query } = req.body;
-  if (!query) {
-    return res.status(400).json({ error: 'Missing query.' });
-  }
+  if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  const data = await getSmartCrawl(query);
-  if (!data) {
+  const aiData = await getAnswer(query);
+  if (!aiData) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
       related: [],
@@ -102,16 +68,18 @@ app.post('/search', async (req, res) => {
     });
   }
 
+  const { images, categories } = await getImagesAndCategories(aiData.source);
+
   res.json({
-    response: data.main,
+    response: aiData.main,
     related: [],
-    images: data.images,
-    source: data.source,
-    title: data.title,
-    categories: data.categories
+    images,
+    title: aiData.title,
+    source: aiData.source,
+    categories
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend running at port ${PORT}`);
+  console.log(`🚀 Fserver running on port ${PORT}`);
 });
