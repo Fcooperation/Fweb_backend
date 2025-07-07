@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import cors from 'cors';
-import { getAnswer } from './fAi.js'; // ✅ Importing properly
+import { getAnswer } from './fAi.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// ✅ 200 crawlable search site URLs
+// 200 Crawlable Sites (search URLs)
 const siteList = [
   'https://en.wikipedia.org/wiki/',
   'https://www.britannica.com/search?query=',
@@ -164,17 +164,16 @@ const siteList = [
   'https://www.500px.com/search?q='
 ];
 
-// Category detection from scraped text
+// Detect simple category types
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
   if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
-  if (lower.includes('news') || lower.includes('headline')) categories.push('news');
+  if (lower.includes('news') || lower.includes('breaking') || lower.includes('headline')) categories.push('news');
   if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
   return categories;
 }
 
-// Scrape extra images from Wikipedia if used
 async function getImagesAndCategories(wikiUrl) {
   try {
     const htmlRes = await axios.get(wikiUrl);
@@ -183,9 +182,8 @@ async function getImagesAndCategories(wikiUrl) {
     const categories = detectCategories(rawText);
     const images = [];
     $('#mw-content-text img').each((_, el) => {
-      if (images.length >= 20) return;
       const src = $(el).attr('src') || '';
-      if (src && !src.includes('icon') && !src.includes('logo')) {
+      if (images.length < 20 && src && !src.includes('icon') && !src.includes('logo')) {
         const fullSrc = src.startsWith('http') ? src : `https:${src}`;
         images.push(fullSrc);
       }
@@ -197,12 +195,11 @@ async function getImagesAndCategories(wikiUrl) {
   }
 }
 
-// Search endpoint
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  const aiData = await getAnswer(query); // fAi.js handles crawling from 200 sites
+  const aiData = await getAnswer(query);
   if (!aiData) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
@@ -234,7 +231,6 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// Open backend port
 app.listen(PORT, () => {
   console.log(`🚀 Fserver running on port ${PORT}`);
 });
