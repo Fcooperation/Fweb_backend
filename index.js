@@ -1,22 +1,91 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
+import express from 'express';
+import axios from 'axios';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(__dirname)); // serves frontend.html
+app.use(cors());
+app.use(express.json());
 
-app.get('/api/results', (req, res) => {
-  const filePath = path.join(__dirname, 'search_index.json');
-  if (fs.existsSync(filePath)) {
-    const data = fs.readFileSync(filePath, 'utf-8');
-    res.json(JSON.parse(data));
-  } else {
-    res.json([]);
-  }
+function detectCategories(text) {
+const categories = [];
+const lower = text.toLowerCase();
+if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
+if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
+if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
+return categories;
+}
+
+async function getSmartCrawl(query) {
+console.log(🔍 Smart crawling: "${query}");
+
+try {
+// 1. Search for title using Wikipedia's search API
+const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+params: {
+action: 'query',
+list: 'search',
+srsearch: query,
+format: 'json',
+}
+});
+
+const results = searchRes.data.query.search;  
+if (!results || results.length === 0) return null;  
+
+const bestTitle = results[0].title;  
+
+// 2. Get smart summary via REST API  
+const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);  
+const summaryData = summaryRes.data;  
+
+const main = summaryData.extract || "No summary found.";  
+const image = summaryData.originalimage?.source || null;  
+const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;  
+
+const categories = detectCategories(main);  
+
+return {  
+  main,  
+  image,  
+  title: bestTitle,  
+  source,  
+  categories  
+};
+
+} catch (err) {
+console.error(❌ Error: ${err.message});
+return null;
+}
+}
+
+app.post('/search', async (req, res) => {
+const { query } = req.body;
+if (!query) return res.status(400).json({ error: 'Missing query.' });
+
+const data = await getSmartCrawl(query);
+if (!data) {
+return res.json({
+response: ❌ Couldn't find anything for "${query}",
+related: [],
+images: [],
+categories: [],
+source: null
+});
+}
+
+res.json({
+response: data.main,
+related: [],
+images: data.image ? [data.image] : [],
+source: data.source,
+title: data.title,
+categories: data.categories
+});
 });
 
 app.listen(PORT, () => {
-  console.log(`🌐 Fweb server running on port ${PORT}`);
+console.log(🚀 fAi backend running at port ${PORT});
 });
+
