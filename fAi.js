@@ -8,10 +8,10 @@ import { URL } from 'url';
 
 // 📌 Supabase credentials
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjgzODcsImV4cCI6MjA2NzUwNDM4N30.T170FX8tC5iZEmdzyY_NjuFQDZ9_7GxxVSrVLzhvnQ0';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // truncated for safety
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🌍 Start URLs
+// 🌍 Default start URLs
 const SITES = [
   'https://archive.org/',
   'https://en.wikipedia.org/',
@@ -25,17 +25,14 @@ const SITES = [
   'https://www.hindawi.com/'
 ];
 
-// 🧠 Token estimate
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🕑 Sleep
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 📋 Extract training content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -47,7 +44,6 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// 📤 Upload training data with duplicate check
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -70,7 +66,6 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 🧱 Ensure table exists (or guide)
 async function ensureTable() {
   console.log('⚙️ Ensuring Supabase table...');
   const { error } = await supabase.from('fai_training').select('id').limit(1);
@@ -90,7 +85,6 @@ CREATE TABLE public.fai_training (
   }
 }
 
-// 🤖 Get robots.txt and crawl delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -103,7 +97,6 @@ async function getRobots(url) {
   }
 }
 
-// 🔍 Crawl one page
 const visited = new Set();
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
@@ -134,7 +127,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
     await uploadToSupabase(entry);
 
-    // Follow more links
+    // Follow links
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
@@ -158,14 +151,16 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🚀 Main
-async function run() {
+export async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTable();
-  for (const site of SITES) {
+  for (const site of sites) {
     const robots = await getRobots(site);
     await crawl(site, robots, robots.delay);
   }
 }
 
-run(); // 👈 Runs automatically
+// Allow direct execution
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCrawler();
+}
