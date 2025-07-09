@@ -2,7 +2,6 @@
   "name": "fai-backend",
   "version": "1.0.0",
   "description": "Smart Fweb backend",
-  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
