@@ -6,9 +6,9 @@ import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { URL } from 'url';
 
-// 🔐 Supabase credentials
+// 🔐 Supabase credentials (yours)
 const supabaseUrl = 'https://rjvjzvixkexxyqfncsfk.supabase.co';
-const supabaseKey = 'eyJhbGciOi...YOUR_SECRET...';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmp6dml4a2V4eHlxZm5jc2ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTUwMDcwODIsImV4cCI6MjAyMDU4MzA4Mn0.R4sCqM2BtGAg7PKAVWauy28lW32zDgDqjlX7nZXDbBI';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌐 Rich source sites
@@ -74,6 +74,26 @@ async function uploadToSupabase(data) {
   return true;
 }
 
+// 🏗️ Ensure Supabase table exists
+async function ensureTable() {
+  const ddl = `
+    create table if not exists public.fai_index (
+      id text primary key,
+      url text unique,
+      title text,
+      keypoints text,
+      tokens int,
+      timestamp timestamptz
+    );
+  `;
+  const { error } = await supabase.rpc('execute_sql', { sql: ddl });
+  if (error) {
+    console.warn("⚠️ Couldn't auto-create table via RPC, fallback to raw insert.");
+  } else {
+    console.log('✅ Table ensured.');
+  }
+}
+
 // 🔁 Crawl one page
 async function crawl(url) {
   if (visited.has(url) || !url.startsWith('http')) return;
@@ -126,6 +146,7 @@ async function crawl(url) {
 // 🚀 Main loop
 async function run() {
   console.log('🚀 fAi starting...\n');
+  await ensureTable(); // 🛠️ Create table if needed
   while (queue.length > 0) {
     const next = queue.shift();
     await crawl(next);
