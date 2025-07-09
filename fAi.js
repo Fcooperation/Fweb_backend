@@ -1,6 +1,6 @@
 // fAi.js
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
@@ -55,7 +55,7 @@ function saveToFile(entry) {
 
 // 🔎 Check if already crawled (by URL)
 async function alreadyCrawled(url) {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('fai_index')
     .select('id')
     .eq('url', url)
@@ -65,7 +65,7 @@ async function alreadyCrawled(url) {
 
 // 📤 Upload to Supabase
 async function uploadToSupabase(data) {
-  const { data: inserted, error } = await supabase.from('fai_index').insert([data]);
+  const { error } = await supabase.from('fai_index').insert([data]);
   if (error) {
     console.error('❌ Supabase upload error:', error.message);
     return false;
@@ -76,21 +76,22 @@ async function uploadToSupabase(data) {
 
 // 🏗️ Ensure Supabase table exists
 async function ensureTable() {
-  const ddl = `
-    create table if not exists public.fai_index (
-      id text primary key,
-      url text unique,
-      title text,
-      keypoints text,
-      tokens int,
-      timestamp timestamptz
-    );
-  `;
-  const { error } = await supabase.rpc('execute_sql', { sql: ddl });
-  if (error) {
-    console.warn("⚠️ Couldn't auto-create table via RPC, fallback to raw insert.");
-  } else {
+  try {
+    const ddl = `
+      create table if not exists public.fai_index (
+        id text primary key,
+        url text unique,
+        title text,
+        keypoints text,
+        tokens int,
+        timestamp timestamptz
+      );
+    `;
+    const { error } = await supabase.rpc('execute_sql', { sql: ddl });
+    if (error) throw error;
     console.log('✅ Table ensured.');
+  } catch (err) {
+    console.warn("⚠️ Couldn't auto-create table. If it already exists, this is safe to ignore.");
   }
 }
 
@@ -108,6 +109,7 @@ async function crawl(url) {
 
     const res = await axios.get(url, { timeout: 10000 });
     const { title, keypoints } = extractKeyPoints(res.data);
+
     if (!keypoints || keypoints.length < 100) {
       console.log(`⚠️ Skipped (no content): ${url}`);
       return;
@@ -146,7 +148,7 @@ async function crawl(url) {
 // 🚀 Main loop
 async function run() {
   console.log('🚀 fAi starting...\n');
-  await ensureTable(); // 🛠️ Create table if needed
+  await ensureTable();
   while (queue.length > 0) {
     const next = queue.shift();
     await crawl(next);
