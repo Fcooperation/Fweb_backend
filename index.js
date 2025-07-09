@@ -18,7 +18,7 @@ return categories;
 }
 
 async function getSmartCrawl(query) {
-console.log(🔍 Smart crawling: "${query}");
+  console.log(`🔍 Smart crawling: "${query}"`);
 
 try {
 // 1. Search for title using Wikipedia's search API
