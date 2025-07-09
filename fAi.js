@@ -1,177 +1,171 @@
-// fAi.js
+import fs from 'fs';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import fs from 'fs';
-import { createClient } from '@supabase/supabase-js';
+import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
+import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// 🔐 Supabase credentials
-const supabaseUrl = 'https://rjvjzvixkexxyqfncsfk.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmp6dml4a2V4eHlxZm5jc2ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTUwMDcwODIsImV4cCI6MjAyMDU4MzA4Mn0.R4sCqM2BtGAg7PKAVWauy28lW32zDgDqjlX7nZXDbBI';
+// 📌 Supabase credentials
+const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjgzODcsImV4cCI6MjA2NzUwNDM4N30.T170FX8tC5iZEmdzyY_NjuFQDZ9_7GxxVSrVLzhvnQ0';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🌐 Rich source sites
+// 🌍 Start URLs
 const SITES = [
-  'https://en.wikipedia.org/wiki/Artificial_intelligence',
-  'https://openlibrary.org/subjects/machine_learning',
-  'https://www.britannica.com/technology/artificial-intelligence',
-  'https://archive.org/details/texts',
-  'https://www.nature.com/search?q=AI',
-  'https://gutenberg.org/ebooks/subject/41', // science
+  'https://archive.org/',
+  'https://en.wikipedia.org/',
+  'https://openlibrary.org/',
+  'https://www.nature.com/',
+  'https://www.britannica.com/',
+  'https://gutenberg.org/',
+  'https://pubmed.ncbi.nlm.nih.gov/',
+  'https://www.researchgate.net/',
+  'https://www.sciencedirect.com/',
+  'https://www.hindawi.com/'
 ];
 
-// ⚙️ Core state
-const visited = new Set();
-let queue = [...SITES];
-let totalTokens = 0;
-const BACKUP_FILE = './crawled_backup.jsonl';
-
-// 🧠 Estimate token count (approx. 1 token = 4 chars)
+// 🧠 Token estimate
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧠 Extract readable content
-function extractKeyPoints(html) {
+// 🕑 Sleep
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 📋 Extract training content
+function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
-  let text = '';
+  let bodyText = '';
   $('p').each((_, el) => {
-    const paragraph = $(el).text().trim();
-    if (paragraph.length > 50) text += paragraph + '\n';
+    const txt = $(el).text().trim();
+    if (txt.length > 50) bodyText += txt + '\n';
   });
-  return { title, keypoints: text.trim().slice(0, 3000) };
+  return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// 📂 Save locally
-function saveToFile(entry) {
-  fs.appendFileSync(BACKUP_FILE, JSON.stringify(entry) + '\n');
-}
-
-// 🔍 Check if already in Supabase
-async function alreadyCrawled(url) {
-  const { data } = await supabase
-    .from('fai_index')
-    .select('id')
-    .eq('url', url)
-    .limit(1);
-  return data && data.length > 0;
-}
-
-// 📤 Upload to Supabase
+// 📤 Upload training data with duplicate check
 async function uploadToSupabase(data) {
-  const { error } = await supabase.from('fai_index').insert([data]);
-  if (error) {
-    console.error('❌ Supabase upload error:', error.message);
+  try {
+    const { data: existing } = await supabase
+      .from('fai_training')
+      .select('id')
+      .eq('url', data.url)
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
+      return false;
+    }
+
+    await supabase.from('fai_training').insert([data]).throwOnError();
+    console.log(`📤 Uploaded: ${data.url}`);
+    return true;
+  } catch (err) {
+    console.error('❌ Upload error:', err.message || err);
     return false;
   }
-  console.log(`✅ Uploaded: ${data.url}`);
-  return true;
 }
 
-// 🏗️ Ensure Supabase table exists
+// 🧱 Ensure table exists (or guide)
 async function ensureTable() {
-  try {
-    const ddl = `
-      create table if not exists public.fai_index (
-        id text primary key,
-        url text unique,
-        title text,
-        keypoints text,
-        tokens int,
-        timestamp timestamptz
-      );
-    `;
-    const { error } = await supabase.rpc('execute_sql', { sql: ddl });
-    if (error) throw error;
-    console.log('✅ Table ensured.');
-  } catch (err) {
-    console.warn("⚠️ Couldn't auto-create table. If it already exists, this is safe to ignore.");
+  console.log('⚙️ Ensuring Supabase table...');
+  const { error } = await supabase.from('fai_training').select('id').limit(1);
+  if (!error) {
+    console.log('✅ Table exists');
+  } else {
+    console.warn('⚠️ Table not found. Please create it manually in Supabase SQL editor:');
+    console.warn(`
+CREATE TABLE public.fai_training (
+  id TEXT PRIMARY KEY,
+  url TEXT UNIQUE,
+  title TEXT,
+  content TEXT,
+  tokens INT8,
+  timestamp TIMESTAMPTZ
+);`);
   }
 }
 
-// 🔁 Crawl one page
-async function crawl(url) {
-  if (visited.has(url) || !url.startsWith('http')) return;
+// 🤖 Get robots.txt and crawl delay
+async function getRobots(url) {
+  try {
+    const robotsUrl = new URL('/robots.txt', url).href;
+    const res = await axios.get(robotsUrl);
+    const parser = robotsParser(robotsUrl, res.data);
+    const delay = parser.getCrawlDelay('fcrawler') || 2000;
+    return { parser, delay };
+  } catch {
+    return { parser: { isAllowed: () => true }, delay: 2000 };
+  }
+}
+
+// 🔍 Crawl one page
+const visited = new Set();
+async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
+  if (visited.has(url) || pageCount.count >= maxPages) return;
+  if (!robots.parser.isAllowed(url, 'fcrawler')) return;
+
   visited.add(url);
-  console.log(`🔍 Crawling ${url}`);
+  pageCount.count++;
+  console.log(`🔍 Crawling: ${url}`);
 
   try {
-    if (await alreadyCrawled(url)) {
-      console.log(`⚠️ Already crawled: ${url}`);
-      return;
-    }
-
     const res = await axios.get(url, { timeout: 10000 });
-    const { title, keypoints } = extractKeyPoints(res.data);
+    const { title, content } = extractTrainingData(res.data);
+    const tokens = countTokens(content);
 
-    if (!keypoints || keypoints.length < 100) {
-      console.log(`⚠️ Skipped (not enough content): ${url}`);
+    if (tokens < 100) {
+      console.log(`⚠️ Skipped (weak content): ${url}`);
       return;
     }
-
-    const tokens = countTokens(keypoints);
-    totalTokens += tokens;
 
     const entry = {
       id: nanoid(),
       url,
       title,
-      keypoints,
+      content,
       tokens,
       timestamp: new Date().toISOString()
     };
 
-    saveToFile(entry);
     await uploadToSupabase(entry);
 
-    // 🔗 Queue more internal links
+    // Follow more links
     const $ = cheerio.load(res.data);
-    $('a[href]').each((_, el) => {
-      const href = $(el).attr('href');
-      try {
-        const full = new URL(href, url).toString();
-        if (!visited.has(full) && full.includes(new URL(url).hostname)) {
-          queue.push(full);
+    const links = $('a[href]')
+      .map((_, el) => $(el).attr('href'))
+      .get()
+      .map(href => {
+        try {
+          return new URL(href, url).href;
+        } catch {
+          return null;
         }
-      } catch {}
-    });
+      })
+      .filter(href => href && href.startsWith('http'));
+
+    for (const link of links) {
+      await sleep(delay);
+      await crawl(link, robots, delay, pageCount, maxPages);
+    }
 
   } catch (err) {
-    console.error(`❌ Error crawling ${url}: ${err.message}`);
+    console.warn(`❌ Failed: ${url} – ${err.message}`);
   }
 }
 
-// 🚀 Main loop
+// 🚀 Main
 async function run() {
-  console.log('🚀 fAi starting...\n');
+  console.log('🚀 crawlerA starting...');
   await ensureTable();
-
-  let idleCount = 0;
-
-  while (queue.length > 0) {
-    const next = queue.shift();
-    console.log(`📥 Queue left: ${queue.length}`);
-    const before = totalTokens;
-    await crawl(next);
-
-    if (totalTokens === before) {
-      idleCount++;
-    } else {
-      idleCount = 0;
-    }
-
-    if (idleCount > 20) {
-      console.log('⚠️ No progress detected. Re-seeding fresh sources.');
-      queue.push(...SITES);
-      idleCount = 0;
-    }
-
-    console.log(`📊 Total tokens scraped: ${totalTokens}`);
+  for (const site of SITES) {
+    const robots = await getRobots(site);
+    await crawl(site, robots, robots.delay);
   }
-
-  console.log('\n✅ Done crawling.\n🧠 Tokens collected:', totalTokens);
 }
 
-run();
+run(); // 👈 Runs automatically
