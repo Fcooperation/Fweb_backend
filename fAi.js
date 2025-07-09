@@ -6,12 +6,12 @@ import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// 📌 Supabase credentials
+// 🔐 Supabase credentials
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // truncated for safety
+const supabaseKey = 'YOUR_SUPABASE_KEY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🌍 Default start URLs
+// 🌍 Start URLs
 const SITES = [
   'https://archive.org/',
   'https://en.wikipedia.org/',
@@ -25,6 +25,7 @@ const SITES = [
   'https://www.hindawi.com/'
 ];
 
+// 🔢 Count tokens
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
@@ -44,47 +45,47 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
+// 🔍 Check if URL was already visited
+async function wasVisited(url) {
+  const { data, error } = await supabase
+    .from('fai_visited')
+    .select('url')
+    .eq('url', url)
+    .limit(1);
+  return data && data.length > 0;
+}
+
+// ✅ Log URL as visited
+async function markVisited(url) {
+  await supabase.from('fai_visited').insert([{ url }]).catch(() => {});
+}
+
+// 📤 Upload training data with duplicate check
 async function uploadToSupabase(data) {
-  try {
-    const { data: existing } = await supabase
-      .from('fai_training')
-      .select('id')
-      .eq('url', data.url)
-      .limit(1);
+  const { data: existing } = await supabase
+    .from('fai_training')
+    .select('id')
+    .eq('url', data.url)
+    .limit(1);
 
-    if (existing.length > 0) {
-      console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
-      return false;
-    }
-
-    await supabase.from('fai_training').insert([data]).throwOnError();
-    console.log(`📤 Uploaded: ${data.url}`);
-    return true;
-  } catch (err) {
-    console.error('❌ Upload error:', err.message || err);
+  if (existing.length > 0) {
+    console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
     return false;
   }
+
+  await supabase.from('fai_training').insert([data]).throwOnError();
+  console.log(`📤 Uploaded: ${data.url}`);
+  return true;
 }
 
-async function ensureTable() {
-  console.log('⚙️ Ensuring Supabase table...');
-  const { error } = await supabase.from('fai_training').select('id').limit(1);
-  if (!error) {
-    console.log('✅ Table exists');
-  } else {
-    console.warn('⚠️ Table not found. Please create it manually in Supabase SQL editor:');
-    console.warn(`
-CREATE TABLE public.fai_training (
-  id TEXT PRIMARY KEY,
-  url TEXT UNIQUE,
-  title TEXT,
-  content TEXT,
-  tokens INT8,
-  timestamp TIMESTAMPTZ
-);`);
-  }
+// 🧱 Ensure training table exists
+async function ensureTables() {
+  console.log('⚙️ Checking Supabase tables...');
+  await supabase.from('fai_training').select('id').limit(1).catch(() => {});
+  await supabase.from('fai_visited').select('url').limit(1).catch(() => {});
 }
 
+// 🤖 Get robots.txt info
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -97,12 +98,17 @@ async function getRobots(url) {
   }
 }
 
-const visited = new Set();
+// 🔁 Crawl pages
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
-  if (visited.has(url) || pageCount.count >= maxPages) return;
+  if (pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
-  visited.add(url);
+  const visitedBefore = await wasVisited(url);
+  if (visitedBefore) {
+    console.log(`⚠️ Already visited, skipping: ${url}`);
+    return;
+  }
+
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
 
@@ -126,8 +132,9 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
     };
 
     await uploadToSupabase(entry);
+    await markVisited(url); // ✅ Save visited
 
-    // Follow links
+    // Extract links
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
@@ -151,16 +158,16 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
+// 🚀 Main
 export async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
-  await ensureTable();
+  await ensureTables();
   for (const site of sites) {
     const robots = await getRobots(site);
     await crawl(site, robots, robots.delay);
   }
 }
 
-// Allow direct execution
 if (import.meta.url === `file://${process.argv[1]}`) {
   runCrawler();
 }
