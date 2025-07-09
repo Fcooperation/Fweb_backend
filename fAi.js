@@ -6,32 +6,28 @@ import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { URL } from 'url';
 
-// 🔐 Supabase credentials (yours)
+// 🔐 Supabase credentials
 const supabaseUrl = 'https://rjvjzvixkexxyqfncsfk.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqdmp6dml4a2V4eHlxZm5jc2ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTUwMDcwODIsImV4cCI6MjAyMDU4MzA4Mn0.R4sCqM2BtGAg7PKAVWauy28lW32zDgDqjlX7nZXDbBI';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌐 Rich source sites
 const SITES = [
-  'https://archive.org/',
-  'https://en.wikipedia.org/',
-  'https://openlibrary.org/',
-  'https://www.nature.com/',
-  'https://www.britannica.com/',
-  'https://gutenberg.org/',
-  'https://pubmed.ncbi.nlm.nih.gov/',
-  'https://www.researchgate.net/',
-  'https://www.sciencedirect.com/',
-  'https://www.hindawi.com/'
+  'https://en.wikipedia.org/wiki/Artificial_intelligence',
+  'https://openlibrary.org/subjects/machine_learning',
+  'https://www.britannica.com/technology/artificial-intelligence',
+  'https://archive.org/details/texts',
+  'https://www.nature.com/search?q=AI',
+  'https://gutenberg.org/ebooks/subject/41', // science
 ];
 
-// 🚀 Startup
+// ⚙️ Core state
 const visited = new Set();
-const queue = [...SITES];
+let queue = [...SITES];
 let totalTokens = 0;
 const BACKUP_FILE = './crawled_backup.jsonl';
 
-// 🧠 Estimate token count (roughly 1 token ≈ 4 characters)
+// 🧠 Estimate token count (approx. 1 token = 4 chars)
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
@@ -39,7 +35,7 @@ function countTokens(text) {
 // 🧠 Extract readable content
 function extractKeyPoints(html) {
   const $ = cheerio.load(html);
-  const title = $('title').text();
+  const title = $('title').text().trim();
   let text = '';
   $('p').each((_, el) => {
     const paragraph = $(el).text().trim();
@@ -48,12 +44,12 @@ function extractKeyPoints(html) {
   return { title, keypoints: text.trim().slice(0, 3000) };
 }
 
-// 📂 Backup to file
+// 📂 Save locally
 function saveToFile(entry) {
   fs.appendFileSync(BACKUP_FILE, JSON.stringify(entry) + '\n');
 }
 
-// 🔎 Check if already crawled (by URL)
+// 🔍 Check if already in Supabase
 async function alreadyCrawled(url) {
   const { data } = await supabase
     .from('fai_index')
@@ -111,7 +107,7 @@ async function crawl(url) {
     const { title, keypoints } = extractKeyPoints(res.data);
 
     if (!keypoints || keypoints.length < 100) {
-      console.log(`⚠️ Skipped (no content): ${url}`);
+      console.log(`⚠️ Skipped (not enough content): ${url}`);
       return;
     }
 
@@ -127,8 +123,8 @@ async function crawl(url) {
       timestamp: new Date().toISOString()
     };
 
-    saveToFile(entry); // 🧠 Local backup
-    await uploadToSupabase(entry); // 📤 Online insert
+    saveToFile(entry);
+    await uploadToSupabase(entry);
 
     // 🔗 Queue more internal links
     const $ = cheerio.load(res.data);
@@ -136,7 +132,9 @@ async function crawl(url) {
       const href = $(el).attr('href');
       try {
         const full = new URL(href, url).toString();
-        if (full.includes(new URL(url).hostname)) queue.push(full);
+        if (!visited.has(full) && full.includes(new URL(url).hostname)) {
+          queue.push(full);
+        }
       } catch {}
     });
 
@@ -149,12 +147,31 @@ async function crawl(url) {
 async function run() {
   console.log('🚀 fAi starting...\n');
   await ensureTable();
+
+  let idleCount = 0;
+
   while (queue.length > 0) {
     const next = queue.shift();
+    console.log(`📥 Queue left: ${queue.length}`);
+    const before = totalTokens;
     await crawl(next);
-    console.log(`📊 Total tokens: ${totalTokens}`);
+
+    if (totalTokens === before) {
+      idleCount++;
+    } else {
+      idleCount = 0;
+    }
+
+    if (idleCount > 20) {
+      console.log('⚠️ No progress detected. Re-seeding fresh sources.');
+      queue.push(...SITES);
+      idleCount = 0;
+    }
+
+    console.log(`📊 Total tokens scraped: ${totalTokens}`);
   }
-  console.log('\n✅ Done crawling.\n🧠 Tokens scraped:', totalTokens);
+
+  console.log('\n✅ Done crawling.\n🧠 Tokens collected:', totalTokens);
 }
 
 run();
