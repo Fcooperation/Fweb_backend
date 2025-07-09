@@ -1,177 +1,137 @@
 // fAi.js
 import axios from 'axios';
-import * as cheerio from 'cheerio';
+import cheerio from 'cheerio';
+import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
+import { nanoid } from 'nanoid';
+import { URL } from 'url';
 
-const siteList = [
-  // same full 200 links used in index.js
-  'https://en.wikipedia.org/wiki/',
-  'https://www.britannica.com/search?query=',
-  'https://www.infoplease.com/search/',
-  'https://www.britannica.co.uk/',
-  'https://kids.britannica.com/search?query=',
-  'https://www.reference.com/search?q=',
-  'https://www.factmonster.com/search?query=',
-  'https://www.encyclopedia.com/search?query=',
-  'https://www.worldbookonline.com/kids/home#search/k/',
-  'https://biography.com/search?q=',
-  'https://www.bbc.com/search?q=',
-  'https://edition.cnn.com/search?q=',
-  'https://www.reuters.com/site-search/?query=',
-  'https://www.nytimes.com/search?query=',
-  'https://www.aljazeera.com/search/?q=',
-  'https://www.theguardian.com/search?q=',
-  'https://apnews.com/search/',
-  'https://www.usatoday.com/search/?q=',
-  'https://www.axios.com/search?q=',
-  'https://www.politico.com/search/?q=',
-  'https://stackoverflow.com/search?q=',
-  'https://www.reddit.com/search/?q=',
-  'https://www.quora.com/search?q=',
-  'https://answers.yahoo.com/dir/index?sid=&q=',
-  'https://community.spiceworks.com/search?key=',
-  'https://forums.tomshardware.com/search/search?keywords=',
-  'https://www.healthboards.com/search?q=',
-  'https://discourse.mozilla.org/search?q=',
-  'https://community.adobe.com/search?q=',
-  'https://community.spotify.com/search?q=',
-  'https://www.merriam-webster.com/dictionary/',
-  'https://dictionary.cambridge.org/dictionary/english/',
-  'https://www.oxfordlearnersdictionaries.com/definition/english/',
-  'https://www.collinsdictionary.com/dictionary/english/',
-  'https://www.vocabulary.com/dictionary/',
-  'https://www.macmillandictionary.com/dictionary/british/',
-  'https://www.ldoceonline.com/dictionary/',
-  'https://www.ahdictionary.com/word/search.html?q=',
-  'https://www.yourdictionary.com/',
-  'https://www.thefreedictionary.com/',
-  'https://www.gutenberg.org/ebooks/search/?query=',
-  'https://openlibrary.org/search?q=',
-  'https://www.goodreads.com/search?q=',
-  'https://books.google.com/books?q=',
-  'https://archive.org/search.php?query=',
-  'https://www.worldcat.org/search?q=',
-  'https://www.sparknotes.com/search/?q=',
-  'https://www.cliffsnotes.com/search?search=',
-  'https://en.wikipedia.org/wiki/Portal:Literature',
-  'https://manybooks.net/search-books.php?keyword=',
-  'https://www.khanacademy.org/search?page_search_query=',
-  'https://www.tutorialspoint.com/index.php?search=',
-  'https://www.geeksforgeeks.org/?s=',
-  'https://www.w3schools.com/howto/howto_js_search_menu.asp?q=',
-  'https://www.coursera.org/search?query=',
-  'https://www.udemy.com/courses/search/?q=',
-  'https://www.edx.org/search?q=',
-  'https://www.codecademy.com/search?q=',
-  'https://www.freecodecamp.org/news/?s=',
-  'https://stackoverflow.com/search?q=',
-  'https://www.sciencedaily.com/search/?keyword=',
-  'https://scholar.google.com/scholar?q=',
-  'https://arxiv.org/search/?query=',
-  'https://pubmed.ncbi.nlm.nih.gov/?term=',
-  'https://www.nature.com/search?q=',
-  'https://www.sciencemag.org/search/',
-  'https://phys.org/search/',
-  'https://www.newscientist.com/search/?s=',
-  'https://www.insidescience.org/search?keys=',
-  'https://www.biorxiv.org/search/',
-  'https://www.investopedia.com/search?q=',
-  'https://www.marketwatch.com/search?q=',
-  'https://www.bloomberg.com/search?query=',
-  'https://finance.yahoo.com/search?q=',
-  'https://www.reuters.com/finance',
-  'https://www.wsj.com/search?query=',
-  'https://www.ft.com/search?q=',
-  'https://www.investing.com/search/?q=',
-  'https://www.nasdaq.com/search?query=',
-  'https://www.cnbc.com/search/?query=',
-  'https://www.webmd.com/search/search_results/default.aspx?query=',
-  'https://www.mayoclinic.org/search/search-results?q=',
-  'https://www.healthline.com/search?q=',
-  'https://www.medicalnewstoday.com/search?q=',
-  'https://www.cdc.gov/search/results?query=',
-  'https://www.who.int/news-room/questions-and-answers?search=',
-  'https://www.nih.gov/search?keys=',
-  'https://sermo.com/search?q=',
-  'https://patient.info/search?q=',
-  'https://pubmed.ncbi.nlm.nih.gov/?term=',
-  'https://www.lonelyplanet.com/search?q=',
-  'https://www.tripadvisor.com/Search?q=',
-  'https://www.booking.com/searchresults.html?ss=',
-  'https://www.airbnb.com/s/',
-  'https://www.expedia.com/Hotel-Search?',
-  'https://www.nationalgeographic.com/search?q=',
-  'https://www.worldatlas.com/search?q=',
-  'https://www.travelandleisure.com/search?q=',
-  'https://www.jetsetter.com/search?q=',
-  'https://www.skyscanner.com/search?q=',
-  'https://www.allrecipes.com/search/results/?search=',
-  'https://www.foodnetwork.com/search/',
-  'https://www.epicurious.com/search/',
-  'https://www.bbcgoodfood.com/search/recipes?q=',
-  'https://www.simplyrecipes.com/search?q=',
-  'https://www.jamieoliver.com/search/?q=',
-  'https://www.skinnytaste.com/?s=',
-  'https://www.seriouseats.com/search?term=',
-  'https://www.delish.com/search/?q=',
-  'https://www.thekitchn.com/search?q=',
-  'https://www.espn.com/search/results?q=',
-  'https://www.bbc.co.uk/sport/search?q=',
-  'https://www.goal.com/en/search/',
-  'https://www.skysports.com/search?q=',
-  'https://www.sports.yahoo.com/search/',
-  'https://www.cbssports.com/search/results/?q=',
-  'https://www.nfl.com/search/?query=',
-  'https://www.nba.com/search/?q=',
-  'https://www.mlssoccer.com/search?q=',
-  'https://www.formula1.com/en/search.html?query=',
-  'https://www.imdb.com/find?q=',
-  'https://www.rottentomatoes.com/search?search=',
-  'https://www.metacritic.com/search/all/',
-  'https://www.boxofficemojo.com/search/?q=',
-  'https://www.allmovie.com/search?q=',
-  'https://www.themoviedb.org/search?query=',
-  'https://www.tvguide.com/search/?q=',
-  'https://variety.com/v/search/',
-  'https://hollywoodreporter.com/?s=',
-  'https://www.fandango.com/search?q=',
-  'https://www.lyrics.com/serp.php?st=',
-  'https://www.azlyrics.com/search.php?q=',
-  'https://genius.com/search?q=',
-  'https://www.songmeanings.com/query/?action=search&search=',
-  'https://musicbrainz.org/search?query=',
-  'https://www.last.fm/search?q=',
-  'https://www.allmusic.com/search?q=',
-  'https://www.billboard.com/search/?q=',
-  'https://www.soundcloud.com/search?q=',
-  'https://www.pandora.com/search/',
-  'https://unsplash.com/s/photos/',
-  'https://pixabay.com/images/search/',
-  'https://www.pexels.com/search/',
-  'https://www.flickr.com/search/?text=',
-  'https://images.search.yahoo.com/search/images?p=',
-  'https://www.istockphoto.com/search/2/image?phrase=',
-  'https://stock.adobe.com/search?k=',
-  'https://www.shutterstock.com/search/',
-  'https://www.gettyimages.com/photos/',
-  'https://www.500px.com/search?q='
+// 🔐 Supabase credentials
+const supabaseUrl = 'https://rjvjzvixkexxyqfncsfk.supabase.co';
+const supabaseKey = 'eyJhbGciOi...YOUR_SECRET...';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// 🌐 Rich source sites
+const SITES = [
+  'https://archive.org/',
+  'https://en.wikipedia.org/',
+  'https://openlibrary.org/',
+  'https://www.nature.com/',
+  'https://www.britannica.com/',
+  'https://gutenberg.org/',
+  'https://pubmed.ncbi.nlm.nih.gov/',
+  'https://www.researchgate.net/',
+  'https://www.sciencedirect.com/',
+  'https://www.hindawi.com/'
 ];
 
-export async function getAnswer(query) {
-  for (const base of siteList) {
-    const url = base + encodeURIComponent(query);
-    try {
-      const response = await axios.get(url, { timeout: 7000 });
-      const $ = cheerio.load(response.data);
-      const bodyText = $('body').text().trim();
-      if (bodyText && bodyText.length > 100) {
-        return {
-          title: $('title').text().trim(),
-          main: bodyText.slice(0, 1000)
-        };
-      }
-    } catch (err) {
-      continue;
-    }
-  }
-  return { title: '', main: 'No content found from sources.' };
+// 🚀 Startup
+const visited = new Set();
+const queue = [...SITES];
+let totalTokens = 0;
+const BACKUP_FILE = './crawled_backup.jsonl';
+
+// 🧠 Estimate token count (roughly 1 token ≈ 4 characters)
+function countTokens(text) {
+  return Math.ceil(text.length / 4);
 }
+
+// 🧠 Extract readable content
+function extractKeyPoints(html) {
+  const $ = cheerio.load(html);
+  const title = $('title').text();
+  let text = '';
+  $('p').each((_, el) => {
+    const paragraph = $(el).text().trim();
+    if (paragraph.length > 50) text += paragraph + '\n';
+  });
+  return { title, keypoints: text.trim().slice(0, 3000) };
+}
+
+// 📂 Backup to file
+function saveToFile(entry) {
+  fs.appendFileSync(BACKUP_FILE, JSON.stringify(entry) + '\n');
+}
+
+// 🔎 Check if already crawled (by URL)
+async function alreadyCrawled(url) {
+  const { data, error } = await supabase
+    .from('fai_index')
+    .select('id')
+    .eq('url', url)
+    .limit(1);
+  return data && data.length > 0;
+}
+
+// 📤 Upload to Supabase
+async function uploadToSupabase(data) {
+  const { data: inserted, error } = await supabase.from('fai_index').insert([data]);
+  if (error) {
+    console.error('❌ Supabase upload error:', error.message);
+    return false;
+  }
+  console.log(`✅ Uploaded: ${data.url}`);
+  return true;
+}
+
+// 🔁 Crawl one page
+async function crawl(url) {
+  if (visited.has(url) || !url.startsWith('http')) return;
+  visited.add(url);
+  console.log(`🔍 Crawling ${url}`);
+
+  try {
+    if (await alreadyCrawled(url)) {
+      console.log(`⚠️ Already crawled: ${url}`);
+      return;
+    }
+
+    const res = await axios.get(url, { timeout: 10000 });
+    const { title, keypoints } = extractKeyPoints(res.data);
+    if (!keypoints || keypoints.length < 100) {
+      console.log(`⚠️ Skipped (no content): ${url}`);
+      return;
+    }
+
+    const tokens = countTokens(keypoints);
+    totalTokens += tokens;
+
+    const entry = {
+      id: nanoid(),
+      url,
+      title,
+      keypoints,
+      tokens,
+      timestamp: new Date().toISOString()
+    };
+
+    saveToFile(entry); // 🧠 Local backup
+    await uploadToSupabase(entry); // 📤 Online insert
+
+    // 🔗 Queue more internal links
+    const $ = cheerio.load(res.data);
+    $('a[href]').each((_, el) => {
+      const href = $(el).attr('href');
+      try {
+        const full = new URL(href, url).toString();
+        if (full.includes(new URL(url).hostname)) queue.push(full);
+      } catch {}
+    });
+
+  } catch (err) {
+    console.error(`❌ Error crawling ${url}: ${err.message}`);
+  }
+}
+
+// 🚀 Main loop
+async function run() {
+  console.log('🚀 fAi starting...\n');
+  while (queue.length > 0) {
+    const next = queue.shift();
+    await crawl(next);
+    console.log(`📊 Total tokens: ${totalTokens}`);
+  }
+  console.log('\n✅ Done crawling.\n🧠 Tokens scraped:', totalTokens);
+}
+
+run();
