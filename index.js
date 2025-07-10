@@ -1,55 +1,137 @@
-import fs from 'fs';
+import express from 'express';
 import axios from 'axios';
+import cors from 'cors';
+import fs from 'fs';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
+import { exec } from 'child_process';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
 
 // 🔐 Supabase credentials
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'your-real-key-here'; // Replace with your real key if not injected
+const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // Replace with real key
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🎯 Educational-focused start points
+// 🌐 Educational-focused pages
 const SITES = [
-  // Wikipedia educational portals and outlines
   'https://en.wikipedia.org/wiki/Wikipedia:Contents',
   'https://en.wikipedia.org/wiki/Outline_of_academic_disciplines',
   'https://en.wikipedia.org/wiki/Portal:Science',
   'https://en.wikipedia.org/wiki/Portal:Technology',
   'https://en.wikipedia.org/wiki/Portal:Mathematics',
   'https://en.wikipedia.org/wiki/Portal:History',
-  'https://en.wikipedia.org/wiki/Portal:Health_and_fitness',
-  'https://en.wikipedia.org/wiki/Portal:Society',
   'https://en.wikipedia.org/wiki/Portal:Philosophy',
-  'https://en.wikipedia.org/wiki/Portal:Engineering',
-
-  // Open Library knowledge subjects
   'https://openlibrary.org/subjects/science',
-  'https://openlibrary.org/subjects/technology',
-  'https://openlibrary.org/subjects/history',
   'https://openlibrary.org/subjects/mathematics',
-
-  // Scientific papers and journals
   'https://www.nature.com/subjects',
-  'https://www.sciencedirect.com/journal/',
   'https://www.hindawi.com/journals/',
   'https://pubmed.ncbi.nlm.nih.gov/',
   'https://www.researchgate.net/',
+  'https://www.sciencedirect.com/journal/',
 ];
 
-// 🧠 Estimate token size
+// 🔍 Detect categories for responses
+function detectCategories(text) {
+  const categories = [];
+  const lower = text.toLowerCase();
+  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
+  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
+  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
+  return categories;
+}
+
+// 📚 Smart Wikipedia search
+async function getSmartCrawl(query) {
+  console.log(`🔍 Smart crawling: "${query}"`);
+
+  try {
+    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json',
+      }
+    });
+
+    const results = searchRes.data.query.search;
+    if (!results || results.length === 0) return null;
+
+    const bestTitle = results[0].title;
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
+    const summaryData = summaryRes.data;
+
+    const main = summaryData.extract || "No summary found.";
+    const image = summaryData.originalimage?.source || null;
+    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
+    const categories = detectCategories(main);
+
+    return { main, image, title: bestTitle, source, categories };
+
+  } catch (err) {
+    console.error(`❌ Error: ${err.message}`);
+    return null;
+  }
+}
+
+// ✅ POST /search → responds with smart crawl result
+app.post('/search', async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: 'Missing query.' });
+
+  const data = await getSmartCrawl(query);
+  if (!data) {
+    return res.json({
+      response: `❌ Couldn't find anything for "${query}"`,
+      related: [],
+      images: [],
+      categories: [],
+      source: null
+    });
+  }
+
+  res.json({
+    response: data.main,
+    related: [],
+    images: data.image ? [data.image] : [],
+    source: data.source,
+    title: data.title,
+    categories: data.categories
+  });
+});
+
+// ✅ POST /online → run fAi.js crawler
+app.post('/online', (req, res) => {
+  console.log("📶 User is online — starting fAi.js...");
+
+  exec('node fAi.js', (err, stdout, stderr) => {
+    if (err) {
+      console.error(`❌ fAi.js error:\n${stderr}`);
+      return res.status(500).send('Failed to run fAi.js');
+    }
+    console.log(`✅ fAi.js output:\n${stdout}`);
+    res.send('fAi.js started successfully');
+  });
+});
+
+// === fAi CRAWLER ===
+
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🕒 Pause
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 📚 Extract text content from HTML
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -61,7 +143,6 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// 🚀 Upload training entry if not duplicate
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -84,27 +165,23 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 📌 Make sure table exists
-async function ensureTable() {
-  console.log('⚙️ Ensuring Supabase table...');
-  const { error } = await supabase.from('fai_training').select('id').limit(1);
-  if (!error) {
-    console.log('✅ Table exists');
-  } else {
-    console.warn('⚠️ Table not found. Please create manually in Supabase SQL editor:');
-    console.warn(`
-CREATE TABLE public.fai_training (
-  id TEXT PRIMARY KEY,
-  url TEXT UNIQUE,
-  title TEXT,
-  content TEXT,
-  tokens INT8,
-  timestamp TIMESTAMPTZ
-);`);
+async function ensureTables() {
+  console.log('⚙️ Checking Supabase tables...');
+  try {
+    await supabase.from('fai_training').select('id').limit(1);
+    console.log('✅ fai_training table exists');
+  } catch {
+    console.warn('⚠️ fai_training table check failed');
+  }
+
+  try {
+    await supabase.from('fai_visited').select('url').limit(1);
+    console.log('✅ fai_visited table exists');
+  } catch {
+    console.warn('⚠️ fai_visited table check failed');
   }
 }
 
-// 🤖 Robots.txt parser
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -117,10 +194,7 @@ async function getRobots(url) {
   }
 }
 
-// 🌍 Set to keep track of visited
 const visited = new Set();
-
-// 🧭 Crawl one page + its links (up to 100 pages)
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 100) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
@@ -150,7 +224,6 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
     await uploadToSupabase(entry);
 
-    // Follow valid internal links
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
@@ -174,17 +247,17 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🧠 Crawler runner
+// 🔁 Main crawler trigger
 export async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
-  await ensureTable();
+  await ensureTables();
   for (const site of sites) {
     const robots = await getRobots(site);
     await crawl(site, robots, robots.delay);
   }
 }
 
-// 🔁 Allow standalone execution
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runCrawler();
-}
+// 🚀 Start server
+app.listen(PORT, () => {
+  console.log(`🚀 fAi backend running at port ${PORT}`);
+});
