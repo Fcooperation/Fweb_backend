@@ -16,7 +16,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc2NzQ2MTAsImV4cCI6MjAxMzI1MDYxMH0.NWjSiWaL3AfSCVi-SQ1cLSejTcfG71DLooxs7Pb0rEc';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjgzODcsImV4cCI6MjA2NzUwNDM4N30.T170FX8tC5iZEmdzyY_NjuFQDZ9_7GxxVSrVLzhvnQ0';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 📚 Sites to crawl
@@ -73,22 +73,21 @@ async function getRobots(url) {
   }
 }
 
-// 🧠 Save training data to Supabase
+// 💾 Save data to Supabase
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
       .from('fai_training')
       .select('id')
       .eq('url', data.url)
-      .limit(1)
-      .throwOnError();
+      .limit(1);
 
     if (!existing || existing.length === 0) {
-      await supabase.from('fai_training').insert([data]).throwOnError();
+      await supabase.from('fai_training').insert([data]);
       console.log(`📤 Uploaded: ${data.url}`);
       return true;
     } else {
-      console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
+      console.log(`⚠️ Duplicate: ${data.url}`);
       return false;
     }
   } catch (err) {
@@ -97,7 +96,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 🧱 Table check
+// ✅ Ensure tables exist
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -115,24 +114,17 @@ async function ensureTables() {
   }
 }
 
-// 🧠 Load visited from DB
+// 🔁 Crawler core
 async function loadVisitedSet() {
   const visitedSet = new Set();
-  try {
-    const { data } = await supabase.from('fai_visited').select('url');
-    if (data) {
-      for (const row of data) {
-        visitedSet.add(row.url);
-      }
-    }
-  } catch (err) {
-    console.error('❌ Failed loading visited URLs:', err.message);
+  const { data } = await supabase.from('fai_visited').select('url');
+  if (data) {
+    for (const row of data) visitedSet.add(row.url);
   }
   return visitedSet;
 }
 
-// 🔁 Crawler
-async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10, visitedSet = new Set()) {
+async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
   if (visitedSet.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
@@ -180,7 +172,6 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
       await new Promise(resolve => setTimeout(resolve, delay));
       await crawl(link, robots, delay, pageCount, maxPages, visitedSet);
     }
-
   } catch (err) {
     console.warn(`❌ Failed: ${url} – ${err.message}`);
   }
@@ -188,7 +179,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
 // 🚀 Start crawl
 async function runCrawler(sites = SITES) {
-  console.log('🚀 crawlerA starting...');
+  console.log('🚀 Starting crawler...');
   await ensureTables();
   const visitedSet = await loadVisitedSet();
   for (const site of sites) {
@@ -198,9 +189,8 @@ async function runCrawler(sites = SITES) {
   }
 }
 
-// 🌐 Smart Search API (Wikipedia)
+// 🌐 Smart Search (Wikipedia)
 async function getSmartCrawl(query) {
-  console.log(`🔍 Smart crawling: "${query}"`);
   try {
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
       params: { action: 'query', list: 'search', srsearch: query, format: 'json' }
@@ -253,16 +243,16 @@ app.post('/search', async (req, res) => {
 
 // 🚀 POST /online
 app.post('/online', async (req, res) => {
-  console.log("📶 User is online — starting fAi.js...");
+  console.log("📶 User is online — starting crawler...");
   try {
     await runCrawler();
-    res.send('✅ fAi.js (crawler) completed');
+    res.send('✅ Crawler finished');
   } catch (err) {
-    console.error(`❌ fAi.js error:\n${err.message}`);
-    res.status(500).send('Failed to run fAi.js');
+    console.error(`❌ Crawler failed: ${err.message}`);
+    res.status(500).send('Crawler error');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend running at port ${PORT}`);
+  console.log(`🚀 Fai backend running at port ${PORT}`);
 });
