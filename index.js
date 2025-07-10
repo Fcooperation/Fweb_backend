@@ -10,8 +10,100 @@ import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ===================== SHARED SETTINGS ======================
+// ===================== EXPRESS SERVER ======================
+const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+function detectCategories(text) {
+  const categories = [];
+  const lower = text.toLowerCase();
+  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
+  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
+  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
+  return categories;
+}
+
+async function getSmartCrawl(query) {
+  console.log(`🔍 Smart crawling: "${query}"`);
+  try {
+    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json',
+      }
+    });
+
+    const results = searchRes.data.query.search;
+    if (!results || results.length === 0) return null;
+
+    const bestTitle = results[0].title;
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
+    const summaryData = summaryRes.data;
+
+    const main = summaryData.extract || "No summary found.";
+    const image = summaryData.originalimage?.source || null;
+    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
+    const categories = detectCategories(main);
+
+    return { main, image, title: bestTitle, source, categories };
+  } catch (err) {
+    console.error(`❌ Error: ${err.message}`);
+    return null;
+  }
+}
+
+app.post('/search', async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: 'Missing query.' });
+
+  const data = await getSmartCrawl(query);
+  if (!data) {
+    return res.json({
+      response: `❌ Couldn't find anything for "${query}"`,
+      related: [],
+      images: [],
+      categories: [],
+      source: null
+    });
+  }
+
+  res.json({
+    response: data.main,
+    related: [],
+    images: data.image ? [data.image] : [],
+    source: data.source,
+    title: data.title,
+    categories: data.categories
+  });
+});
+
+// 🔥 Trigger crawler when user comes online
+app.post('/online', (req, res) => {
+  console.log("📶 User is online — starting fAi.js...");
+
+  exec('node index.js run', (err, stdout, stderr) => {
+    if (err) {
+      console.error(`❌ fAi.js error:\n${stderr}`);
+      return res.status(500).send('Failed to run fAi.js');
+    }
+    console.log(`✅ fAi.js output:\n${stdout}`);
+    res.send('fAi.js started successfully');
+  });
+});
+
+// ✅ Only start the server if not running the crawler
+if (process.argv[2] !== 'run') {
+  app.listen(PORT, () => {
+    console.log(`🚀 fAi backend running at port ${PORT}`);
+  });
+}
+
+// ===================== CRAWLER SECTION ======================
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
 const supabaseKey = 'your-real-key-here';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -38,7 +130,6 @@ const SITES = [
   'https://www.researchgate.net/',
 ];
 
-// ===================== CRAWLER SECTION ======================
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
@@ -62,10 +153,12 @@ async function uploadToSupabase(data) {
       .select('id')
       .eq('url', data.url)
       .limit(1);
+
     if (existing.length > 0) {
       console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
       return false;
     }
+
     await supabase.from('fai_training').insert([data]).throwOnError();
     console.log(`📤 Uploaded: ${data.url}`);
     return true;
@@ -103,10 +196,13 @@ async function getRobots(url) {
     return { parser: { isAllowed: () => true }, delay: 2000 };
   }
 }
+
 const visited = new Set();
+
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 100) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
+
   visited.add(url);
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
@@ -115,10 +211,12 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
     const res = await axios.get(url, { timeout: 10000 });
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
+
     if (tokens < 100) {
       console.log(`⚠️ Skipped (weak content): ${url}`);
       return;
     }
+
     const entry = {
       id: nanoid(),
       url,
@@ -127,6 +225,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
       tokens,
       timestamp: new Date().toISOString()
     };
+
     await uploadToSupabase(entry);
 
     const $ = cheerio.load(res.data);
@@ -146,10 +245,12 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
       await sleep(delay);
       await crawl(link, robots, delay, pageCount, maxPages);
     }
+
   } catch (err) {
     console.warn(`❌ Failed: ${url} – ${err.message}`);
   }
 }
+
 export async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTable();
@@ -159,97 +260,7 @@ export async function runCrawler(sites = SITES) {
   }
 }
 
-// ===================== EXPRESS SERVER ======================
-function detectCategories(text) {
-  const categories = [];
-  const lower = text.toLowerCase();
-  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
-  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
-  return categories;
-}
-async function getSmartCrawl(query) {
-  console.log(`🔍 Smart crawling: "${query}"`);
-  try {
-    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json',
-      }
-    });
-
-    const results = searchRes.data.query.search;
-    if (!results || results.length === 0) return null;
-
-    const bestTitle = results[0].title;
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
-    const summaryData = summaryRes.data;
-
-    const main = summaryData.extract || "No summary found.";
-    const image = summaryData.originalimage?.source || null;
-    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
-    const categories = detectCategories(main);
-
-    return { main, image, title: bestTitle, source, categories };
-
-  } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
-    return null;
-  }
-}
-
-// Only start Express if NOT running with "run"
-if (process.argv[2] !== 'run') {
-  const app = express();
-  app.use(cors());
-  app.use(express.json());
-
-  app.post('/search', async (req, res) => {
-    const { query } = req.body;
-    if (!query) return res.status(400).json({ error: 'Missing query.' });
-
-    const data = await getSmartCrawl(query);
-    if (!data) {
-      return res.json({
-        response: `❌ Couldn't find anything for "${query}"`,
-        related: [],
-        images: [],
-        categories: [],
-        source: null
-      });
-    }
-
-    res.json({
-      response: data.main,
-      related: [],
-      images: data.image ? [data.image] : [],
-      source: data.source,
-      title: data.title,
-      categories: data.categories
-    });
-  });
-
-  app.post('/online', (req, res) => {
-    console.log("📶 User is online — starting fAi.js...");
-
-    exec('node index.js run', (err, stdout, stderr) => {
-      if (err) {
-        console.error(`❌ fAi.js error:\n${stderr}`);
-        return res.status(500).send('Failed to run fAi.js');
-      }
-      console.log(`✅ fAi.js output:\n${stdout}`);
-      res.send('fAi.js started successfully');
-    });
-  });
-
-  app.listen(PORT, () => {
-    console.log(`🚀 fAi backend running at port ${PORT}`);
-  });
-}
-
-// Run crawler when "node index.js run" is called
+// 🟢 If run with "node index.js run"
 if (process.argv[2] === 'run') {
   runCrawler();
 }
