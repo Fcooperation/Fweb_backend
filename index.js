@@ -1,114 +1,19 @@
-// == index.js ==
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-import { exec } from 'child_process';
 import fs from 'fs';
+import axios from 'axios';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ===================== EXPRESS SERVER ======================
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-
-function detectCategories(text) {
-  const categories = [];
-  const lower = text.toLowerCase();
-  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
-  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
-  return categories;
-}
-
-async function getSmartCrawl(query) {
-  console.log(`🔍 Smart crawling: "${query}"`);
-  try {
-    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json',
-      }
-    });
-
-    const results = searchRes.data.query.search;
-    if (!results || results.length === 0) return null;
-
-    const bestTitle = results[0].title;
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
-    const summaryData = summaryRes.data;
-
-    const main = summaryData.extract || "No summary found.";
-    const image = summaryData.originalimage?.source || null;
-    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
-    const categories = detectCategories(main);
-
-    return { main, image, title: bestTitle, source, categories };
-  } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
-    return null;
-  }
-}
-
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'Missing query.' });
-
-  const data = await getSmartCrawl(query);
-  if (!data) {
-    return res.json({
-      response: `❌ Couldn't find anything for "${query}"`,
-      related: [],
-      images: [],
-      categories: [],
-      source: null
-    });
-  }
-
-  res.json({
-    response: data.main,
-    related: [],
-    images: data.image ? [data.image] : [],
-    source: data.source,
-    title: data.title,
-    categories: data.categories
-  });
-});
-
-// 🔥 Trigger crawler when user comes online
-app.post('/online', (req, res) => {
-  console.log("📶 User is online — starting fAi.js...");
-
-  exec('node index.js run', (err, stdout, stderr) => {
-    if (err) {
-      console.error(`❌ fAi.js error:\n${stderr}`);
-      return res.status(500).send('Failed to run fAi.js');
-    }
-    console.log(`✅ fAi.js output:\n${stdout}`);
-    res.send('fAi.js started successfully');
-  });
-});
-
-// ✅ Only start the server if not running the crawler
-if (process.argv[2] !== 'run') {
-  app.listen(PORT, () => {
-    console.log(`🚀 fAi backend running at port ${PORT}`);
-  });
-}
-
-// ===================== CRAWLER SECTION ======================
+// 🔐 Supabase credentials
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'your-real-key-here';
+const supabaseKey = 'your-real-key-here'; // Replace with your real key if not injected
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// 🎯 Educational-focused start points
 const SITES = [
+  // Wikipedia educational portals and outlines
   'https://en.wikipedia.org/wiki/Wikipedia:Contents',
   'https://en.wikipedia.org/wiki/Outline_of_academic_disciplines',
   'https://en.wikipedia.org/wiki/Portal:Science',
@@ -119,10 +24,14 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Portal:Society',
   'https://en.wikipedia.org/wiki/Portal:Philosophy',
   'https://en.wikipedia.org/wiki/Portal:Engineering',
+
+  // Open Library knowledge subjects
   'https://openlibrary.org/subjects/science',
   'https://openlibrary.org/subjects/technology',
   'https://openlibrary.org/subjects/history',
   'https://openlibrary.org/subjects/mathematics',
+
+  // Scientific papers and journals
   'https://www.nature.com/subjects',
   'https://www.sciencedirect.com/journal/',
   'https://www.hindawi.com/journals/',
@@ -130,12 +39,17 @@ const SITES = [
   'https://www.researchgate.net/',
 ];
 
+// 🧠 Estimate token size
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
+
+// 🕒 Pause
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// 📚 Extract text content from HTML
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -146,6 +60,8 @@ function extractTrainingData(html) {
   });
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
+
+// 🚀 Upload training entry if not duplicate
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -167,6 +83,8 @@ async function uploadToSupabase(data) {
     return false;
   }
 }
+
+// 📌 Make sure table exists
 async function ensureTable() {
   console.log('⚙️ Ensuring Supabase table...');
   const { error } = await supabase.from('fai_training').select('id').limit(1);
@@ -185,6 +103,8 @@ CREATE TABLE public.fai_training (
 );`);
   }
 }
+
+// 🤖 Robots.txt parser
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -197,8 +117,10 @@ async function getRobots(url) {
   }
 }
 
+// 🌍 Set to keep track of visited
 const visited = new Set();
 
+// 🧭 Crawl one page + its links (up to 100 pages)
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 100) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
@@ -228,6 +150,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
     await uploadToSupabase(entry);
 
+    // Follow valid internal links
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
@@ -251,6 +174,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
+// 🧠 Crawler runner
 export async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTable();
@@ -260,7 +184,7 @@ export async function runCrawler(sites = SITES) {
   }
 }
 
-// 🟢 If run with "node index.js run"
-if (process.argv[2] === 'run') {
+// 🔁 Allow standalone execution
+if (import.meta.url === `file://${process.argv[1]}`) {
   runCrawler();
 }
