@@ -15,7 +15,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ';
+const supabaseKey = 'YOUR_SUPABASE_KEY'; // You already have this
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌍 Sites to crawl
@@ -32,15 +32,15 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Astronomy'
 ];
 
-// 🔁 Pause flag for crawler
+// 🔁 Pause logic
 let isPaused = false;
 
-// Token estimator
+// 🔢 Estimate token count
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// Detect smart categories
+// 🧠 Auto category detection
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -50,7 +50,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// Extract title and text
+// 📄 Extract title and text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -62,7 +62,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// Check robots.txt and delay
+// 🤖 robots.txt + delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -75,7 +75,7 @@ async function getRobots(url) {
   }
 }
 
-// Upload to Supabase
+// ☁️ Upload to Supabase
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -100,7 +100,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// Ensure tables exist
+// 📂 Ensure table exists
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -118,7 +118,7 @@ async function ensureTables() {
   }
 }
 
-// Visited Set from Supabase
+// 🔁 Visited memory
 const visited = new Set();
 async function loadVisitedUrls() {
   try {
@@ -131,7 +131,7 @@ async function loadVisitedUrls() {
   }
 }
 
-// Crawl function
+// 🕷️ Main crawl
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
@@ -140,9 +140,9 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
 
-  try {
-    while (isPaused) await new Promise(resolve => setTimeout(resolve, 100)); // 🛑 Pause if needed
+  while (isPaused) await new Promise(r => setTimeout(r, 100)); // Pause if needed
 
+  try {
     const res = await axios.get(url, { timeout: 10000 });
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
@@ -185,7 +185,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// Run full crawler
+// 🚀 Crawl all
 async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTables();
@@ -196,7 +196,7 @@ async function runCrawler(sites = SITES) {
   }
 }
 
-// Wikipedia Smart Search
+// 📚 Wikipedia smart search
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
   try {
@@ -228,16 +228,14 @@ async function getSmartCrawl(query) {
   }
 }
 
-// POST /search
+// 🔍 /search endpoint
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  isPaused = true; // 🛑 Pause crawler
-
+  isPaused = true;
   const data = await getSmartCrawl(query);
-
-  isPaused = false; // ✅ Resume crawler
+  isPaused = false;
 
   if (!data) {
     return res.json({
@@ -259,7 +257,7 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// POST /online
+// 🔌 /online endpoint
 app.post('/online', async (req, res) => {
   console.log("📶 User is online — starting fAi.js...");
   try {
