@@ -15,29 +15,32 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ';
+const supabaseKey = 'YOUR_SUPABASE_KEY'; // Replace with your actual Supabase key
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🌍 Sites to crawl
+// 🌍 Sites to crawl (updated fresh links)
 const SITES = [
-  'https://en.wikipedia.org/wiki/Physics',
-  'https://en.wikipedia.org/wiki/Cat',
-  'https://en.wikipedia.org/wiki/History_of_science',
-  'https://en.wikipedia.org/wiki/Mathematics',
-  'https://en.wikipedia.org/wiki/Chemistry',
-  'https://en.wikipedia.org/wiki/Biology',
-  'https://en.wikipedia.org/wiki/Computer_science',
-  'https://en.wikipedia.org/wiki/Artificial_intelligence',
-  'https://en.wikipedia.org/wiki/Engineering',
-  'https://en.wikipedia.org/wiki/Astronomy'
+  'https://en.wikipedia.org/wiki/Nigeria',
+  'https://en.wikipedia.org/wiki/Lionel_Messi',
+  'https://en.wikipedia.org/wiki/Electricity',
+  'https://en.wikipedia.org/wiki/Water',
+  'https://en.wikipedia.org/wiki/Photosynthesis',
+  'https://en.wikipedia.org/wiki/Technology',
+  'https://en.wikipedia.org/wiki/Health',
+  'https://en.wikipedia.org/wiki/Software',
+  'https://en.wikipedia.org/wiki/Human_brain',
+  'https://en.wikipedia.org/wiki/World_War_II'
 ];
 
-// Token estimator
+// 🕹️ Pause flag
+let isPaused = false;
+
+// 🔢 Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// Detect smart categories
+// 🧠 Auto tagger
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -47,7 +50,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// Extract title and text
+// 📄 Extract title and body text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -59,7 +62,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// Check robots.txt and delay
+// 🧭 robots.txt parser
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -72,7 +75,7 @@ async function getRobots(url) {
   }
 }
 
-// Upload to Supabase
+// ☁️ Supabase uploader
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -97,7 +100,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// Ensure tables exist
+// 🔍 Supabase table check
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -115,11 +118,11 @@ async function ensureTables() {
   }
 }
 
-// Visited Set from Supabase
+// 🔁 Load visited URLs
 const visited = new Set();
 async function loadVisitedUrls() {
   try {
-    const { data, error } = await supabase.from('fai_visited').select('url').limit(10000);
+    const { data, error } = await supabase.from('fai_visited').select('url').limit(100000);
     if (error) throw error;
     data.forEach(entry => visited.add(entry.url));
     console.log(`📚 Loaded ${visited.size} visited URLs`);
@@ -128,14 +131,21 @@ async function loadVisitedUrls() {
   }
 }
 
-// Crawl function
-async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
-  if (visited.has(url) || pageCount.count >= maxPages) return;
-  if (!robots.parser.isAllowed(url, 'fcrawler')) return;
+// 🕷️ Main crawling engine (no maxPages)
+async function crawl(url, robots, delay) {
+  if (visited.has(url)) {
+    console.log(`⏩ Skipping already visited: ${url}`);
+    return;
+  }
+  if (!robots.parser.isAllowed(url, 'fcrawler')) {
+    console.log(`🚫 Disallowed by robots.txt: ${url}`);
+    return;
+  }
 
   visited.add(url);
-  pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
+
+  while (isPaused) await new Promise(r => setTimeout(r, 100));
 
   try {
     const res = await axios.get(url, { timeout: 10000 });
@@ -173,14 +183,14 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
     for (const link of links) {
       await new Promise(resolve => setTimeout(resolve, delay));
-      await crawl(link, robots, delay, pageCount, maxPages);
+      await crawl(link, robots, delay);
     }
   } catch (err) {
     console.warn(`❌ Failed: ${url} – ${err.message}`);
   }
 }
 
-// Run full crawler
+// 🚀 Launch crawler
 async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTables();
@@ -191,7 +201,7 @@ async function runCrawler(sites = SITES) {
   }
 }
 
-// Wikipedia Smart Search
+// 🔎 Smart Wikipedia search
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
   try {
@@ -223,12 +233,15 @@ async function getSmartCrawl(query) {
   }
 }
 
-// POST /search
+// 📡 /search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
+  isPaused = true;
   const data = await getSmartCrawl(query);
+  isPaused = false;
+
   if (!data) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
@@ -249,7 +262,7 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// POST /online
+// ⚡ /online
 app.post('/online', async (req, res) => {
   console.log("📶 User is online — starting fAi.js...");
   try {
