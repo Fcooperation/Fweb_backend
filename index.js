@@ -15,7 +15,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'; // You already have this
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌍 Sites to crawl
@@ -32,15 +32,12 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Astronomy'
 ];
 
-// 🔁 Pause logic
-let isPaused = false;
-
-// 🔢 Estimate token count
+// Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧠 Auto category detection
+// Detect smart categories
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -50,7 +47,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// 📄 Extract title and text
+// Extract title and text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -62,7 +59,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// 🤖 robots.txt + delay
+// Check robots.txt and delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -75,7 +72,7 @@ async function getRobots(url) {
   }
 }
 
-// ☁️ Upload to Supabase
+// Upload to Supabase
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -100,7 +97,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 📂 Ensure table exists
+// Ensure tables exist
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -118,7 +115,7 @@ async function ensureTables() {
   }
 }
 
-// 🔁 Visited memory
+// Visited Set from Supabase
 const visited = new Set();
 async function loadVisitedUrls() {
   try {
@@ -131,7 +128,7 @@ async function loadVisitedUrls() {
   }
 }
 
-// 🕷️ Main crawl
+// Crawl function
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
@@ -139,8 +136,6 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   visited.add(url);
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
-
-  while (isPaused) await new Promise(r => setTimeout(r, 100)); // Pause if needed
 
   try {
     const res = await axios.get(url, { timeout: 10000 });
@@ -185,7 +180,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🚀 Crawl all
+// Run full crawler
 async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTables();
@@ -196,7 +191,7 @@ async function runCrawler(sites = SITES) {
   }
 }
 
-// 📚 Wikipedia smart search
+// Wikipedia Smart Search
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
   try {
@@ -228,15 +223,12 @@ async function getSmartCrawl(query) {
   }
 }
 
-// 🔍 /search endpoint
+// POST /search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
-  isPaused = true;
   const data = await getSmartCrawl(query);
-  isPaused = false;
-
   if (!data) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
@@ -257,7 +249,7 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// 🔌 /online endpoint
+// POST /online
 app.post('/online', async (req, res) => {
   console.log("📶 User is online — starting fAi.js...");
   try {
