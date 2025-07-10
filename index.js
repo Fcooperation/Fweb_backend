@@ -16,7 +16,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // Replace with your anon/public key
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc2NzQ2MTAsImV4cCI6MjAxMzI1MDYxMH0.NWjSiWaL3AfSCVi-SQ1cLSejTcfG71DLooxs7Pb0rEc'; // Replace with your anon/public key
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 📚 Sites to crawl
