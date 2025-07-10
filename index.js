@@ -16,7 +16,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc2NzQ2MTAsImV4cCI6MjAxMzI1MDYxMH0.NWjSiWaL3AfSCVi-SQ1cLSejTcfG71DLooxs7Pb0rEc'; // Replace with your anon/public key
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc2NzQ2MTAsImV4cCI6MjAxMzI1MDYxMH0.NWjSiWaL3AfSCVi-SQ1cLSejTcfG71DLooxs7Pb0rEc';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 📚 Sites to crawl
@@ -38,7 +38,7 @@ function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧠 Category detector
+// 🧠 Smart category detection
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -48,7 +48,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// 📄 Extract title and paragraph content
+// 📄 Extract title + paragraph text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -73,37 +73,7 @@ async function getRobots(url) {
   }
 }
 
-// ✅ Ensure both tables exist
-async function ensureTables() {
-  console.log('⚙️ Checking Supabase tables...');
-  try {
-    await supabase.from('fai_training').select('id').limit(1);
-    console.log('✅ fai_training table exists');
-  } catch {
-    console.warn('⚠️ fai_training table may not exist');
-  }
-
-  try {
-    await supabase.from('fai_visited').select('url').limit(1);
-    console.log('✅ fai_visited table exists');
-  } catch {
-    console.warn('⚠️ fai_visited table may not exist');
-  }
-}
-
-// 🧠 Load visited from DB
-async function loadVisitedSet() {
-  const visitedSet = new Set();
-  const { data, error } = await supabase.from('fai_visited').select('url');
-  if (data) {
-    for (const row of data) {
-      visitedSet.add(row.url);
-    }
-  }
-  return visitedSet;
-}
-
-// 🧠 Save training to Supabase
+// 🧠 Save training data to Supabase
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -127,8 +97,42 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 🔁 Crawler logic
-async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
+// 🧱 Table check
+async function ensureTables() {
+  console.log('⚙️ Checking Supabase tables...');
+  try {
+    await supabase.from('fai_training').select('id').limit(1);
+    console.log('✅ fai_training table exists');
+  } catch {
+    console.warn('⚠️ fai_training table may not exist');
+  }
+
+  try {
+    await supabase.from('fai_visited').select('url').limit(1);
+    console.log('✅ fai_visited table exists');
+  } catch {
+    console.warn('⚠️ fai_visited table may not exist');
+  }
+}
+
+// 🧠 Load visited from DB
+async function loadVisitedSet() {
+  const visitedSet = new Set();
+  try {
+    const { data } = await supabase.from('fai_visited').select('url');
+    if (data) {
+      for (const row of data) {
+        visitedSet.add(row.url);
+      }
+    }
+  } catch (err) {
+    console.error('❌ Failed loading visited URLs:', err.message);
+  }
+  return visitedSet;
+}
+
+// 🔁 Crawler
+async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10, visitedSet = new Set()) {
   if (visitedSet.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
@@ -141,7 +145,6 @@ async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
 
-    // Mark as visited
     await supabase.from('fai_visited').insert([{ url, timestamp: new Date().toISOString() }]);
 
     if (tokens < 100) {
@@ -187,25 +190,20 @@ async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
 async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTables();
-  const visitedSet = await loadVisitedSet(); // ✅ Load visited
+  const visitedSet = await loadVisitedSet();
   for (const site of sites) {
     const robots = await getRobots(site);
     const pageCount = { count: 0 };
-    await crawl(site, robots, robots.delay, pageCount, 10, visitedSet); // ✅ Pass visited
+    await crawl(site, robots, robots.delay, pageCount, 10, visitedSet);
   }
 }
 
-// 🌐 Smart Wikipedia Search
+// 🌐 Smart Search API (Wikipedia)
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
   try {
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json'
-      }
+      params: { action: 'query', list: 'search', srsearch: query, format: 'json' }
     });
 
     const results = searchRes.data.query.search;
@@ -253,7 +251,7 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// 🚀 POST /online (starts crawl)
+// 🚀 POST /online
 app.post('/online', async (req, res) => {
   console.log("📶 User is online — starting fAi.js...");
   try {
