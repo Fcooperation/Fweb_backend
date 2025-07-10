@@ -1,7 +1,6 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import fs from 'fs';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
@@ -16,10 +15,10 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjgzODcsImV4cCI6MjA2NzUwNDM4N30.T170FX8tC5iZEmdzyY_NjuFQDZ9_7GxxVSrVLzhvnQ0';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 📚 Sites to crawl
+// 🌍 Sites to crawl
 const SITES = [
   'https://en.wikipedia.org/wiki/Physics',
   'https://en.wikipedia.org/wiki/Cat',
@@ -33,12 +32,12 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Astronomy'
 ];
 
-// 📏 Token estimator
+// Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧠 Smart category detection
+// Detect smart categories
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -48,7 +47,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// 📄 Extract title + paragraph text
+// Extract title and text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -60,7 +59,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// 🔍 robots.txt + delay
+// Check robots.txt and delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -73,17 +72,19 @@ async function getRobots(url) {
   }
 }
 
-// 💾 Save data to Supabase
+// Upload to Supabase
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
       .from('fai_training')
       .select('id')
       .eq('url', data.url)
-      .limit(1);
+      .limit(1)
+      .throwOnError();
 
     if (!existing || existing.length === 0) {
-      await supabase.from('fai_training').insert([data]);
+      await supabase.from('fai_training').insert([data]).throwOnError();
+      await supabase.from('fai_visited').insert([{ url: data.url }]).throwOnError();
       console.log(`📤 Uploaded: ${data.url}`);
       return true;
     } else {
@@ -96,7 +97,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// ✅ Ensure tables exist
+// Ensure tables exist
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -114,21 +115,25 @@ async function ensureTables() {
   }
 }
 
-// 🔁 Crawler core
-async function loadVisitedSet() {
-  const visitedSet = new Set();
-  const { data } = await supabase.from('fai_visited').select('url');
-  if (data) {
-    for (const row of data) visitedSet.add(row.url);
+// Visited Set from Supabase
+const visited = new Set();
+async function loadVisitedUrls() {
+  try {
+    const { data, error } = await supabase.from('fai_visited').select('url').limit(10000);
+    if (error) throw error;
+    data.forEach(entry => visited.add(entry.url));
+    console.log(`📚 Loaded ${visited.size} visited URLs`);
+  } catch (err) {
+    console.warn('⚠️ Could not load visited URLs:', err.message);
   }
-  return visitedSet;
 }
 
-async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
-  if (visitedSet.has(url) || pageCount.count >= maxPages) return;
+// Crawl function
+async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
+  if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
-  visitedSet.add(url);
+  visited.add(url);
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
 
@@ -136,8 +141,6 @@ async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
     const res = await axios.get(url, { timeout: 10000 });
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
-
-    await supabase.from('fai_visited').insert([{ url, timestamp: new Date().toISOString() }]);
 
     if (tokens < 100) {
       console.log(`⚠️ Skipped (weak content): ${url}`);
@@ -170,30 +173,35 @@ async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
 
     for (const link of links) {
       await new Promise(resolve => setTimeout(resolve, delay));
-      await crawl(link, robots, delay, pageCount, maxPages, visitedSet);
+      await crawl(link, robots, delay, pageCount, maxPages);
     }
   } catch (err) {
     console.warn(`❌ Failed: ${url} – ${err.message}`);
   }
 }
 
-// 🚀 Start crawl
+// Run full crawler
 async function runCrawler(sites = SITES) {
-  console.log('🚀 Starting crawler...');
+  console.log('🚀 crawlerA starting...');
   await ensureTables();
-  const visitedSet = await loadVisitedSet();
+  await loadVisitedUrls();
   for (const site of sites) {
     const robots = await getRobots(site);
-    const pageCount = { count: 0 };
-    await crawl(site, robots, robots.delay, pageCount, 10, visitedSet);
+    await crawl(site, robots, robots.delay);
   }
 }
 
-// 🌐 Smart Search (Wikipedia)
+// Wikipedia Smart Search
 async function getSmartCrawl(query) {
+  console.log(`🔍 Smart crawling: "${query}"`);
   try {
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: { action: 'query', list: 'search', srsearch: query, format: 'json' }
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json'
+      }
     });
 
     const results = searchRes.data.query.search;
@@ -215,7 +223,7 @@ async function getSmartCrawl(query) {
   }
 }
 
-// 🔍 POST /search
+// POST /search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
@@ -241,18 +249,18 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// 🚀 POST /online
+// POST /online
 app.post('/online', async (req, res) => {
-  console.log("📶 User is online — starting crawler...");
+  console.log("📶 User is online — starting fAi.js...");
   try {
     await runCrawler();
-    res.send('✅ Crawler finished');
+    res.send('✅ fAi.js (crawler) completed');
   } catch (err) {
-    console.error(`❌ Crawler failed: ${err.message}`);
-    res.status(500).send('Crawler error');
+    console.error(`❌ fAi.js error:\n${err.message}`);
+    res.status(500).send('Failed to run fAi.js');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Fai backend running at port ${PORT}`);
+  console.log(`🚀 fAi backend running at port ${PORT}`);
 });
