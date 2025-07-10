@@ -7,20 +7,16 @@ import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import { exec } from 'child_process';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
-
-// 🔐 Supabase credentials
+// 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // Replace with real key
+const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // Replace with your key
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🌐 Educational-focused pages
+// 🧠 Educational start URLs
 const SITES = [
   'https://en.wikipedia.org/wiki/Wikipedia:Contents',
   'https://en.wikipedia.org/wiki/Outline_of_academic_disciplines',
@@ -28,17 +24,22 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Portal:Technology',
   'https://en.wikipedia.org/wiki/Portal:Mathematics',
   'https://en.wikipedia.org/wiki/Portal:History',
+  'https://en.wikipedia.org/wiki/Portal:Health_and_fitness',
+  'https://en.wikipedia.org/wiki/Portal:Society',
   'https://en.wikipedia.org/wiki/Portal:Philosophy',
+  'https://en.wikipedia.org/wiki/Portal:Engineering',
   'https://openlibrary.org/subjects/science',
+  'https://openlibrary.org/subjects/technology',
+  'https://openlibrary.org/subjects/history',
   'https://openlibrary.org/subjects/mathematics',
   'https://www.nature.com/subjects',
+  'https://www.sciencedirect.com/journal/',
   'https://www.hindawi.com/journals/',
   'https://pubmed.ncbi.nlm.nih.gov/',
   'https://www.researchgate.net/',
-  'https://www.sciencedirect.com/journal/',
 ];
 
-// 🔍 Detect categories for responses
+// 🔍 Category detection for smart search
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -48,7 +49,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// 📚 Smart Wikipedia search
+// 🔍 Search endpoint logic
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
 
@@ -82,7 +83,11 @@ async function getSmartCrawl(query) {
   }
 }
 
-// ✅ POST /search → responds with smart crawl result
+// 🌐 Enable CORS + JSON
+app.use(cors());
+app.use(express.json());
+
+// 🔎 Search API
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
@@ -108,30 +113,17 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// ✅ POST /online → run fAi.js crawler
-app.post('/online', (req, res) => {
-  console.log("📶 User is online — starting fAi.js...");
-
-  exec('node fAi.js', (err, stdout, stderr) => {
-    if (err) {
-      console.error(`❌ fAi.js error:\n${stderr}`);
-      return res.status(500).send('Failed to run fAi.js');
-    }
-    console.log(`✅ fAi.js output:\n${stdout}`);
-    res.send('fAi.js started successfully');
-  });
-});
-
-// === fAi CRAWLER ===
-
+// 🔠 Token counter
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
+// 💤 Sleep for crawl delay
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// 📑 Extract meaningful HTML content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -143,6 +135,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
+// ☁️ Upload data if not duplicate
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -165,23 +158,25 @@ async function uploadToSupabase(data) {
   }
 }
 
+// ✅ Ensure both tables exist
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
     await supabase.from('fai_training').select('id').limit(1);
     console.log('✅ fai_training table exists');
   } catch {
-    console.warn('⚠️ fai_training table check failed');
+    console.warn('⚠️ fai_training table not found or error.');
   }
 
   try {
     await supabase.from('fai_visited').select('url').limit(1);
     console.log('✅ fai_visited table exists');
   } catch {
-    console.warn('⚠️ fai_visited table check failed');
+    console.warn('⚠️ fai_visited table not found or error.');
   }
 }
 
+// 🤖 Get robots.txt and crawl delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -194,6 +189,7 @@ async function getRobots(url) {
   }
 }
 
+// 🔁 Crawler state
 const visited = new Set();
 async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 100) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
@@ -247,9 +243,9 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🔁 Main crawler trigger
-export async function runCrawler(sites = SITES) {
-  console.log('🚀 crawlerA starting...');
+// 🚀 Trigger crawler manually
+async function runCrawler(sites = SITES) {
+  console.log('🚀 Background crawler starting...');
   await ensureTables();
   for (const site of sites) {
     const robots = await getRobots(site);
@@ -257,7 +253,13 @@ export async function runCrawler(sites = SITES) {
   }
 }
 
-// 🚀 Start server
+// 📶 Online ping triggers full crawl
+app.post('/online', async (req, res) => {
+  console.log("📶 User is online — starting background crawl...");
+  runCrawler();
+  res.send('Crawler started in background.');
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 fAi backend running at port ${PORT}`);
 });
