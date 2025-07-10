@@ -32,6 +32,9 @@ const SITES = [
   'https://en.wikipedia.org/wiki/Astronomy'
 ];
 
+// 🔁 Pause flag for crawler
+let isPaused = false;
+
 // Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
@@ -138,6 +141,8 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   console.log(`🔍 Crawling: ${url}`);
 
   try {
+    while (isPaused) await new Promise(resolve => setTimeout(resolve, 100)); // 🛑 Pause if needed
+
     const res = await axios.get(url, { timeout: 10000 });
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
@@ -228,7 +233,12 @@ app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
 
+  isPaused = true; // 🛑 Pause crawler
+
   const data = await getSmartCrawl(query);
+
+  isPaused = false; // ✅ Resume crawler
+
   if (!data) {
     return res.json({
       response: `❌ Couldn't find anything for "${query}"`,
