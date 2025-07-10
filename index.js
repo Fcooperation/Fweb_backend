@@ -1,7 +1,6 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import { exec } from 'child_process';
 import fs from 'fs';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
@@ -17,7 +16,7 @@ app.use(express.json());
 
 // 🔐 Supabase setup
 const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjgzODcsImV4cCI6MjA2NzUwNDM4N30.T170FX8tC5iZEmdzyY_NjuFQDZ9_7GxxVSrVLzhvnQ0'; // replace with yours
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTc2NzQ2MTAsImV4cCI6MjAxMzI1MDYxMH0.NWjSiWaL3AfSCVi-SQ1cLSejTcfG71DLooxs7Pb0rEc';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 📚 Sites to crawl
@@ -39,7 +38,7 @@ function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧠 Smart category detection
+// 🧠 Category detector
 function detectCategories(text) {
   const categories = [];
   const lower = text.toLowerCase();
@@ -49,7 +48,7 @@ function detectCategories(text) {
   return categories;
 }
 
-// 📄 Extract title + paragraph text
+// 📄 Extract title and paragraph content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -74,7 +73,7 @@ async function getRobots(url) {
   }
 }
 
-// 🧠 Save training data to Supabase
+// 🧠 Save training
 async function uploadToSupabase(data) {
   try {
     const { data: existing } = await supabase
@@ -98,7 +97,7 @@ async function uploadToSupabase(data) {
   }
 }
 
-// 🧱 Table check
+// ✅ Ensure both tables exist
 async function ensureTables() {
   console.log('⚙️ Checking Supabase tables...');
   try {
@@ -116,13 +115,24 @@ async function ensureTables() {
   }
 }
 
-// 🔁 Crawler
-const visited = new Set();
-async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
-  if (visited.has(url) || pageCount.count >= maxPages) return;
+// 🧠 Load visited from DB
+async function loadVisitedSet() {
+  const visitedSet = new Set();
+  const { data, error } = await supabase.from('fai_visited').select('url');
+  if (data) {
+    for (const row of data) {
+      visitedSet.add(row.url);
+    }
+  }
+  return visitedSet;
+}
+
+// 🔁 Crawler core
+async function crawl(url, robots, delay, pageCount, maxPages, visitedSet) {
+  if (visitedSet.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
-  visited.add(url);
+  visitedSet.add(url);
   pageCount.count++;
   console.log(`🔍 Crawling: ${url}`);
 
@@ -130,6 +140,8 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
     const res = await axios.get(url, { timeout: 10000 });
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
+
+    await supabase.from('fai_visited').insert([{ url, timestamp: new Date().toISOString() }]);
 
     if (tokens < 100) {
       console.log(`⚠️ Skipped (weak content): ${url}`);
@@ -162,7 +174,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
 
     for (const link of links) {
       await new Promise(resolve => setTimeout(resolve, delay));
-      await crawl(link, robots, delay, pageCount, maxPages);
+      await crawl(link, robots, delay, pageCount, maxPages, visitedSet);
     }
 
   } catch (err) {
@@ -170,28 +182,25 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🚀 Start crawl
+// 🚀 Run crawler
 async function runCrawler(sites = SITES) {
   console.log('🚀 crawlerA starting...');
   await ensureTables();
+  const visitedSet = await loadVisitedSet();
+
   for (const site of sites) {
     const robots = await getRobots(site);
-    await crawl(site, robots, robots.delay);
+    const pageCount = { count: 0 };
+    await crawl(site, robots, robots.delay, pageCount, 10, visitedSet);
   }
 }
 
-// 🌐 Smart Search API (Wikipedia)
+// 🌐 Wikipedia Smart Search
 async function getSmartCrawl(query) {
   console.log(`🔍 Smart crawling: "${query}"`);
-
   try {
     const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json'
-      }
+      params: { action: 'query', list: 'search', srsearch: query, format: 'json' }
     });
 
     const results = searchRes.data.query.search;
@@ -207,14 +216,13 @@ async function getSmartCrawl(query) {
     const categories = detectCategories(main);
 
     return { main, image, title: bestTitle, source, categories };
-
   } catch (err) {
     console.error(`❌ Smart crawl error: ${err.message}`);
     return null;
   }
 }
 
-// 🧠 POST /search
+// 🔍 POST /search
 app.post('/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Missing query.' });
@@ -240,18 +248,18 @@ app.post('/search', async (req, res) => {
   });
 });
 
-// 🚀 POST /online
+// 🔌 POST /online
 app.post('/online', async (req, res) => {
-  console.log("📶 User is online — starting fAi.js...");
+  console.log("📶 User is online — starting crawler...");
   try {
     await runCrawler();
-    res.send('✅ fAi.js (crawler) completed');
+    res.send('✅ Crawler finished');
   } catch (err) {
-    console.error(`❌ fAi.js error:\n${err.message}`);
-    res.status(500).send('Failed to run fAi.js');
+    console.error(`❌ Crawler failed: ${err.message}`);
+    res.status(500).send('Crawler error');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 fAi backend running at port ${PORT}`);
+  console.log(`🚀 Fai backend running at port ${PORT}`);
 });
