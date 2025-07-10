@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
+import { exec } from 'child_process';
 import fs from 'fs';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
@@ -11,119 +12,44 @@ import { URL } from 'url';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔐 Supabase setup
-const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
-const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // Replace with your key
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// 🧠 Educational start URLs
-const SITES = [
-  'https://en.wikipedia.org/wiki/Wikipedia:Contents',
-  'https://en.wikipedia.org/wiki/Outline_of_academic_disciplines',
-  'https://en.wikipedia.org/wiki/Portal:Science',
-  'https://en.wikipedia.org/wiki/Portal:Technology',
-  'https://en.wikipedia.org/wiki/Portal:Mathematics',
-  'https://en.wikipedia.org/wiki/Portal:History',
-  'https://en.wikipedia.org/wiki/Portal:Health_and_fitness',
-  'https://en.wikipedia.org/wiki/Portal:Society',
-  'https://en.wikipedia.org/wiki/Portal:Philosophy',
-  'https://en.wikipedia.org/wiki/Portal:Engineering',
-  'https://openlibrary.org/subjects/science',
-  'https://openlibrary.org/subjects/technology',
-  'https://openlibrary.org/subjects/history',
-  'https://openlibrary.org/subjects/mathematics',
-  'https://www.nature.com/subjects',
-  'https://www.sciencedirect.com/journal/',
-  'https://www.hindawi.com/journals/',
-  'https://pubmed.ncbi.nlm.nih.gov/',
-  'https://www.researchgate.net/',
-];
-
-// 🔍 Category detection for smart search
-function detectCategories(text) {
-  const categories = [];
-  const lower = text.toLowerCase();
-  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
-  if (lower.includes('news') || lower.includes('reported') || lower.includes('breaking')) categories.push('news');
-  if (lower.includes('book') || lower.includes('novel') || lower.includes('published')) categories.push('books');
-  return categories;
-}
-
-// 🔍 Search endpoint logic
-async function getSmartCrawl(query) {
-  console.log(`🔍 Smart crawling: "${query}"`);
-
-  try {
-    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
-      params: {
-        action: 'query',
-        list: 'search',
-        srsearch: query,
-        format: 'json',
-      }
-    });
-
-    const results = searchRes.data.query.search;
-    if (!results || results.length === 0) return null;
-
-    const bestTitle = results[0].title;
-    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
-    const summaryData = summaryRes.data;
-
-    const main = summaryData.extract || "No summary found.";
-    const image = summaryData.originalimage?.source || null;
-    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
-    const categories = detectCategories(main);
-
-    return { main, image, title: bestTitle, source, categories };
-
-  } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
-    return null;
-  }
-}
-
-// 🌐 Enable CORS + JSON
 app.use(cors());
 app.use(express.json());
 
-// 🔎 Search API
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'Missing query.' });
+// 🔐 Supabase setup
+const supabaseUrl = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
+const supabaseKey = 'YOUR_SUPABASE_KEY_HERE'; // replace with yours
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const data = await getSmartCrawl(query);
-  if (!data) {
-    return res.json({
-      response: `❌ Couldn't find anything for "${query}"`,
-      related: [],
-      images: [],
-      categories: [],
-      source: null
-    });
-  }
+// 📚 Sites to crawl
+const SITES = [
+  'https://en.wikipedia.org/wiki/Physics',
+  'https://en.wikipedia.org/wiki/Cat',
+  'https://en.wikipedia.org/wiki/History_of_science',
+  'https://en.wikipedia.org/wiki/Mathematics',
+  'https://en.wikipedia.org/wiki/Chemistry',
+  'https://en.wikipedia.org/wiki/Biology',
+  'https://en.wikipedia.org/wiki/Computer_science',
+  'https://en.wikipedia.org/wiki/Artificial_intelligence',
+  'https://en.wikipedia.org/wiki/Engineering',
+  'https://en.wikipedia.org/wiki/Astronomy'
+];
 
-  res.json({
-    response: data.main,
-    related: [],
-    images: data.image ? [data.image] : [],
-    source: data.source,
-    title: data.title,
-    categories: data.categories
-  });
-});
-
-// 🔠 Token counter
+// 📏 Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 💤 Sleep for crawl delay
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+// 🧠 Smart category detection
+function detectCategories(text) {
+  const categories = [];
+  const lower = text.toLowerCase();
+  if (lower.includes('forum') || lower.includes('discussion')) categories.push('forums');
+  if (lower.includes('news') || lower.includes('breaking')) categories.push('news');
+  if (lower.includes('book') || lower.includes('novel')) categories.push('books');
+  return categories;
 }
 
-// 📑 Extract meaningful HTML content
+// 📄 Extract title + paragraph text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -135,48 +61,7 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
 
-// ☁️ Upload data if not duplicate
-async function uploadToSupabase(data) {
-  try {
-    const { data: existing } = await supabase
-      .from('fai_training')
-      .select('id')
-      .eq('url', data.url)
-      .limit(1);
-
-    if (existing.length > 0) {
-      console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
-      return false;
-    }
-
-    await supabase.from('fai_training').insert([data]).throwOnError();
-    console.log(`📤 Uploaded: ${data.url}`);
-    return true;
-  } catch (err) {
-    console.error('❌ Upload error:', err.message || err);
-    return false;
-  }
-}
-
-// ✅ Ensure both tables exist
-async function ensureTables() {
-  console.log('⚙️ Checking Supabase tables...');
-  try {
-    await supabase.from('fai_training').select('id').limit(1);
-    console.log('✅ fai_training table exists');
-  } catch {
-    console.warn('⚠️ fai_training table not found or error.');
-  }
-
-  try {
-    await supabase.from('fai_visited').select('url').limit(1);
-    console.log('✅ fai_visited table exists');
-  } catch {
-    console.warn('⚠️ fai_visited table not found or error.');
-  }
-}
-
-// 🤖 Get robots.txt and crawl delay
+// 🔍 robots.txt + delay
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -189,9 +74,51 @@ async function getRobots(url) {
   }
 }
 
-// 🔁 Crawler state
+// 🧠 Save training data to Supabase
+async function uploadToSupabase(data) {
+  try {
+    const { data: existing } = await supabase
+      .from('fai_training')
+      .select('id')
+      .eq('url', data.url)
+      .limit(1)
+      .throwOnError();
+
+    if (!existing || existing.length === 0) {
+      await supabase.from('fai_training').insert([data]).throwOnError();
+      console.log(`📤 Uploaded: ${data.url}`);
+      return true;
+    } else {
+      console.log(`⚠️ Duplicate found, skipping: ${data.url}`);
+      return false;
+    }
+  } catch (err) {
+    console.error('❌ Upload error:', err.message || err);
+    return false;
+  }
+}
+
+// 🧱 Table check
+async function ensureTables() {
+  console.log('⚙️ Checking Supabase tables...');
+  try {
+    await supabase.from('fai_training').select('id').limit(1);
+    console.log('✅ fai_training table exists');
+  } catch {
+    console.warn('⚠️ fai_training table may not exist');
+  }
+
+  try {
+    await supabase.from('fai_visited').select('url').limit(1);
+    console.log('✅ fai_visited table exists');
+  } catch {
+    console.warn('⚠️ fai_visited table may not exist');
+  }
+}
+
+// 🔁 Crawler
 const visited = new Set();
-async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 100) {
+async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10) {
   if (visited.has(url) || pageCount.count >= maxPages) return;
   if (!robots.parser.isAllowed(url, 'fcrawler')) return;
 
@@ -234,7 +161,7 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
       .filter(href => href && href.startsWith('http'));
 
     for (const link of links) {
-      await sleep(delay);
+      await new Promise(resolve => setTimeout(resolve, delay));
       await crawl(link, robots, delay, pageCount, maxPages);
     }
 
@@ -243,9 +170,9 @@ async function crawl(url, robots, delay, pageCount = { count: 0 }, maxPages = 10
   }
 }
 
-// 🚀 Trigger crawler manually
+// 🚀 Start crawl
 async function runCrawler(sites = SITES) {
-  console.log('🚀 Background crawler starting...');
+  console.log('🚀 crawlerA starting...');
   await ensureTables();
   for (const site of sites) {
     const robots = await getRobots(site);
@@ -253,11 +180,76 @@ async function runCrawler(sites = SITES) {
   }
 }
 
-// 📶 Online ping triggers full crawl
+// 🌐 Smart Search API (Wikipedia)
+async function getSmartCrawl(query) {
+  console.log(`🔍 Smart crawling: "${query}"`);
+
+  try {
+    const searchRes = await axios.get('https://en.wikipedia.org/w/api.php', {
+      params: {
+        action: 'query',
+        list: 'search',
+        srsearch: query,
+        format: 'json'
+      }
+    });
+
+    const results = searchRes.data.query.search;
+    if (!results || results.length === 0) return null;
+
+    const bestTitle = results[0].title;
+    const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`);
+    const summaryData = summaryRes.data;
+
+    const main = summaryData.extract || "No summary found.";
+    const image = summaryData.originalimage?.source || null;
+    const source = summaryData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${bestTitle.replace(/ /g, "_")}`;
+    const categories = detectCategories(main);
+
+    return { main, image, title: bestTitle, source, categories };
+
+  } catch (err) {
+    console.error(`❌ Smart crawl error: ${err.message}`);
+    return null;
+  }
+}
+
+// 🧠 POST /search
+app.post('/search', async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ error: 'Missing query.' });
+
+  const data = await getSmartCrawl(query);
+  if (!data) {
+    return res.json({
+      response: `❌ Couldn't find anything for "${query}"`,
+      related: [],
+      images: [],
+      categories: [],
+      source: null
+    });
+  }
+
+  res.json({
+    response: data.main,
+    related: [],
+    images: data.image ? [data.image] : [],
+    source: data.source,
+    title: data.title,
+    categories: data.categories
+  });
+});
+
+// 🚀 POST /online
 app.post('/online', async (req, res) => {
-  console.log("📶 User is online — starting background crawl...");
-  runCrawler();
-  res.send('Crawler started in background.');
+  console.log("📶 User is online — starting fAi.js...");
+  try {
+    await runCrawler();
+    res.send('✅ fAi.js (crawler) completed');
+  } catch (err) {
+    console.error(`❌ fAi.js error:\n${err.message}`);
+    res.status(500).send('Failed to run fAi.js');
+  }
 });
 
 app.listen(PORT, () => {
