@@ -1,60 +1,46 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
-import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 import http from 'http';
 
-// 🔐 Supabase credentials
+// 🔐 Supabase connection
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Wiktionary entry point for full dictionary
-const SITES = [
-  'https://en.wiktionary.org/wiki/Category:English_lemmas'
-];
-
-// 🧠 Visited memory
+// 🌍 Fallback test site (only if no visited history exists)
+const DEFAULT_SITE = 'https://www.google.com/';
 const visited = new Set();
+const queue = [];
 
-// 🧮 Token estimator
-function countTokens(text) {
-  return Math.ceil(text.length / 4);
-}
+// 🧠 Load visited from Supabase
+async function loadVisitedAndSeedQueue() {
+  const { data, error } = await supabase
+    .from('fai_visited')
+    .select('url')
+    .order('timestamp', { ascending: false })  // newest first
+    .limit(10000);
 
-// 🧹 Extract <title> and <p> text content
-function extractTrainingData(html) {
-  const $ = cheerio.load(html);
-  const title = $('title').text().trim();
-  let bodyText = '';
-  $('p').each((_, el) => {
-    const txt = $(el).text().trim();
-    if (txt.length > 1) bodyText += txt + '\n';
-  });
-  return { title, content: bodyText.trim() };
-}
+  if (error) {
+    console.error('❌ Error loading visited:', error.message);
+    return;
+  }
 
-// 📤 Upload to Supabase
-async function uploadToSupabase(entry) {
-  const { data: existing } = await supabase
-    .from('fai_training')
-    .select('id')
-    .eq('url', entry.url)
-    .limit(1);
+  data?.forEach(d => visited.add(d.url.split('#')[0]));
 
-  if (!existing || existing.length === 0) {
-    await supabase.from('fai_training').insert([entry]);
-    await supabase.from('fai_visited').insert([{ url: entry.url }]);
-    console.log(`📤 Uploaded: ${entry.url}`);
+  if (data && data.length > 0) {
+    console.log(`📚 Loaded ${data.length} visited URLs`);
+    queue.push(...data.map(d => d.url));
   } else {
-    console.log(`⚠️ Duplicate: ${entry.url}`);
+    console.log('📭 No visited URLs — seeding from scratch.');
+    queue.push(DEFAULT_SITE);
   }
 }
 
-// 📜 Get and parse robots.txt
+// 📜 Get robots.txt
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -67,7 +53,7 @@ async function getRobots(url) {
   }
 }
 
-// 🔁 Crawl a single page
+// 🧭 Crawl a URL
 async function crawl(url, robots, delay) {
   const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
@@ -81,62 +67,60 @@ async function crawl(url, robots, delay) {
   try {
     console.log(`🔍 Crawling: ${cleanUrl}`);
     const res = await axios.get(cleanUrl);
-    const { title, content } = extractTrainingData(res.data);
-    const tokens = countTokens(content);
-    if (tokens > 0) {
-      await uploadToSupabase({
-        id: nanoid(),
-        url: cleanUrl,
-        title,
-        content,
-        tokens,
-        timestamp: new Date().toISOString()
-      });
-    }
+    await supabase.from('fai_visited').insert([
+      { url: cleanUrl, timestamp: new Date().toISOString() }
+    ]);
+    console.log(`✅ Visited saved: ${cleanUrl}`);
 
+    // Extract links
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
       .get()
       .map(href => {
         try {
-          const full = new URL(href, cleanUrl).href;
-          return full.split('#')[0];
+          return new URL(href, cleanUrl).href.split('#')[0];
         } catch {
           return null;
         }
       })
       .filter(Boolean)
-      .filter(href => href.startsWith('https://en.wiktionary.org/wiki/'));
+      .filter(href => href.startsWith('http'))
+      .filter(href => !visited.has(href));
 
-    for (const link of links) {
-      await new Promise(r => setTimeout(r, delay));
-      await crawl(link, robots, delay);
+    for (const link of links.slice(0, 10)) {
+      queue.push(link);
     }
 
+    // Crawl next
+    while (queue.length > 0) {
+      const next = queue.shift();
+      await new Promise(r => setTimeout(r, delay));
+      await crawl(next, robots, delay);
+    }
   } catch (err) {
     console.warn(`❌ Failed to crawl ${cleanUrl}: ${err.message}`);
   }
 }
 
-// 🚀 Boot + keep port 10000 open
+// 🚀 Boot
 (async () => {
   console.log('🕷️ crawlerA booting...');
+  await loadVisitedAndSeedQueue();
 
-  const { data } = await supabase.from('fai_visited').select('url').limit(100000);
-  data?.forEach(d => visited.add(d.url.split('#')[0]));
-  console.log(`📚 Loaded ${visited.size} visited URLs`);
+  const robots = await getRobots(queue[0]);
+  const delay = robots.delay;
 
-  for (const site of SITES) {
-    const robots = await getRobots(site);
-    await crawl(site, robots, robots.delay);
+  while (queue.length > 0) {
+    const url = queue.shift();
+    await crawl(url, robots, delay);
   }
 
-  // 🔓 Keep port open (for Render or Replit)
-  const PORT = 10000;
+  // 🟢 Keep server alive
+  const PORT = process.env.PORT || 10000;
   http.createServer((_, res) => {
     res.writeHead(200);
-    res.end('crawlerA is running.\n');
+    res.end('🟢 Crawler is running.\n');
   }).listen(PORT, () => {
     console.log(`🔓 Port opened on ${PORT}`);
   });
