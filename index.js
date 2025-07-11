@@ -1,182 +1,145 @@
-// crawlerA.js
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import robotsParser from 'robots-parser';
-import { nanoid } from 'nanoid';
-import { createClient } from '@supabase/supabase-js';
-import { URL } from 'url';
+// fcrawler.js
+const axios = require('axios');
+const cheerio = require('cheerio');
+const robotsParser = require('robots-parser');
+const { writeFileSync, existsSync, mkdirSync } = require('fs');
+const path = require('path');
+const { uploadToMega, uploadThumbnail } = require('./megaUploader'); // your custom MEGA uploader
+const { generateThumbnail } = require('./thumbnailGen'); // your custom thumbnail generator
+const { getFileSize, getFileType, isMediaFile } = require('./utils'); // your file helper functions
 
-// 🔐 Supabase (your actual credentials)
-const supabase = createClient(
-  'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
-);
-
-// 🌍 Start site (general reference)
-const SITES = [
-  'https://en.wikipedia.org/wiki/Category:Reference'
-];
-
-// 🧠 Memory of visited pages
 const visited = new Set();
+const queue = [];
+const searchIndex = [];
 
-// 🧮 Token estimator
-function countTokens(text) {
-  return Math.ceil(text.length / 4);
-}
+let robotsCache = {};
 
-// 🧹 Extract title & paragraph content
-function extractTrainingData(html) {
-  const $ = cheerio.load(html);
-  const title = $('title').text().trim();
-  let bodyText = '';
-  $('p').each((_, el) => {
-    const txt = $(el).text().trim();
-    if (txt.length > 1) bodyText += txt + '\n';
-  });
-  return { title, content: bodyText.trim() };
-}
-
-// 📤 Upload training data to Supabase
-async function uploadToSupabase(entry) {
-  const { data: existing } = await supabase
-    .from('fai_training')
-    .select('id')
-    .eq('url', entry.url)
-    .limit(1);
-
-  if (!existing || existing.length === 0) {
-    await supabase.from('fai_training').insert([entry]);
-    await supabase.from('fai_visited').insert([{ url: entry.url }]);
-    console.log(`📤 Uploaded: ${entry.url}`);
-  } else {
-    console.log(`⚠️ Duplicate: ${entry.url}`);
-  }
-}
-
-// 📜 robots.txt parser
-async function getRobots(url) {
-  try {
-    const robotsUrl = new URL('/robots.txt', url).href;
-    const res = await axios.get(robotsUrl);
-    const parser = robotsParser(robotsUrl, res.data);
-    const delay = parser.getCrawlDelay('fcrawler') || 1500;
-    return { parser, delay };
-  } catch {
-    return { parser: { isAllowed: () => true }, delay: 1500 };
-  }
-}
-
-// 🧠 Fallback API (auto-detect by URL pattern)
-async function fallbackAPI(url) {
-  try {
-    if (url.includes('Special:Random')) {
-      const res = await axios.get('https://en.wikipedia.org/api/rest_v1/page/random/summary');
-      return {
-        title: res.data.title,
-        content: res.data.extract,
-        url: res.data.content_urls.desktop.page,
-        tokens: countTokens(res.data.extract)
-      };
+async function isAllowed(url) {
+  const { origin } = new URL(url);
+  if (!robotsCache[origin]) {
+    try {
+      const res = await axios.get(origin + '/robots.txt');
+      robotsCache[origin] = robotsParser(origin + '/robots.txt', res.data);
+    } catch {
+      robotsCache[origin] = robotsParser(origin + '/robots.txt', '');
     }
-
-    if (url.includes('Special:RecentChanges')) {
-      const res = await axios.get('https://en.wikipedia.org/w/api.php', {
-        params: {
-          action: 'query',
-          list: 'recentchanges',
-          format: 'json',
-          rcprop: 'title|timestamp'
-        }
-      });
-
-      const changes = res.data.query?.recentchanges || [];
-      const content = changes.map(c => `• ${c.title} (${c.timestamp})`).join('\n');
-      return {
-        title: 'Recent Wikipedia Changes',
-        content,
-        url,
-        tokens: countTokens(content)
-      };
-    }
-
-    // future fallback support (non-hardcoded)
-    return null;
-  } catch (err) {
-    console.warn(`⚠️ Fallback API failed for ${url}: ${err.message}`);
-    return null;
   }
+  return robotsCache[origin].isAllowed(url, 'fcrawler');
 }
 
-// 🔁 Crawl single URL
-async function crawl(url, robots, delay) {
-  if (visited.has(url)) return;
+function isWikipediaAPIConvertible(url) {
+  return url.includes('wikipedia.org/wiki/Special:');
+}
+
+function convertToWikipediaAPI(url) {
+  const title = decodeURIComponent(url.split('Special:')[1]);
+  return `https://en.wikipedia.org/w/api.php?action=query&format=json&list=${title.toLowerCase()}&origin=*`;
+}
+
+async function crawl(url, depth = 0) {
+  if (visited.has(url) || depth > 2) return;
   visited.add(url);
 
-  if (!robots.parser.isAllowed(url, 'fcrawler')) {
+  const allowed = await isAllowed(url);
+  if (!allowed) {
     console.log(`🚫 Disallowed by robots.txt: ${url}`);
-    const fallback = await fallbackAPI(url);
-    if (fallback && fallback.tokens > 0) {
-      await uploadToSupabase({
-        id: nanoid(),
-        url: fallback.url,
-        title: fallback.title,
-        content: fallback.content,
-        tokens: fallback.tokens,
-        timestamp: new Date().toISOString()
+
+    if (isWikipediaAPIConvertible(url)) {
+      const fallback = convertToWikipediaAPI(url);
+      console.log(`🔁 Fallback to API: ${fallback}`);
+      try {
+        const res = await axios.get(fallback);
+        const fileName = `wikiapi_${Date.now()}.json`;
+        const filePath = path.join(__dirname, 'data', fileName);
+        if (!existsSync('data')) mkdirSync('data');
+        writeFileSync(filePath, JSON.stringify(res.data, null, 2));
+        await uploadToMega(filePath, fileName);
+        searchIndex.push({ title: url, url, filename: fileName, type: 'api-json' });
+        console.log(`📤 Uploaded fallback API result: ${fileName}`);
+      } catch (err) {
+        console.log(`⚠️ Failed fallback API fetch: ${fallback}`);
+      }
+    }
+    return;
+  }
+
+  let res;
+  try {
+    res = await axios.get(url);
+  } catch {
+    console.log(`❌ Failed to fetch: ${url}`);
+    return;
+  }
+
+  const contentType = res.headers['content-type'];
+  if (isMediaFile(contentType)) {
+    const fileSize = parseInt(res.headers['content-length'] || '0');
+    if (fileSize < 100 * 1024 * 1024) {
+      const ext = getFileType(url);
+      const fileName = `media_${Date.now()}.${ext}`;
+      const filePath = path.join(__dirname, 'media', fileName);
+      if (!existsSync('media')) mkdirSync('media');
+      const fileData = await axios({ url, responseType: 'stream' });
+      const writer = require('fs').createWriteStream(filePath);
+      fileData.data.pipe(writer);
+      writer.on('finish', async () => {
+        await uploadToMega(filePath, fileName);
+        const thumb = await generateThumbnail(filePath);
+        await uploadThumbnail(thumb);
+        searchIndex.push({ title: url, url, filename: fileName, type: 'media' });
+        console.log(`📤 Uploaded media file: ${fileName}`);
       });
     }
     return;
   }
 
-  try {
-    console.log(`🔍 Crawling: ${url}`);
-    const res = await axios.get(url);
-    const { title, content } = extractTrainingData(res.data);
-    const tokens = countTokens(content);
-    if (tokens < 1) return;
+  const $ = cheerio.load(res.data);
+  const title = $('title').text().trim();
+  const blocks = [];
 
-    await uploadToSupabase({
-      id: nanoid(),
-      url,
-      title,
-      content,
-      tokens,
-      timestamp: new Date().toISOString()
-    });
+  $('body').find('p, h1, h2, h3, h4, h5, h6, img, ul, ol, li').each((_, el) => {
+    blocks.push($.html(el));
+  });
 
-    const $ = cheerio.load(res.data);
-    const links = $('a[href]')
-      .map((_, el) => $(el).attr('href'))
-      .get()
-      .map(href => {
-        try {
-          return new URL(href, url).href;
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean)
-      .filter(href => href.startsWith('http'));
+  const htmlContent = `
+    <html>
+    <head><title>${title}</title></head>
+    <body>${blocks.join('\n')}</body>
+    </html>
+  `;
 
-    for (const link of links) {
-      await new Promise(r => setTimeout(r, delay));
-      await crawl(link, robots, delay);
+  const fileName = `page_${Date.now()}.html`;
+  const filePath = path.join(__dirname, 'pages', fileName);
+  if (!existsSync('pages')) mkdirSync('pages');
+  writeFileSync(filePath, htmlContent);
+  await uploadToMega(filePath, fileName);
+  searchIndex.push({ title, url, filename: fileName, type: 'html' });
+
+  console.log(`📤 Uploaded: ${url}`);
+
+  // Enqueue links
+  $('a[href]').each((_, el) => {
+    const link = $(el).attr('href');
+    if (link.startsWith('http')) queue.push(link);
+    else if (link.startsWith('/')) {
+      try {
+        const abs = new URL(link, url).href;
+        queue.push(abs);
+      } catch {}
     }
-  } catch (err) {
-    console.warn(`❌ Failed to crawl ${url}: ${err.message}`);
-  }
+  });
 }
 
-// 🚀 Start crawl
 (async () => {
-  console.log('🕷️ crawlerA booting...');
-  const { data } = await supabase.from('fai_visited').select('url').limit(100000);
-  data?.forEach(d => visited.add(d.url));
-  console.log(`📚 Loaded ${visited.size} visited URLs`);
+  const startURL = 'https://en.wikipedia.org/wiki/Category:Reference';
+  queue.push(startURL);
 
-  for (const site of SITES) {
-    const robots = await getRobots(site);
-    await crawl(site, robots, robots.delay);
+  while (queue.length) {
+    const next = queue.shift();
+    await crawl(next);
   }
+
+  // Save index
+  writeFileSync('search_index.json', JSON.stringify(searchIndex, null, 2));
+  console.log(`✅ Saved search_index.json with ${searchIndex.length} entries.`);
 })();
