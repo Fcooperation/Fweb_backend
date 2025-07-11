@@ -60,7 +60,7 @@ function extractTrainingData(html) {
   let bodyText = '';
   $('p').each((_, el) => {
     const txt = $(el).text().trim();
-    if (txt.length > 50) bodyText += txt + '\n';
+    if (txt.length > 1) bodyText += txt + '\n';
   });
   return { title, content: bodyText.trim().slice(0, 5000) };
 }
@@ -155,7 +155,7 @@ async function crawl(url, robots, delay) {
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
 
-    if (tokens < 100) {
+    if (tokens < 1) {
       console.log(`⚠️ Skipped (weak content): ${url}`);
       return;
     }
