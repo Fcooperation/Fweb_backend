@@ -19,22 +19,22 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌍 Sites to crawl (updated fresh links)
-  const SITES = [
-  // 🧭 All English Wikipedia top-level content categories
-  "https://en.wikipedia.org/wiki/Category:Reference",                   // General reference
-  "https://en.wikipedia.org/wiki/Category:Culture",                     // Culture & the arts
-  "https://en.wikipedia.org/wiki/Category:Geography",                   // Geography & places
-  "https://en.wikipedia.org/wiki/Category:Health",                      // Health & fitness
-  "https://en.wikipedia.org/wiki/Category:History",                     // History & events
-  "https://en.wikipedia.org/wiki/Category:Human_activities",            // Human activities
-  "https://en.wikipedia.org/wiki/Category:Mathematics_and_logic",       // Mathematics & logic
-  "https://en.wikipedia.org/wiki/Category:Natural_and_physical_sciences", // Natural & physical sciences
-  "https://en.wikipedia.org/wiki/Category:People",                      // People & self
-  "https://en.wikipedia.org/wiki/Category:Philosophy",                  // Philosophy & thinking
-  "https://en.wikipedia.org/wiki/Category:Religion_and_belief_systems", // Religion & belief systems
-  "https://en.wikipedia.org/wiki/Category:Society_and_social_sciences", // Society & social sciences
-  "https://en.wikipedia.org/wiki/Category:Technology_and_applied_sciences" // Technology & applied sciences
+const SITES = [
+  "https://en.wikipedia.org/wiki/Category:Reference",
+  "https://en.wikipedia.org/wiki/Category:Culture",
+  "https://en.wikipedia.org/wiki/Category:Geography",
+  "https://en.wikipedia.org/wiki/Category:Health",
+  "https://en.wikipedia.org/wiki/Category:History",
+  "https://en.wikipedia.org/wiki/Category:Human_activities",
+  "https://en.wikipedia.org/wiki/Category:Mathematics_and_logic",
+  "https://en.wikipedia.org/wiki/Category:Natural_and_physical_sciences",
+  "https://en.wikipedia.org/wiki/Category:People",
+  "https://en.wikipedia.org/wiki/Category:Philosophy",
+  "https://en.wikipedia.org/wiki/Category:Religion_and_belief_systems",
+  "https://en.wikipedia.org/wiki/Category:Society_and_social_sciences",
+  "https://en.wikipedia.org/wiki/Category:Technology_and_applied_sciences"
 ];
+
 // 🕹️ Pause flag
 let isPaused = false;
 
@@ -53,6 +53,19 @@ function detectCategories(text) {
   return categories;
 }
 
+// Normalize URL by stripping fragment (#...) and trailing slash
+function normalizeUrl(rawUrl) {
+  try {
+    const urlObj = new URL(rawUrl);
+    urlObj.hash = ''; // strip fragment
+    let normalized = urlObj.href;
+    if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+    return normalized;
+  } catch {
+    return rawUrl;
+  }
+}
+
 // 📄 Extract title and body text
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
@@ -64,6 +77,7 @@ function extractTrainingData(html) {
   });
   return { title, content: bodyText.trim() };
 }
+
 // 🧭 robots.txt parser
 async function getRobots(url) {
   try {
@@ -77,23 +91,31 @@ async function getRobots(url) {
   }
 }
 
-// ☁️ Supabase uploader
+// ☁️ Supabase uploader with crawl origin saved
 async function uploadToSupabase(data) {
   try {
+    // Normalize URL before checking/inserting
+    const normalizedUrl = normalizeUrl(data.url);
+
     const { data: existing } = await supabase
       .from('fai_training')
       .select('id')
-      .eq('url', data.url)
+      .eq('url', normalizedUrl)
       .limit(1)
       .throwOnError();
 
     if (!existing || existing.length === 0) {
-      await supabase.from('fai_training').insert([data]).throwOnError();
-      await supabase.from('fai_visited').insert([{ url: data.url }]).throwOnError();
-      console.log(`📤 Uploaded: ${data.url}`);
+      await supabase.from('fai_training').insert([{
+        ...data,
+        url: normalizedUrl, // save normalized URL
+      }]).throwOnError();
+
+      await supabase.from('fai_visited').insert([{ url: normalizedUrl }]).throwOnError();
+
+      console.log(`📤 Uploaded: ${normalizedUrl}`);
       return true;
     } else {
-      console.log(`⚠️ Duplicate: ${data.url}`);
+      console.log(`⚠️ Duplicate: ${normalizedUrl}`);
       return false;
     }
   } catch (err) {
@@ -126,7 +148,7 @@ async function loadVisitedUrls() {
   try {
     const { data, error } = await supabase.from('fai_visited').select('url').limit(100000);
     if (error) throw error;
-    data.forEach(entry => visited.add(entry.url));
+    data.forEach(entry => visited.add(normalizeUrl(entry.url)));
     console.log(`📚 Loaded ${visited.size} visited URLs`);
   } catch (err) {
     console.warn('⚠️ Could not load visited URLs:', err.message);
@@ -134,9 +156,11 @@ async function loadVisitedUrls() {
 }
 
 // 🕷️ Main crawling engine (no maxPages)
-async function crawl(url, robots, delay) {
-  if (visited.has(url)) {
-    console.log(`⏩ Skipping already visited: ${url}`);
+// Added "parentUrl" to track crawl origin, useful for querying
+async function crawl(url, robots, delay, parentUrl = null) {
+  const normalizedUrl = normalizeUrl(url);
+  if (visited.has(normalizedUrl)) {
+    console.log(`⏩ Skipping already visited: ${normalizedUrl}`);
     return;
   }
   if (!robots.parser.isAllowed(url, 'fcrawler')) {
@@ -144,8 +168,8 @@ async function crawl(url, robots, delay) {
     return;
   }
 
-  visited.add(url);
-  console.log(`🔍 Crawling: ${url}`);
+  visited.add(normalizedUrl);
+  console.log(`🔍 Crawling: ${normalizedUrl}`);
 
   while (isPaused) await new Promise(r => setTimeout(r, 100));
 
@@ -155,17 +179,18 @@ async function crawl(url, robots, delay) {
     const tokens = countTokens(content);
 
     if (tokens < 1) {
-      console.log(`⚠️ Skipped (weak content): ${url}`);
+      console.log(`⚠️ Skipped (weak content): ${normalizedUrl}`);
       return;
     }
 
     const entry = {
       id: nanoid(),
-      url,
+      url: normalizedUrl,
       title,
       content,
       tokens,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      parent_url: parentUrl ? normalizeUrl(parentUrl) : null  // track crawl origin
     };
 
     await uploadToSupabase(entry);
@@ -185,10 +210,10 @@ async function crawl(url, robots, delay) {
 
     for (const link of links) {
       await new Promise(resolve => setTimeout(resolve, delay));
-      await crawl(link, robots, delay);
+      await crawl(link, robots, delay, normalizedUrl);
     }
   } catch (err) {
-    console.warn(`❌ Failed: ${url} – ${err.message}`);
+    console.warn(`❌ Failed: ${normalizedUrl} – ${err.message}`);
   }
 }
 
