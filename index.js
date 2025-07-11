@@ -35,7 +35,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
   "https://en.wikipedia.org/wiki/Category:Society_and_social_sciences", // Society & social sciences
   "https://en.wikipedia.org/wiki/Category:Technology_and_applied_sciences" // Technology & applied sciences
 ];
-];
 // 🕹️ Pause flag
 let isPaused = false;
 
