@@ -14,53 +14,7 @@ const supabase = createClient(
 
 // 🌍 Rich English content starting points
 const SITES = [
-// 📘 DICTIONARIES (Wiktionary definitions)
-"https://en.wiktionary.org/wiki/logic",
-"https://en.wiktionary.org/wiki/thought",
-"https://en.wiktionary.org/wiki/reference",
-"https://en.wiktionary.org/wiki/meaning",
-"https://en.wiktionary.org/wiki/truth",
-"https://en.wiktionary.org/wiki/structure",
-
-// 📚 ENCYCLOPEDIA-STYLE (Wikipedia concept articles)
-"https://en.wikipedia.org/wiki/Logic",
-"https://en.wikipedia.org/wiki/Reference",
-"https://en.wikipedia.org/wiki/Scientific_method",
-"https://en.wikipedia.org/wiki/Facts",
-"https://en.wikipedia.org/wiki/Definition",
-"https://en.wikipedia.org/wiki/Critical_thinking",
-
-// 🧠 GLOSSARIES (actual glossary pages with definitions)
-"https://en.wikipedia.org/wiki/Glossary_of_philosophy",
-"https://en.wikipedia.org/wiki/Glossary_of_science_terms",
-"https://en.wikipedia.org/wiki/Glossary_of_mathematics",
-"https://en.wikipedia.org/wiki/Glossary_of_engineering",
-"https://en.wikipedia.org/wiki/Glossary_of_linguistics",
-"https://en.wikipedia.org/wiki/Glossary_of_biology",
-
-// ✍️ CITATION STYLES
-"https://en.wikipedia.org/wiki/APA_style",
-"https://en.wikipedia.org/wiki/MLA_Handbook",
-"https://en.wikipedia.org/wiki/Chicago_Manual_of_Style",
-"https://en.wikipedia.org/wiki/Bluebook",
-"https://en.wikipedia.org/wiki/Citation",
-"https://en.wikipedia.org/wiki/Wikipedia:Citing_sources",
-
-// 📑 BIBLIOGRAPHY & FORMATS
-"https://en.wikipedia.org/wiki/Bibliography",
-"https://en.wikipedia.org/wiki/Annotated_bibliography",
-"https://en.wikipedia.org/wiki/Reference_management_software",
-"https://en.wikipedia.org/wiki/Digital_object_identifier",
-"https://en.wikipedia.org/wiki/Footnote",
-"https://en.wikipedia.org/wiki/Endnote",
-
-// 🗂️ CLASSIFICATION SYSTEMS
-"https://en.wikipedia.org/wiki/Dewey_Decimal_Classification",
-"https://en.wikipedia.org/wiki/Library_of_Congress_Classification",
-"https://en.wikipedia.org/wiki/Universal_Decimal_Classification",
-"https://en.wikipedia.org/wiki/Subject_indexing",
-"https://en.wikipedia.org/wiki/Index_(publishing)",
-"https://en.wikipedia.org/wiki/Controlled_vocabulary"
+  "https://en.wiktionary.org/wiki/Category:English_lemmas"
 ];
 // 🧠 Memory of visited URLs
 const visited = new Set();
