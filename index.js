@@ -4,6 +4,7 @@ import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
+import http from 'http'; // 🔓 Required for port opening
 
 // 🔐 Supabase credentials
 const supabase = createClient(
@@ -80,7 +81,7 @@ async function getRobots(url) {
   }
 }
 
-// 🧠 Fallback API handler (only for specific known sites)
+// 🧠 Fallback API (for future API handling)
 async function fallbackAPI(url) {
   try {
     if (url.includes('Special:Random')) {
@@ -101,7 +102,7 @@ async function fallbackAPI(url) {
 
 // 🔁 Crawl a single URL
 async function crawl(url, robots, delay) {
-  const cleanUrl = url.split('#')[0]; // remove fragment
+  const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
   visited.add(cleanUrl);
 
@@ -144,7 +145,7 @@ async function crawl(url, robots, delay) {
       .map(href => {
         try {
           const full = new URL(href, cleanUrl).href;
-          return full.split('#')[0]; // remove fragments
+          return full.split('#')[0];
         } catch {
           return null;
         }
@@ -161,7 +162,7 @@ async function crawl(url, robots, delay) {
   }
 }
 
-// 🚀 Boot and start crawling
+// 🚀 Start crawler + open port
 (async () => {
   console.log('🕷️ crawlerA booting...');
   const { data } = await supabase.from('fai_visited').select('url').limit(100000);
@@ -172,4 +173,13 @@ async function crawl(url, robots, delay) {
     const robots = await getRobots(site);
     await crawl(site, robots, robots.delay);
   }
+
+  // 🔓 Keep port open for platforms like Render
+  const PORT = process.env.PORT || 3000;
+  http.createServer((_, res) => {
+    res.writeHead(200);
+    res.end('crawlerA is running.\n');
+  }).listen(PORT, () => {
+    console.log(`🔓 Port opened on ${PORT}`);
+  });
 })();
