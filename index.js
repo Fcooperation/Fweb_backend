@@ -1,46 +1,47 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
+import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 import http from 'http';
 
-// 🔐 Supabase connection
+// 🟩 Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Fallback test site (only if no visited history exists)
-const DEFAULT_SITE = 'https://www.google.com/';
+// 🔗 Word entry pages
+const SITES = [
+  "https://en.wiktionary.org/wiki/logic",
+  "https://en.wiktionary.org/wiki/truth",
+  "https://en.wiktionary.org/wiki/run",
+  "https://en.wiktionary.org/wiki/structure",
+  "https://en.wiktionary.org/wiki/idea",
+  "https://en.wiktionary.org/wiki/thought",
+  "https://en.wiktionary.org/wiki/light",
+  "https://en.wiktionary.org/wiki/memory"
+];
+
+// 🧠 Track visited
 const visited = new Set();
-const queue = [];
 
-// 🧠 Load visited from Supabase
-async function loadVisitedAndSeedQueue() {
-  const { data, error } = await supabase
-    .from('fai_visited')
-    .select('url')
-    .order('timestamp', { ascending: false })  // newest first
-    .limit(10000);
+// 📦 Extract title and definitions
+function extractTrainingData(html) {
+  const $ = cheerio.load(html);
+  const title = $('title').text().trim();
+  let content = '';
 
-  if (error) {
-    console.error('❌ Error loading visited:', error.message);
-    return;
-  }
+  $('p').each((_, el) => {
+    const txt = $(el).text().trim();
+    if (txt.length > 5) content += txt + '\n';
+  });
 
-  data?.forEach(d => visited.add(d.url.split('#')[0]));
-
-  if (data && data.length > 0) {
-    console.log(`📚 Loaded ${data.length} visited URLs`);
-    queue.push(...data.map(d => d.url));
-  } else {
-    console.log('📭 No visited URLs — seeding from scratch.');
-    queue.push(DEFAULT_SITE);
-  }
+  return { title, content: content.trim() };
 }
 
-// 📜 Get robots.txt
+// 🔌 Check robots.txt
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -53,7 +54,23 @@ async function getRobots(url) {
   }
 }
 
-// 🧭 Crawl a URL
+// 📍 Log to visited table
+async function markVisited(url) {
+  const { data: existing } = await supabase
+    .from('fai_visited')
+    .select('url')
+    .eq('url', url)
+    .limit(1);
+
+  if (!existing || existing.length === 0) {
+    await supabase.from('fai_visited').insert([{ url }]);
+    console.log(`✅ Marked as visited: ${url}`);
+  } else {
+    console.log(`⚠️ Already visited: ${url}`);
+  }
+}
+
+// 🕷️ Crawl individual page
 async function crawl(url, robots, delay) {
   const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
@@ -67,60 +84,56 @@ async function crawl(url, robots, delay) {
   try {
     console.log(`🔍 Crawling: ${cleanUrl}`);
     const res = await axios.get(cleanUrl);
-    await supabase.from('fai_visited').insert([
-      { url: cleanUrl, timestamp: new Date().toISOString() }
-    ]);
-    console.log(`✅ Visited saved: ${cleanUrl}`);
+    const { title, content } = extractTrainingData(res.data);
+    const tokens = Math.ceil(content.length / 4);
+    if (tokens < 1) return;
 
-    // Extract links
+    console.log(`🧠 ${title} | ${tokens} tokens`);
+    console.log(content.split('\n').slice(0, 2).join('\n') + '\n---');
+
+    await markVisited(cleanUrl);
+
+    // 👇 Optionally, extract more links (commented for now)
+    /*
     const $ = cheerio.load(res.data);
-    const links = $('a[href]')
-      .map((_, el) => $(el).attr('href'))
-      .get()
-      .map(href => {
-        try {
-          return new URL(href, cleanUrl).href.split('#')[0];
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean)
-      .filter(href => href.startsWith('http'))
-      .filter(href => !visited.has(href));
+    const links = $('a[href]').map((_, el) => $(el).attr('href')).get();
+    const absoluteLinks = links.map(href => {
+      try {
+        return new URL(href, cleanUrl).href.split('#')[0];
+      } catch { return null; }
+    }).filter(Boolean);
 
-    for (const link of links.slice(0, 10)) {
-      queue.push(link);
+    for (const link of absoluteLinks) {
+      if (link.startsWith('https://en.wiktionary.org/wiki/')) {
+        await new Promise(r => setTimeout(r, delay));
+        await crawl(link, robots, delay);
+      }
     }
+    */
 
-    // Crawl next
-    while (queue.length > 0) {
-      const next = queue.shift();
-      await new Promise(r => setTimeout(r, delay));
-      await crawl(next, robots, delay);
-    }
   } catch (err) {
     console.warn(`❌ Failed to crawl ${cleanUrl}: ${err.message}`);
   }
 }
 
-// 🚀 Boot
+// 🚀 Start crawling
 (async () => {
   console.log('🕷️ crawlerA booting...');
-  await loadVisitedAndSeedQueue();
 
-  const robots = await getRobots(queue[0]);
-  const delay = robots.delay;
+  const { data } = await supabase.from('fai_visited').select('url').limit(100000);
+  data?.forEach(d => visited.add(d.url.split('#')[0]));
+  console.log(`📚 Loaded ${visited.size} visited URLs`);
 
-  while (queue.length > 0) {
-    const url = queue.shift();
-    await crawl(url, robots, delay);
+  for (const site of SITES) {
+    const robots = await getRobots(site);
+    await crawl(site, robots, robots.delay);
   }
 
-  // 🟢 Keep server alive
-  const PORT = process.env.PORT || 10000;
+  // 🔓 Port 10000
+  const PORT = 10000;
   http.createServer((_, res) => {
     res.writeHead(200);
-    res.end('🟢 Crawler is running.\n');
+    res.end('crawlerA is running.\n');
   }).listen(PORT, () => {
     console.log(`🔓 Port opened on ${PORT}`);
   });
