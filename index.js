@@ -63,7 +63,7 @@ function extractTrainingData(html) {
     if (txt.length > 1) bodyText += txt + '\n';
   });
   return { title, content: bodyText.trim() };
-
+}
 // 🧭 robots.txt parser
 async function getRobots(url) {
   try {
