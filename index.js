@@ -62,8 +62,7 @@ function extractTrainingData(html) {
     const txt = $(el).text().trim();
     if (txt.length > 1) bodyText += txt + '\n';
   });
-  return { title, content: bodyText.trim().slice(0, 5000) };
-}
+  return { title, content: bodyText.trim() };
 
 // 🧭 robots.txt parser
 async function getRobots(url) {
