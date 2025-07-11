@@ -4,7 +4,7 @@ import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import http from 'http'; // 🔓 For keeping port open
+import http from 'http';
 
 // 🔐 Supabase credentials
 const supabase = createClient(
@@ -12,66 +12,22 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Reference-rich English content
+// 🌍 Wiktionary-only entries
 const SITES = [
-  // 📘 DICTIONARIES (Wiktionary)
   "https://en.wiktionary.org/wiki/logic",
   "https://en.wiktionary.org/wiki/thought",
   "https://en.wiktionary.org/wiki/reference",
   "https://en.wiktionary.org/wiki/meaning",
   "https://en.wiktionary.org/wiki/truth",
-  "https://en.wiktionary.org/wiki/structure",
-
-  // 📚 ENCYCLOPEDIAS
-  "https://en.wikipedia.org/wiki/Logic",
-  "https://en.wikipedia.org/wiki/Reference",
-  "https://en.wikipedia.org/wiki/Scientific_method",
-  "https://en.wikipedia.org/wiki/Facts",
-  "https://en.wikipedia.org/wiki/Definition",
-  "https://en.wikipedia.org/wiki/Critical_thinking",
-
-  // 🧠 GLOSSARIES
-  "https://en.wikipedia.org/wiki/Glossary_of_philosophy",
-  "https://en.wikipedia.org/wiki/Glossary_of_science_terms",
-  "https://en.wikipedia.org/wiki/Glossary_of_mathematics",
-  "https://en.wikipedia.org/wiki/Glossary_of_engineering",
-  "https://en.wikipedia.org/wiki/Glossary_of_linguistics",
-  "https://en.wikipedia.org/wiki/Glossary_of_biology",
-
-  // ✍️ CITATION STYLES
-  "https://en.wikipedia.org/wiki/APA_style",
-  "https://en.wikipedia.org/wiki/MLA_Handbook",
-  "https://en.wikipedia.org/wiki/Chicago_Manual_of_Style",
-  "https://en.wikipedia.org/wiki/Bluebook",
-  "https://en.wikipedia.org/wiki/Citation",
-  "https://en.wikipedia.org/wiki/Wikipedia:Citing_sources",
-
-  // 📑 BIBLIOGRAPHY & FORMATTING
-  "https://en.wikipedia.org/wiki/Bibliography",
-  "https://en.wikipedia.org/wiki/Annotated_bibliography",
-  "https://en.wikipedia.org/wiki/Reference_management_software",
-  "https://en.wikipedia.org/wiki/Digital_object_identifier",
-  "https://en.wikipedia.org/wiki/Footnote",
-  "https://en.wikipedia.org/wiki/Endnote",
-
-  // 🗂️ CLASSIFICATION SYSTEMS
-  "https://en.wikipedia.org/wiki/Dewey_Decimal_Classification",
-  "https://en.wikipedia.org/wiki/Library_of_Congress_Classification",
-  "https://en.wikipedia.org/wiki/Universal_Decimal_Classification",
-  "https://en.wikipedia.org/wiki/Subject_indexing",
-  "https://en.wikipedia.org/wiki/Index_(publishing)",
-  "https://en.wikipedia.org/wiki/Controlled_vocabulary"
+  "https://en.wiktionary.org/wiki/structure"
 ];
 
-// 🧠 Visited URLs
 const visited = new Set();
 
-// 🧮 Estimate token count
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧹 Extract training content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -83,7 +39,6 @@ function extractTrainingData(html) {
   return { title, content: bodyText.trim() };
 }
 
-// 📤 Upload to Supabase
 async function uploadToSupabase(entry) {
   const { data: existing } = await supabase
     .from('fai_training')
@@ -99,7 +54,6 @@ async function uploadToSupabase(entry) {
   }
 }
 
-// 📜 Check robots.txt
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -112,7 +66,6 @@ async function getRobots(url) {
   }
 }
 
-// 🔁 Crawl single URL
 async function crawl(url, robots, delay) {
   const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
@@ -151,7 +104,7 @@ async function crawl(url, robots, delay) {
         }
       })
       .filter(Boolean)
-      .filter(href => href.startsWith('https://en.wikipedia.org/wiki/'));
+      .filter(href => href.startsWith('https://en.wiktionary.org/wiki/'));
 
     for (const link of links) {
       await new Promise(r => setTimeout(r, delay));
@@ -162,23 +115,25 @@ async function crawl(url, robots, delay) {
   }
 }
 
-// 🚀 Launch crawler + keep port open
+// 🚀 Start server + then crawl
 (async () => {
-  console.log('🕷️ crawlerA booting...');
-  const { data } = await supabase.from('fai_visited').select('url').limit(100000);
-  data?.forEach(d => visited.add(d.url.split('#')[0]));
-  console.log(`📚 Loaded ${visited.size} visited URLs`);
-
-  for (const site of SITES) {
-    const robots = await getRobots(site);
-    await crawl(site, robots, robots.delay);
-  }
-
-  const PORT = process.env.PORT || 3000;
+  // 🔓 Keep port open first
+  const PORT = 10000;
   http.createServer((_, res) => {
     res.writeHead(200);
-    res.end('crawlerA is running.\n');
-  }).listen(PORT, () => {
+    res.end('wiktionary-crawler running on port 10000\n');
+  }).listen(PORT, async () => {
     console.log(`🔓 Port opened on ${PORT}`);
+
+    // 📚 Load history
+    const { data } = await supabase.from('fai_visited').select('url').limit(100000);
+    data?.forEach(d => visited.add(d.url.split('#')[0]));
+    console.log(`📖 Loaded ${visited.size} visited URLs`);
+
+    // 🕷️ Start crawl
+    for (const site of SITES) {
+      const robots = await getRobots(site);
+      await crawl(site, robots, robots.delay);
+    }
   });
 })();
