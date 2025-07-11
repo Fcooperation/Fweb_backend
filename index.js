@@ -12,31 +12,12 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Wiktionary English lemmas category
+// 🌍 Wiktionary entry point for full dictionary
 const SITES = [
-  "https://en.wiktionary.org/wiki/Category:English_lemmas",              // Root of all English entries
-  "https://en.wiktionary.org/wiki/Category:English_nouns",               // Common nouns
-  "https://en.wiktionary.org/wiki/Category:English_verbs",               // All verb forms
-  "https://en.wiktionary.org/wiki/Category:English_adjectives",          // Descriptive words
-  "https://en.wiktionary.org/wiki/Category:English_adverbs",             // Manner/place/time words
-  "https://en.wiktionary.org/wiki/Category:English_pronouns",            // I, he, she, etc.
-  "https://en.wiktionary.org/wiki/Category:English_prepositions",        // In, on, under
-  "https://en.wiktionary.org/wiki/Category:English_conjunctions",        // And, but, or
-  "https://en.wiktionary.org/wiki/Category:English_interjections",       // Wow!, hey!
-  "https://en.wiktionary.org/wiki/Category:English_determiners",         // This, that, every
-  "https://en.wiktionary.org/wiki/Category:English_proper_nouns",        // Names like Nigeria, Microsoft
-  "https://en.wiktionary.org/wiki/Category:English_articles",            // A, an, the
-  "https://en.wiktionary.org/wiki/Category:English_abbreviations",       // etc., e.g., NASA
-  "https://en.wiktionary.org/wiki/Category:English_acronyms",            // WHO, FIFA
-  "https://en.wiktionary.org/wiki/Category:English_phrases",             // Phrases and idioms
-  "https://en.wiktionary.org/wiki/Category:English_suffixes",            // -ing, -tion, -ly
-  "https://en.wiktionary.org/wiki/Category:English_prefixes",            // pre-, un-, re-
-  "https://en.wiktionary.org/wiki/Category:English_clitics",             // 's, n't
-  "https://en.wiktionary.org/wiki/Category:English_symbols",             // $, %, & etc.
-  "https://en.wiktionary.org/wiki/Category:English_contractions"         // can't, won't, I'm
+  'https://en.wiktionary.org/wiki/Category:English_lemmas'
 ];
 
-// 🧠 Memory of visited URLs
+// 🧠 Visited memory
 const visited = new Set();
 
 // 🧮 Token estimator
@@ -44,7 +25,7 @@ function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧹 Extract <title> and <p> content
+// 🧹 Extract <title> and <p> text content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -86,26 +67,7 @@ async function getRobots(url) {
   }
 }
 
-// 🧠 Fallback (Wikipedia only)
-async function fallbackAPI(url) {
-  try {
-    if (url.includes('Special:Random')) {
-      const res = await axios.get('https://en.wikipedia.org/api/rest_v1/page/random/summary');
-      return {
-        title: res.data.title,
-        content: res.data.extract,
-        url: res.data.content_urls.desktop.page,
-        tokens: countTokens(res.data.extract)
-      };
-    }
-    return null;
-  } catch (err) {
-    console.warn(`⚠️ Fallback failed for ${url}: ${err.message}`);
-    return null;
-  }
-}
-
-// 🔁 Crawl a single URL
+// 🔁 Crawl a single page
 async function crawl(url, robots, delay) {
   const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
@@ -113,17 +75,6 @@ async function crawl(url, robots, delay) {
 
   if (!robots.parser.isAllowed(cleanUrl, 'fcrawler')) {
     console.log(`🚫 Disallowed by robots.txt: ${cleanUrl}`);
-    const fallback = await fallbackAPI(cleanUrl);
-    if (fallback && fallback.tokens > 0) {
-      await uploadToSupabase({
-        id: nanoid(),
-        url: fallback.url,
-        title: fallback.title,
-        content: fallback.content,
-        tokens: fallback.tokens,
-        timestamp: new Date().toISOString()
-      });
-    }
     return;
   }
 
@@ -132,16 +83,16 @@ async function crawl(url, robots, delay) {
     const res = await axios.get(cleanUrl);
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
-    if (tokens < 1) return;
-
-    await uploadToSupabase({
-      id: nanoid(),
-      url: cleanUrl,
-      title,
-      content,
-      tokens,
-      timestamp: new Date().toISOString()
-    });
+    if (tokens > 0) {
+      await uploadToSupabase({
+        id: nanoid(),
+        url: cleanUrl,
+        title,
+        content,
+        tokens,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     const $ = cheerio.load(res.data);
     const links = $('a[href]')
@@ -168,9 +119,10 @@ async function crawl(url, robots, delay) {
   }
 }
 
-// 🚀 Start crawler and open port
+// 🚀 Boot + keep port 10000 open
 (async () => {
   console.log('🕷️ crawlerA booting...');
+
   const { data } = await supabase.from('fai_visited').select('url').limit(100000);
   data?.forEach(d => visited.add(d.url.split('#')[0]));
   console.log(`📚 Loaded ${visited.size} visited URLs`);
@@ -180,8 +132,8 @@ async function crawl(url, robots, delay) {
     await crawl(site, robots, robots.delay);
   }
 
-  // 🔓 Keep port open (port 10000)
-  const PORT = process.env.PORT || 10000;
+  // 🔓 Keep port open (for Render or Replit)
+  const PORT = 10000;
   http.createServer((_, res) => {
     res.writeHead(200);
     res.end('crawlerA is running.\n');
