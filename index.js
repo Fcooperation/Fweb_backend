@@ -13,14 +13,7 @@ const supabase = createClient(
 );
 
 // 🌍 Wiktionary-only entries
-const SITES = [
-  "https://en.wiktionary.org/wiki/logic",
-  "https://en.wiktionary.org/wiki/thought",
-  "https://en.wiktionary.org/wiki/reference",
-  "https://en.wiktionary.org/wiki/meaning",
-  "https://en.wiktionary.org/wiki/truth",
-  "https://en.wiktionary.org/wiki/structure"
-];
+https://en.wiktionary.org/wiki/Category:English_lemmas
 
 const visited = new Set();
 
