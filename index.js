@@ -14,7 +14,26 @@ const supabase = createClient(
 
 // 🌍 Wiktionary English lemmas category
 const SITES = [
-  'https://en.wiktionary.org/wiki/Category:English_lemmas'
+  "https://en.wiktionary.org/wiki/Category:English_lemmas",              // Root of all English entries
+  "https://en.wiktionary.org/wiki/Category:English_nouns",               // Common nouns
+  "https://en.wiktionary.org/wiki/Category:English_verbs",               // All verb forms
+  "https://en.wiktionary.org/wiki/Category:English_adjectives",          // Descriptive words
+  "https://en.wiktionary.org/wiki/Category:English_adverbs",             // Manner/place/time words
+  "https://en.wiktionary.org/wiki/Category:English_pronouns",            // I, he, she, etc.
+  "https://en.wiktionary.org/wiki/Category:English_prepositions",        // In, on, under
+  "https://en.wiktionary.org/wiki/Category:English_conjunctions",        // And, but, or
+  "https://en.wiktionary.org/wiki/Category:English_interjections",       // Wow!, hey!
+  "https://en.wiktionary.org/wiki/Category:English_determiners",         // This, that, every
+  "https://en.wiktionary.org/wiki/Category:English_proper_nouns",        // Names like Nigeria, Microsoft
+  "https://en.wiktionary.org/wiki/Category:English_articles",            // A, an, the
+  "https://en.wiktionary.org/wiki/Category:English_abbreviations",       // etc., e.g., NASA
+  "https://en.wiktionary.org/wiki/Category:English_acronyms",            // WHO, FIFA
+  "https://en.wiktionary.org/wiki/Category:English_phrases",             // Phrases and idioms
+  "https://en.wiktionary.org/wiki/Category:English_suffixes",            // -ing, -tion, -ly
+  "https://en.wiktionary.org/wiki/Category:English_prefixes",            // pre-, un-, re-
+  "https://en.wiktionary.org/wiki/Category:English_clitics",             // 's, n't
+  "https://en.wiktionary.org/wiki/Category:English_symbols",             // $, %, & etc.
+  "https://en.wiktionary.org/wiki/Category:English_contractions"         // can't, won't, I'm
 ];
 
 // 🧠 Memory of visited URLs
