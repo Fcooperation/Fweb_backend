@@ -1,4 +1,3 @@
-// crawlerA.js
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
@@ -6,18 +5,21 @@ import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// 🔐 Supabase (your actual credentials)
+// 🔐 Supabase credentials
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Start sites
+// 🌍 Rich English content starting points
 const SITES = [
-  'https://en.wikipedia.org/wiki/Category:Reference'
+  'https://en.wikipedia.org/wiki/Portal:Contents/Outlines',
+  'https://en.wikipedia.org/wiki/Wikipedia:Contents/Subject_index',
+  'https://en.wikipedia.org/wiki/Wikipedia:Contents/A–Z_index',
+  'https://en.wikipedia.org/wiki/Wikipedia:Vital_articles'
 ];
 
-// 🧠 Memory of visited pages
+// 🧠 Memory of visited URLs
 const visited = new Set();
 
 // 🧮 Token estimator
@@ -25,7 +27,7 @@ function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧹 Extract title & paragraph content
+// 🧹 Extract <title> and <p> text content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -54,7 +56,7 @@ async function uploadToSupabase(entry) {
   }
 }
 
-// 📜 robots.txt parser
+// 📜 Get and parse robots.txt
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -67,53 +69,34 @@ async function getRobots(url) {
   }
 }
 
-// 🔁 Generic Fallback API Logic
+// 🧠 Fallback API handler (only for specific known sites)
 async function fallbackAPI(url) {
   try {
-    const fallbackUrls = [];
-
-    const parsed = new URL(url);
-    const base = parsed.origin;
-
-    // Common fallback paths
-    fallbackUrls.push(base + '/api');
-    fallbackUrls.push(base + '/api/v1');
-    fallbackUrls.push(url + '.json');
-    fallbackUrls.push(url + '/summary');
-    fallbackUrls.push(base + '/feeds');
-
-    for (const fallback of fallbackUrls) {
-      try {
-        const res = await axios.get(fallback, { timeout: 4000 });
-        if (typeof res.data === 'object') {
-          const text = JSON.stringify(res.data, null, 2);
-          return {
-            title: `Fallback from ${fallback}`,
-            content: text,
-            url: fallback,
-            tokens: countTokens(text)
-          };
-        }
-      } catch {
-        // Try next
-      }
+    if (url.includes('Special:Random')) {
+      const res = await axios.get('https://en.wikipedia.org/api/rest_v1/page/random/summary');
+      return {
+        title: res.data.title,
+        content: res.data.extract,
+        url: res.data.content_urls.desktop.page,
+        tokens: countTokens(res.data.extract)
+      };
     }
-
     return null;
   } catch (err) {
-    console.warn(`⚠️ Fallback API failed for ${url}: ${err.message}`);
+    console.warn(`⚠️ Fallback failed for ${url}: ${err.message}`);
     return null;
   }
 }
 
-// 🔁 Crawl single page
+// 🔁 Crawl a single URL
 async function crawl(url, robots, delay) {
-  if (visited.has(url)) return;
-  visited.add(url);
+  const cleanUrl = url.split('#')[0]; // remove fragment
+  if (visited.has(cleanUrl)) return;
+  visited.add(cleanUrl);
 
-  if (!robots.parser.isAllowed(url, 'fcrawler')) {
-    console.log(`🚫 Disallowed by robots.txt: ${url}`);
-    const fallback = await fallbackAPI(url);
+  if (!robots.parser.isAllowed(cleanUrl, 'fcrawler')) {
+    console.log(`🚫 Disallowed by robots.txt: ${cleanUrl}`);
+    const fallback = await fallbackAPI(cleanUrl);
     if (fallback && fallback.tokens > 0) {
       await uploadToSupabase({
         id: nanoid(),
@@ -128,15 +111,15 @@ async function crawl(url, robots, delay) {
   }
 
   try {
-    console.log(`🔍 Crawling: ${url}`);
-    const res = await axios.get(url);
+    console.log(`🔍 Crawling: ${cleanUrl}`);
+    const res = await axios.get(cleanUrl);
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
     if (tokens < 1) return;
 
     await uploadToSupabase({
       id: nanoid(),
-      url,
+      url: cleanUrl,
       title,
       content,
       tokens,
@@ -149,28 +132,29 @@ async function crawl(url, robots, delay) {
       .get()
       .map(href => {
         try {
-          return new URL(href, url).href;
+          const full = new URL(href, cleanUrl).href;
+          return full.split('#')[0]; // remove fragments
         } catch {
           return null;
         }
       })
       .filter(Boolean)
-      .filter(href => href.startsWith('http'));
+      .filter(href => href.startsWith('https://en.wikipedia.org/wiki/'));
 
     for (const link of links) {
       await new Promise(r => setTimeout(r, delay));
       await crawl(link, robots, delay);
     }
   } catch (err) {
-    console.warn(`❌ Failed to crawl ${url}: ${err.message}`);
+    console.warn(`❌ Failed to crawl ${cleanUrl}: ${err.message}`);
   }
 }
 
-// 🚀 Launch crawler
+// 🚀 Boot and start crawling
 (async () => {
   console.log('🕷️ crawlerA booting...');
   const { data } = await supabase.from('fai_visited').select('url').limit(100000);
-  data?.forEach(d => visited.add(d.url));
+  data?.forEach(d => visited.add(d.url.split('#')[0]));
   console.log(`📚 Loaded ${visited.size} visited URLs`);
 
   for (const site of SITES) {
