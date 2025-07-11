@@ -13,10 +13,21 @@ const supabase = createClient(
 
 // 🌍 Rich English content starting points
 const SITES = [
-  'https://en.wikipedia.org/wiki/Portal:Contents/Outlines',
-  'https://en.wikipedia.org/wiki/Wikipedia:Contents/Subject_index',
-  'https://en.wikipedia.org/wiki/Wikipedia:Contents/A–Z_index',
-  'https://en.wikipedia.org/wiki/Wikipedia:Vital_articles'
+  "https://en.wikipedia.org/wiki/List_of_dictionaries",
+  "https://en.wikipedia.org/wiki/List_of_encyclopedias",
+  "https://en.wikipedia.org/wiki/Thesaurus",
+  "https://en.wikipedia.org/wiki/Glossary",
+  "https://en.wikipedia.org/wiki/Citation",
+  "https://en.wikipedia.org/wiki/Style_guide",
+  "https://en.wikipedia.org/wiki/Bibliography",
+  "https://en.wikipedia.org/wiki/Index_(publishing)",
+  "https://en.wikipedia.org/wiki/Dewey_Decimal_Classification",
+  "https://en.wikipedia.org/wiki/Reference_management_software",
+  "https://en.wikipedia.org/wiki/Category:Reference_works",
+  "https://en.wikipedia.org/wiki/Category:Bibliographic_classification",
+  "https://en.wikipedia.org/wiki/Outline_of_academic_disciplines",
+  "https://en.wikipedia.org/wiki/List_of_reference_tables",
+  "https://en.wikipedia.org/wiki/Wikipedia:Contents/Reference"
 ];
 
 // 🧠 Memory of visited URLs
