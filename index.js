@@ -19,126 +19,22 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // 🌍 Sites to crawl (updated fresh links)
-const SITES = [
-  // 🌍 Science & Research
-  "https://en.wikipedia.org/wiki/Science",
-  "https://pubmed.ncbi.nlm.nih.gov/",
-  "https://arxiv.org/",
-  "https://www.nature.com/",
-  "https://www.sciencedirect.com/",
-  "https://www.sciencemag.org/",
-  "https://plos.org/",
-  "https://www.researchgate.net/",
-  "https://www.nih.gov/",
-  "https://www.nasa.gov/",
-
-  // 💻 Technology & Computing
-  "https://en.wikipedia.org/wiki/Computer_science",
-  "https://stackoverflow.com/",
-  "https://github.com/",
-  "https://techcrunch.com/",
-  "https://arstechnica.com/",
-  "https://www.wired.com/",
-  "https://infoq.com/",
-  "https://news.ycombinator.com/",
-  "https://acm.org/",
-  "https://ieeexplore.ieee.org/",
-
-  // 🏛️ History & Culture
-  "https://en.wikipedia.org/wiki/History",
-  "https://www.britannica.com/",
-  "https://www.history.com/",
-  "https://plato.stanford.edu/",
-  "https://www.bbc.co.uk/history",
-  "https://www.worldhistory.org/",
-  "https://www.si.edu/",
-  "https://www.jstor.org/",
-  "https://artsandculture.google.com/",
-  "https://civilisations.ca/",
-
-  // 🎨 Arts & Literature
-  "https://www.gutenberg.org/",
-  "https://www.poetryfoundation.org/",
-  "https://www.poetryarchive.org/",
-  "https://lithub.com/",
-  "https://www.theparisreview.org/",
-  "https://www.goodreads.com/",
-  "https://openlibrary.org/",
-  "https://poetry.org/",
-  "https://www.litencyc.com/",
-  "https://www.poets.org/",
-
-  // 🧬 Health & Medicine
-  "https://pubmed.ncbi.nlm.nih.gov/",
-  "https://www.mayoclinic.org/",
-  "https://www.webmd.com/",
-  "https://my.clevelandclinic.org/",
-  "https://www.nih.gov/",
-  "https://www.who.int/",
-  "https://medlineplus.gov/",
-  "https://www.cdc.gov/",
-  "https://www.health.gov/",
-  "https://www.sciencedirect.com/journal/the-lancet",
-
-  // ➗ Mathematics & Statistics
-  "https://en.wikipedia.org/wiki/Mathematics",
-  "https://mathworld.wolfram.com/",
-  "https://www.khanacademy.org/math",
-  "https://math.stackexchange.com/",
-  "https://arxiv.org/archive/math",
-  "https://www.ams.org/",
-  "https://projecteuler.net/",
-  "https://brilliant.org/",
-  "https://www.oecd.org/statistics/",
-  "https://www.sosmath.com/",
-
-  // 🔧 Engineering & Technology
-  "https://www.engineering.com/",
-  "https://www.asme.org/",
-  "https://www.ieee.org/",
-  "https://ocw.mit.edu/",
-  "https://www.coursera.org/browse/engineering",
-  "https://www.edx.org/learn/engineering",
-  "https://www.nasa.gov/topics/technology",
-  "https://www.jpl.nasa.gov/",
-  "https://www.engineeringvillage.com/",
-  "https://www.civilengineeringportal.com/",
-
-  // 🌱 Environment & Earth Science
-  "https://earthobservatory.nasa.gov/",
-  "https://www.epa.gov/",
-  "https://www.usgs.gov/",
-  "https://www.noaa.gov/",
-  "https://www.nature.com/subjects/environmental-sciences",
-  "https://www.sciencedirect.com/journal/environmental-research",
-  "https://www.worldwildlife.org/",
-  "https://www.unep.org/",
-  "https://www.ipcc.ch/",
-  "https://www.environmentalscience.org/",
-
-  // 💱 Finance & Economics
-  "https://en.wikipedia.org/wiki/Economics",
-  "https://www.worldbank.org/",
-  "https://www.imf.org/",
-  "https://www.federalreserve.gov/",
-  "https://econpapers.repec.org/",
-  "https://www.investopedia.com/",
-  "https://www.bloomberg.com/",
-  "https://www.ft.com/",
-  "https://www.econlib.org/",
-  "https://www.nber.org/",
-
-  // 🎓 Education & E-Learning
-  "https://www.khanacademy.org/",
-  "https://www.coursera.org/",
-  "https://www.edx.org/",
-  "https://ocw.mit.edu/",
-  "https://openstax.org/",
-  "https://www.saylor.org/",
-  "https://academicearth.org/",
-  "https://www.ted.com/",
-  "https://www.udacity.com/",
-  "https://www.futurelearn.com/"
+  const SITES = [
+  // 🧭 All English Wikipedia top-level content categories
+  "https://en.wikipedia.org/wiki/Category:Reference",                   // General reference
+  "https://en.wikipedia.org/wiki/Category:Culture",                     // Culture & the arts
+  "https://en.wikipedia.org/wiki/Category:Geography",                   // Geography & places
+  "https://en.wikipedia.org/wiki/Category:Health",                      // Health & fitness
+  "https://en.wikipedia.org/wiki/Category:History",                     // History & events
+  "https://en.wikipedia.org/wiki/Category:Human_activities",            // Human activities
+  "https://en.wikipedia.org/wiki/Category:Mathematics_and_logic",       // Mathematics & logic
+  "https://en.wikipedia.org/wiki/Category:Natural_and_physical_sciences", // Natural & physical sciences
+  "https://en.wikipedia.org/wiki/Category:People",                      // People & self
+  "https://en.wikipedia.org/wiki/Category:Philosophy",                  // Philosophy & thinking
+  "https://en.wikipedia.org/wiki/Category:Religion_and_belief_systems", // Religion & belief systems
+  "https://en.wikipedia.org/wiki/Category:Society_and_social_sciences", // Society & social sciences
+  "https://en.wikipedia.org/wiki/Category:Technology_and_applied_sciences" // Technology & applied sciences
+];
 ];
 // 🕹️ Pause flag
 let isPaused = false;
