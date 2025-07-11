@@ -4,7 +4,7 @@ import robotsParser from 'robots-parser';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import http from 'http'; // 🔓 Required for port opening
+import http from 'http'; // 🔓 For keeping port open
 
 // 🔐 Supabase credentials
 const supabase = createClient(
@@ -12,9 +12,9 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// 🌍 Rich English content starting points
+// 🌍 Reference-rich English content
 const SITES = [
-  // 📘 DICTIONARIES (Wiktionary definitions)
+  // 📘 DICTIONARIES (Wiktionary)
   "https://en.wiktionary.org/wiki/logic",
   "https://en.wiktionary.org/wiki/thought",
   "https://en.wiktionary.org/wiki/reference",
@@ -22,7 +22,7 @@ const SITES = [
   "https://en.wiktionary.org/wiki/truth",
   "https://en.wiktionary.org/wiki/structure",
 
-  // 📚 ENCYCLOPEDIA-STYLE (Wikipedia concept articles)
+  // 📚 ENCYCLOPEDIAS
   "https://en.wikipedia.org/wiki/Logic",
   "https://en.wikipedia.org/wiki/Reference",
   "https://en.wikipedia.org/wiki/Scientific_method",
@@ -30,7 +30,7 @@ const SITES = [
   "https://en.wikipedia.org/wiki/Definition",
   "https://en.wikipedia.org/wiki/Critical_thinking",
 
-  // 🧠 GLOSSARIES (actual glossary pages with definitions)
+  // 🧠 GLOSSARIES
   "https://en.wikipedia.org/wiki/Glossary_of_philosophy",
   "https://en.wikipedia.org/wiki/Glossary_of_science_terms",
   "https://en.wikipedia.org/wiki/Glossary_of_mathematics",
@@ -46,7 +46,7 @@ const SITES = [
   "https://en.wikipedia.org/wiki/Citation",
   "https://en.wikipedia.org/wiki/Wikipedia:Citing_sources",
 
-  // 📑 BIBLIOGRAPHY & FORMATS
+  // 📑 BIBLIOGRAPHY & FORMATTING
   "https://en.wikipedia.org/wiki/Bibliography",
   "https://en.wikipedia.org/wiki/Annotated_bibliography",
   "https://en.wikipedia.org/wiki/Reference_management_software",
@@ -62,15 +62,16 @@ const SITES = [
   "https://en.wikipedia.org/wiki/Index_(publishing)",
   "https://en.wikipedia.org/wiki/Controlled_vocabulary"
 ];
-// 🧠 Memory of visited URLs
+
+// 🧠 Visited URLs
 const visited = new Set();
 
-// 🧮 Token estimator
+// 🧮 Estimate token count
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
-// 🧹 Extract <title> and <p> text content
+// 🧹 Extract training content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
@@ -89,7 +90,6 @@ async function uploadToSupabase(entry) {
     .select('id')
     .eq('url', entry.url)
     .limit(1);
-
   if (!existing || existing.length === 0) {
     await supabase.from('fai_training').insert([entry]);
     await supabase.from('fai_visited').insert([{ url: entry.url }]);
@@ -99,7 +99,7 @@ async function uploadToSupabase(entry) {
   }
 }
 
-// 📜 Get and parse robots.txt
+// 📜 Check robots.txt
 async function getRobots(url) {
   try {
     const robotsUrl = new URL('/robots.txt', url).href;
@@ -112,26 +112,7 @@ async function getRobots(url) {
   }
 }
 
-// 🧠 Fallback API (for future API handling)
-async function fallbackAPI(url) {
-  try {
-    if (url.includes('Special:Random')) {
-      const res = await axios.get('https://en.wikipedia.org/api/rest_v1/page/random/summary');
-      return {
-        title: res.data.title,
-        content: res.data.extract,
-        url: res.data.content_urls.desktop.page,
-        tokens: countTokens(res.data.extract)
-      };
-    }
-    return null;
-  } catch (err) {
-    console.warn(`⚠️ Fallback failed for ${url}: ${err.message}`);
-    return null;
-  }
-}
-
-// 🔁 Crawl a single URL
+// 🔁 Crawl single URL
 async function crawl(url, robots, delay) {
   const cleanUrl = url.split('#')[0];
   if (visited.has(cleanUrl)) return;
@@ -139,17 +120,6 @@ async function crawl(url, robots, delay) {
 
   if (!robots.parser.isAllowed(cleanUrl, 'fcrawler')) {
     console.log(`🚫 Disallowed by robots.txt: ${cleanUrl}`);
-    const fallback = await fallbackAPI(cleanUrl);
-    if (fallback && fallback.tokens > 0) {
-      await uploadToSupabase({
-        id: nanoid(),
-        url: fallback.url,
-        title: fallback.title,
-        content: fallback.content,
-        tokens: fallback.tokens,
-        timestamp: new Date().toISOString()
-      });
-    }
     return;
   }
 
@@ -175,8 +145,7 @@ async function crawl(url, robots, delay) {
       .get()
       .map(href => {
         try {
-          const full = new URL(href, cleanUrl).href;
-          return full.split('#')[0];
+          return new URL(href, cleanUrl).href.split('#')[0];
         } catch {
           return null;
         }
@@ -193,7 +162,7 @@ async function crawl(url, robots, delay) {
   }
 }
 
-// 🚀 Start crawler + open port
+// 🚀 Launch crawler + keep port open
 (async () => {
   console.log('🕷️ crawlerA booting...');
   const { data } = await supabase.from('fai_visited').select('url').limit(100000);
@@ -205,7 +174,6 @@ async function crawl(url, robots, delay) {
     await crawl(site, robots, robots.delay);
   }
 
-  // 🔓 Keep port open for platforms like Render
   const PORT = process.env.PORT || 3000;
   http.createServer((_, res) => {
     res.writeHead(200);
