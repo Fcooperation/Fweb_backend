@@ -1,8 +1,4 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
 import fetch from 'node-fetch';
-globalThis.fetch = fetch;
-
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
@@ -10,7 +6,7 @@ import { URL } from 'url';
 // ✅ Supabase connection
 const supabase = createClient(
   'https://fcooperation.supabase.co',
-  'YOUR_SERVICE_ROLE_KEY_HERE' // Replace with your service role key (keep private)
+  'YOUR_SUPABASE_SERVICE_ROLE_KEY'
 );
 
 // ✅ Load checkpoint
@@ -26,51 +22,45 @@ async function getCheckpoint() {
 
 // ✅ Save checkpoint
 async function saveCheckpoint(url) {
-  await supabase
-    .from('fai_checkpoint')
-    .upsert({ id: 1, url });
+  await supabase.from('fai_checkpoint').upsert({ id: 1, url });
 }
 
-// ✅ Check visited
+// ✅ Check if visited
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
     .select('url')
     .eq('url', url)
     .maybeSingle();
-
   return !!data;
 }
 
 // ✅ Mark visited
 async function markVisited(url) {
-  await supabase
-    .from('fai_visited')
-    .upsert({ url });
+  await supabase.from('fai_visited').upsert({ url });
 }
 
-// ✅ Check if word already in dictionary
+// ✅ Check if word exists in `ftraining`
 async function wordExists(word) {
   const { data } = await supabase
-    .from('dictionary_entries')
+    .from('ftraining')
     .select('word')
     .eq('word', word)
     .maybeSingle();
-
   return !!data;
 }
 
-// ✅ Upload new dictionary entry
+// ✅ Upload entry to `ftraining`
 async function uploadEntry(entry) {
-  const { error } = await supabase
-    .from('dictionary_entries')
-    .insert(entry);
-
-  if (error) console.error('Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
+  const { error } = await supabase.from('ftraining').insert(entry);
+  if (error) {
+    console.error('Upload error:', error.message);
+  } else {
+    console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
+  }
 }
 
-// ✅ Crawl a page
+// ✅ Main crawler logic
 async function crawl(url, depth = 1) {
   if (await isVisited(url) || depth < 0) return;
   await markVisited(url);
@@ -79,16 +69,17 @@ async function crawl(url, depth = 1) {
   try {
     console.log(`🔗 Crawling word: ${url}`);
     const res = await fetch(url);
-    if (!res.ok) throw new Error('Fetch failed');
+    if (!res.ok) return;
+
     const html = await res.text();
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
     const title = $('title').text().trim();
+
     const language = 'English';
     const pronunciation = $('span.IPA').first().text().trim();
     const type = $('span.headword-line').first().text().trim();
-
     const definitions = [];
     const examples = [];
     const anagrams = [];
@@ -129,7 +120,7 @@ async function crawl(url, depth = 1) {
       console.log(`⚠️ Skipped existing: ${word}`);
     }
 
-    // ✅ Crawl 5 more valid word links
+    // Crawl more words
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
