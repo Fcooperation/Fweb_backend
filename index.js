@@ -5,7 +5,7 @@ import { URL } from 'url';
 
 // ✅ Supabase connection
 const supabase = createClient(
-  'https://fcooperation.supabase.co',
+  'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
