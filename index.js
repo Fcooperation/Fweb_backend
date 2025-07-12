@@ -1,149 +1,94 @@
-import axios from 'axios';
+// index.js
+import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
-import { nanoid } from 'nanoid';
-import { URL } from 'url';
-import http from 'http';
+import express from 'express';
 
-// ✅ Supabase setup
-const supabase = createClient(
-  'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
-);
+const app = express();
+const PORT = process.env.PORT || 10000;
 
-// 🌐 Start URL
+// === SUPABASE SETUP ===
+const SUPABASE_URL = 'https://pwsxezhugsxosbwhkdvf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const START_URL = "https://en.wiktionary.org/wiki/Category:English_lemmas";
+let visited = new Set();
 
-// 🧠 Memory of visited URLs
-const visited = new Set();
+const bannedPatterns = [
+  '/wiki/Wiktionary:', '/wiki/Help:', '/wiki/Special:', '/wiki/Category:',
+  '/wiki/Talk:', '/wiki/User:', '/wiki/Template:', '/wiki/Module:',
+  '/wiki/File:', '/wiki/MediaWiki:', '/wiki/Wikipedia:', '/wiki/Portal:',
+  '/wiki/Privacy_policy', '/wiki/Contact', '/wiki/Community_portal', '/wiki/Main_Page'
+];
 
-// 🧮 Token estimator
-function countTokens(text) {
-  return Math.ceil(text.length / 4);
+function isUsefulLink(href) {
+  if (!href.startsWith('http') && !href.startsWith('/wiki/')) return false;
+  return !bannedPatterns.some(pattern => href.includes(pattern));
 }
 
-// 📦 Extract training-worthy content
-function extractTrainingData(html) {
-  const $ = cheerio.load(html);
-  const title = $('title').text().trim();
-  let paragraphs = [];
-
-  $('p').each((_, el) => {
-    const text = $(el).text().trim();
-    if (text.length > 30) {
-      paragraphs.push(text);
-    }
-  });
-
-  return {
-    title,
-    content: paragraphs.join('\n\n').trim(),
-  };
-}
-
-// 🧹 Filter out non-entry pages
-function isUnwantedPage(url) {
-  return /\/wiki\/(Help:|File:|Talk:|Special:|Wiktionary:|Appendix_talk:|Category:|Template:|User:|MediaWiki:|Portal:|Main_Page|Privacy_policy|Contact)/.test(url);
-}
-
-// 📤 Upload to Supabase
-async function uploadTrainingExample(entry) {
-  const { data: exists } = await supabase
-    .from('fai_training')
-    .select('id')
-    .eq('url', entry.url)
-    .maybeSingle();
-
-  if (!exists) {
-    await supabase.from('fai_training').insert([entry]);
-    console.log(`🧠 Uploaded: ${entry.title} | ${entry.tokens} tokens`);
-  } else {
-    console.log(`⚠️ Already uploaded: ${entry.url}`);
+async function loadVisited() {
+  const { data, error } = await supabase.from('fai_visited').select('url');
+  if (data) {
+    data.forEach(row => visited.add(row.url));
+    console.log(`📚 Loaded ${visited.size} visited URLs`);
   }
 }
 
-// ✅ Save to visited table
-async function markVisited(url) {
-  const clean = url.split('#')[0];
-  await supabase.from('fai_visited').insert([{ url: clean, timestamp: new Date().toISOString() }]);
-  visited.add(clean);
-  console.log(`✅ Marked as visited: ${clean}`);
+async function saveVisited(url) {
+  visited.add(url);
+  await supabase.from('fai_visited').insert([{ url }]);
 }
 
-// 🔁 Crawl single page
+async function uploadToTraining(url, title, text, tokens) {
+  await supabase.from('fai_training').insert([{ url, title, text, tokens }]);
+  console.log(`🧠 Uploaded: ${title} | ${tokens} tokens`);
+}
+
 async function crawl(url) {
-  const clean = url.split('#')[0];
-  if (visited.has(clean) || isUnwantedPage(clean)) {
-    console.log(`⚠️ Already visited or skipped: ${clean}`);
+  if (visited.has(url)) {
+    console.log(`⚠️ Already visited or skipped: ${url}`);
     return;
   }
 
+  console.log(`🔍 Crawling: ${url}`);
   try {
-    const res = await axios.get(clean);
-    const { title, content } = extractTrainingData(res.data);
-    const tokens = countTokens(content);
-    if (tokens < 10) {
-      return;
-    }
+    const res = await fetch(url);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    await saveVisited(url);
 
-    await uploadTrainingExample({
-      id: nanoid(),
-      url: clean,
-      title,
-      content,
-      tokens,
-      timestamp: new Date().toISOString()
+    // Extract meaningful training text
+    let title = $('title').text().trim();
+    let content = '';
+    $('p, li, dd').each((_, el) => {
+      content += $(el).text().trim() + '\n';
     });
 
-    await markVisited(clean);
+    const tokens = content.split(/\s+/).length;
+    if (tokens > 10 && content.length > 100) {
+      await uploadToTraining(url, title, content, tokens);
+    }
 
-    const $ = cheerio.load(res.data);
+    // Follow more links (internal + external)
     const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
       .get()
-      .map(href => {
-        try {
-          const full = new URL(href, clean).href;
-          return full.split('#')[0];
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean)
-      .filter(href => href.startsWith('https://en.wiktionary.org/wiki/'))
-      .filter(href => !isUnwantedPage(href));
+      .map(href => href.startsWith('/') ? `https://en.wiktionary.org${href}` : href)
+      .filter(href => isUsefulLink(href) && !visited.has(href));
 
     for (const link of links) {
-      await new Promise(res => setTimeout(res, 1200));
       await crawl(link);
     }
-
   } catch (err) {
-    console.warn(`❌ Error crawling ${clean}: ${err.message}`);
+    console.log(`❌ Error crawling ${url}:`, err.message);
   }
 }
 
-// 🚀 Start script
-(async () => {
-  console.log("🕷️ crawlerA booting...");
-
-  const { data: visitedRows } = await supabase
-    .from('fai_visited')
-    .select('url')
-    .limit(100000);
-
-  visitedRows?.forEach(row => visited.add(row.url.split('#')[0]));
-
-  console.log(`📚 Loaded ${visited.size} visited URLs`);
-
+app.listen(PORT, async () => {
+  console.log(`🔓 Port opened on ${PORT}`);
+  console.log('🕷️ crawlerA booting...');
+  await loadVisited();
   await crawl(START_URL);
-
-  // 🔓 Open HTTP port
-  const PORT = process.env.PORT || 10000;
-  http.createServer((_, res) => {
-    res.writeHead(200);
-    res.end("crawlerA is running.\n");
-  }).listen(PORT, () => {
-    console.log(`🔓 Port opened on ${PORT}`);
-  });
-})();
+});
