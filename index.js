@@ -1,17 +1,21 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 import fetch from 'node-fetch';
+globalThis.fetch = fetch;
+
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
 // ✅ Supabase connection
 const supabase = createClient(
-  'https://YOUR_PROJECT_ID.supabase.co',
-  'YOUR_SUPABASE_SERVICE_ROLE_KEY' // use service role key only in private environments!
+  'https://fcooperation.supabase.co',
+  'YOUR_SERVICE_ROLE_KEY_HERE' // Replace with your service role key (keep private)
 );
 
-// ✅ Load checkpoint (last URL)
+// ✅ Load checkpoint
 async function getCheckpoint() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('fai_checkpoint')
     .select('url')
     .eq('id', 1)
@@ -27,25 +31,25 @@ async function saveCheckpoint(url) {
     .upsert({ id: 1, url });
 }
 
-// ✅ Check if URL is already visited
+// ✅ Check visited
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
     .select('url')
     .eq('url', url)
-    .single();
+    .maybeSingle();
 
   return !!data;
 }
 
-// ✅ Save to visited table
+// ✅ Mark visited
 async function markVisited(url) {
   await supabase
     .from('fai_visited')
     .upsert({ url });
 }
 
-// ✅ Check if word already exists
+// ✅ Check if word already in dictionary
 async function wordExists(word) {
   const { data } = await supabase
     .from('dictionary_entries')
@@ -56,7 +60,7 @@ async function wordExists(word) {
   return !!data;
 }
 
-// ✅ Upload word entry
+// ✅ Upload new dictionary entry
 async function uploadEntry(entry) {
   const { error } = await supabase
     .from('dictionary_entries')
@@ -66,7 +70,7 @@ async function uploadEntry(entry) {
   else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
 }
 
-// ✅ Main crawler logic
+// ✅ Crawl a page
 async function crawl(url, depth = 1) {
   if (await isVisited(url) || depth < 0) return;
   await markVisited(url);
@@ -75,16 +79,16 @@ async function crawl(url, depth = 1) {
   try {
     console.log(`🔗 Crawling word: ${url}`);
     const res = await fetch(url);
-    if (!res.ok) return;
-
+    if (!res.ok) throw new Error('Fetch failed');
     const html = await res.text();
     const $ = cheerio.load(html);
-    const word = $('h1').first().text().trim();
-    const title = $('title').text();
 
+    const word = $('h1').first().text().trim();
+    const title = $('title').text().trim();
     const language = 'English';
     const pronunciation = $('span.IPA').first().text().trim();
     const type = $('span.headword-line').first().text().trim();
+
     const definitions = [];
     const examples = [];
     const anagrams = [];
@@ -125,7 +129,7 @@ async function crawl(url, depth = 1) {
       console.log(`⚠️ Skipped existing: ${word}`);
     }
 
-    // Crawl a few more word links
+    // ✅ Crawl 5 more valid word links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -145,7 +149,7 @@ async function crawl(url, depth = 1) {
   }
 }
 
-// ✅ Start crawling from checkpoint
+// ✅ Start
 const start = await getCheckpoint();
 console.log(`🚀 Resuming crawl from: ${start}`);
 await crawl(start, 2);
