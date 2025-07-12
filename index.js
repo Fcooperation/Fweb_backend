@@ -6,7 +6,7 @@ import { URL } from 'url';
 // === Supabase credentials (yours) ===
 const supabase = createClient(
   'https://prbivxwflpqksxbghpwy.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByYml2eHdmbHBxa3N4YmdocHd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODc3NzYxMzAsImV4cCI6MjAwMzM1MjEzMH0.PCrJBQWfl9k38wHiI9vVBC4hJt49U8UT0KXbffQUKog'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
 // === Config ===
