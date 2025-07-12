@@ -1,48 +1,60 @@
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { URL } from 'url';
 import http from 'http';
 
-// === 🔐 Supabase Credentials ===
+// ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// === 🌐 CRAWLER CONFIG ===
-const BASE = 'https://en.wiktionary.org';
-const START_URL = `${BASE}/wiki/Category:English_lemmas`;
+// 🌐 Start URL
+const START_URL = "https://en.wiktionary.org/wiki/Category:English_lemmas";
+
+// 🧠 Memory of visited URLs
 const visited = new Set();
 
+// 🧮 Token estimator
 function countTokens(text) {
   return Math.ceil(text.length / 4);
 }
 
+// 📦 Extract training-worthy content
 function extractTrainingData(html) {
   const $ = cheerio.load(html);
   const title = $('title').text().trim();
-  let content = '';
+  let paragraphs = [];
 
-  $('#mw-content-text p').each((_, el) => {
-    const txt = $(el).text().trim();
-    if (txt.length > 0) content += txt + '\n';
+  $('p').each((_, el) => {
+    const text = $(el).text().trim();
+    if (text.length > 30) {
+      paragraphs.push(text);
+    }
   });
 
-  return { title, content: content.trim() };
+  return {
+    title,
+    content: paragraphs.join('\n\n').trim(),
+  };
 }
 
-async function uploadTrainingData(entry) {
-  if (!entry.url || !entry.content || entry.tokens === 0) return;
+// 🧹 Filter out non-entry pages
+function isUnwantedPage(url) {
+  return /\/wiki\/(Help:|File:|Talk:|Special:|Wiktionary:|Appendix_talk:|Category:|Template:|User:|MediaWiki:|Portal:|Main_Page|Privacy_policy|Contact)/.test(url);
+}
 
-  const { data: existing } = await supabase
+// 📤 Upload to Supabase
+async function uploadTrainingExample(entry) {
+  const { data: exists } = await supabase
     .from('fai_training')
     .select('id')
     .eq('url', entry.url)
-    .limit(1);
+    .maybeSingle();
 
-  if (!existing || existing.length === 0) {
+  if (!exists) {
     await supabase.from('fai_training').insert([entry]);
     console.log(`🧠 Uploaded: ${entry.title} | ${entry.tokens} tokens`);
   } else {
@@ -50,86 +62,87 @@ async function uploadTrainingData(entry) {
   }
 }
 
+// ✅ Save to visited table
 async function markVisited(url) {
-  await supabase.from('fai_visited').insert([{ url, timestamp: new Date().toISOString() }]);
-  visited.add(url);
-  console.log(`✅ Marked as visited: ${url}`);
+  const clean = url.split('#')[0];
+  await supabase.from('fai_visited').insert([{ url: clean, timestamp: new Date().toISOString() }]);
+  visited.add(clean);
+  console.log(`✅ Marked as visited: ${clean}`);
 }
 
+// 🔁 Crawl single page
 async function crawl(url) {
-  const cleanUrl = url.split('#')[0];
-  if (visited.has(cleanUrl)) {
-    console.log(`⚠️ Already visited or skipped: ${cleanUrl}`);
+  const clean = url.split('#')[0];
+  if (visited.has(clean) || isUnwantedPage(clean)) {
+    console.log(`⚠️ Already visited or skipped: ${clean}`);
     return;
   }
 
   try {
-    console.log(`🔍 Crawling: ${cleanUrl}`);
-    const res = await axios.get(cleanUrl);
+    const res = await axios.get(clean);
     const { title, content } = extractTrainingData(res.data);
     const tokens = countTokens(content);
-
-    if (tokens > 0) {
-      await uploadTrainingData({
-        id: nanoid(),
-        url: cleanUrl,
-        title,
-        content,
-        tokens,
-        timestamp: new Date().toISOString(),
-      });
+    if (tokens < 10) {
+      return;
     }
 
-    await markVisited(cleanUrl);
+    await uploadTrainingExample({
+      id: nanoid(),
+      url: clean,
+      title,
+      content,
+      tokens,
+      timestamp: new Date().toISOString()
+    });
+
+    await markVisited(clean);
 
     const $ = cheerio.load(res.data);
-
-    // 🌱 Crawl valid word entry links
-    const wordLinks = $('a[href]')
+    const links = $('a[href]')
       .map((_, el) => $(el).attr('href'))
       .get()
       .map(href => {
         try {
-          return new URL(href, BASE).href;
+          const full = new URL(href, clean).href;
+          return full.split('#')[0];
         } catch {
           return null;
         }
       })
       .filter(Boolean)
-      .filter(href => href.startsWith(`${BASE}/wiki/`) && !href.includes(':'));
+      .filter(href => href.startsWith('https://en.wiktionary.org/wiki/'))
+      .filter(href => !isUnwantedPage(href));
 
-    // 🔁 Pagination (e.g., ?pagefrom=...)
-    const nextPages = $('a[href*="pagefrom="]')
-      .map((_, el) => $(el).attr('href'))
-      .get()
-      .map(href => new URL(href, BASE).href);
-
-    const uniqueLinks = [...new Set([...wordLinks, ...nextPages])];
-
-    for (const link of uniqueLinks) {
-      await new Promise(r => setTimeout(r, 1500));
+    for (const link of links) {
+      await new Promise(res => setTimeout(res, 1200));
       await crawl(link);
     }
 
   } catch (err) {
-    console.warn(`❌ Failed to crawl ${cleanUrl}: ${err.message}`);
+    console.warn(`❌ Error crawling ${clean}: ${err.message}`);
   }
 }
 
+// 🚀 Start script
 (async () => {
-  console.log('🕷️ crawlerA booting...');
+  console.log("🕷️ crawlerA booting...");
 
-  const { data } = await supabase.from('fai_visited').select('url').limit(100000);
-  if (data) data.forEach(d => visited.add(d.url.split('#')[0]));
+  const { data: visitedRows } = await supabase
+    .from('fai_visited')
+    .select('url')
+    .limit(100000);
+
+  visitedRows?.forEach(row => visited.add(row.url.split('#')[0]));
+
   console.log(`📚 Loaded ${visited.size} visited URLs`);
 
   await crawl(START_URL);
 
-  // 🌐 Port for Render
+  // 🔓 Open HTTP port
   const PORT = process.env.PORT || 10000;
   http.createServer((_, res) => {
     res.writeHead(200);
-    res.end('crawlerA is running.\n');
+    res.end("crawlerA is running.\n");
   }).listen(PORT, () => {
     console.log(`🔓 Port opened on ${PORT}`);
   });
