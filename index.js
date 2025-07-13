@@ -6,32 +6,19 @@ import { URL } from 'url';
 // ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // replace this with your service role key
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // Replace with actual key
 );
 
-// ✅ Save checkpoint
-async function saveCheckpoint(letter) {
-  await supabase.from('fai_checkpoint').upsert({ id: 1, url: letter });
-}
-
-// ✅ Get checkpoint
-async function getCheckpoint() {
-  const { data } = await supabase.from('fai_checkpoint').select('url').eq('id', 1).single();
-  return data?.url || 'A';
-}
-
-// ✅ Check visited
+// ✅ Track visited pages
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
 }
-
-// ✅ Mark as visited
 async function markVisited(url) {
   await supabase.from('fai_visited').upsert({ url });
 }
 
-// ✅ Check if word exists
+// ✅ Prevent duplicate word uploads
 async function wordExists(word) {
   const { data } = await supabase.from('ftraining').select('word').eq('word', word).maybeSingle();
   return !!data;
@@ -41,21 +28,19 @@ async function wordExists(word) {
 async function uploadEntry(entry) {
   const { error } = await supabase.from('ftraining').insert(entry);
   if (error) console.error('❌ Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
+  else console.log(`✅ Uploaded: ${entry.word} (${entry.definitions.length} defs)`);
 }
 
-// ✅ Main crawl for one word URL
-async function crawlWord(url, depth = 1) {
+// ✅ Crawl actual word page
+async function crawlWordPage(url) {
   const visited = await isVisited(url);
-  if (!visited) await markVisited(url);
-  else {
-    console.log(`⚠️ Already visited: ${url}`);
-    return;
-  }
+  if (visited) return;
+
+  console.log(`🔍 Crawling word: ${url}`);
+  await markVisited(url);
 
   try {
     const res = await fetch(url);
-    if (!res.ok) return;
     const html = await res.text();
     const $ = cheerio.load(html);
 
@@ -86,7 +71,7 @@ async function crawlWord(url, depth = 1) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (!(await wordExists(word))) {
+    if (!await wordExists(word)) {
       await uploadEntry({
         word,
         language,
@@ -102,66 +87,55 @@ async function crawlWord(url, depth = 1) {
       });
     }
 
-    // ✅ Crawl further links (internal dictionary links)
-    if (depth > 0) {
-      const nextLinks = new Set();
-      $('a[href^="/wiki/"]').each((_, el) => {
-        const href = $(el).attr('href');
-        if (!href.includes(':') && !href.includes('#')) {
-          const link = new URL(href, 'https://en.wiktionary.org').href;
-          nextLinks.add(link);
-        }
-      });
-
-      for (const link of nextLinks) {
-        if (!(await isVisited(link))) {
-          await crawlWord(link, depth - 1);
-        }
-      }
-    }
   } catch (err) {
-    console.error('❌ Error:', err.message);
+    console.error('⚠️ Error:', err.message);
   }
 }
 
-// ✅ Crawl index letter page
-async function crawlIndex(letter) {
-  const url = `https://en.wiktionary.org/wiki/Index:${letter}`;
+// ✅ Crawl index page like Index:A
+async function crawlIndexPage(letter) {
+  const indexUrl = `https://en.wiktionary.org/wiki/Index:${letter}`;
   console.log(`🔤 Crawling Index:${letter}`);
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) return;
+    const res = await fetch(indexUrl);
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    const links = [];
-    $('#mw-content-text a').each((_, el) => {
+    const wordLinks = [];
+    $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
-      if (href && href.startsWith('/wiki/') && !href.includes(':')) {
-        links.push(new URL(href, 'https://en.wiktionary.org').href);
+      if (
+        href &&
+        !href.includes(':') && // skip meta
+        !href.includes('#')
+      ) {
+        const link = new URL(href, 'https://en.wiktionary.org').href;
+        wordLinks.push(link);
       }
     });
 
-    console.log(`🔗 Found ${links.length} word links`);
-    for (const link of links) {
-      await crawlWord(link, 1);
+    const uniqueLinks = Array.from(new Set(wordLinks));
+    console.log(`🔗 Found ${uniqueLinks.length} word links in Index:${letter}`);
+
+    for (const link of uniqueLinks) {
+      await crawlWordPage(link);
     }
 
-    await saveCheckpoint(letter);
   } catch (err) {
-    console.error('❌ Index crawl failed:', err.message);
+    console.error(`❌ Failed to crawl Index:${letter}:`, err.message);
   }
 }
 
-// ✅ Start from checkpoint
-const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-const checkpoint = await getCheckpoint();
-const startIndex = alphabet.indexOf(checkpoint);
-
-for (const letter of alphabet.slice(startIndex)) {
-  await crawlIndex(letter);
+// ✅ Full A–Z crawl
+async function crawlAllIndexes() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  for (const letter of letters) {
+    await crawlIndexPage(letter);
+  }
+  console.log('✅ Finished A–Z crawl.');
 }
 
-console.log('✅ Finished A–Z crawl.');
+// ✅ Run it
+await crawlAllIndexes();
 setTimeout(() => console.log('🕓 Done'), 1000);
