@@ -3,37 +3,28 @@ import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ✅ Supabase setup
+// ✅ Supabase config
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// ✅ Helper: get checkpoint letter
+// ✅ Get checkpoint (last completed letter)
 async function getCheckpoint() {
   const { data } = await supabase
     .from('fai_checkpoint')
-    .select('letter')
+    .select('url')
     .eq('id', 1)
-    .single();
-  return data?.letter || 'A';
+    .maybeSingle();
+  return data?.url || 'A';
 }
 
-// ✅ Save current checkpoint
+// ✅ Save checkpoint
 async function saveCheckpoint(letter) {
-  await supabase
-    .from('fai_checkpoint')
-    .upsert({ id: 1, letter });
+  await supabase.from('fai_checkpoint').upsert({ id: 1, url: letter });
 }
 
-// ✅ Mark visited
-async function markVisited(url) {
-  await supabase
-    .from('fai_visited')
-    .upsert({ url });
-}
-
-// ✅ Check if visited
+// ✅ Visited checker
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
@@ -41,6 +32,10 @@ async function isVisited(url) {
     .eq('url', url)
     .maybeSingle();
   return !!data;
+}
+
+async function markVisited(url) {
+  await supabase.from('fai_visited').upsert({ url });
 }
 
 // ✅ Check if word exists
@@ -53,23 +48,24 @@ async function wordExists(word) {
   return !!data;
 }
 
-// ✅ Upload dictionary word
+// ✅ Upload word entry
 async function uploadEntry(entry) {
-  const { error } = await supabase
-    .from('ftraining')
-    .insert(entry);
-  if (error) console.error('Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word}`);
+  const { error } = await supabase.from('ftraining').insert(entry);
+  if (error) console.error('❌ Upload error:', error.message);
+  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
 }
 
-// ✅ Extract and upload real entry
+// ✅ Crawl actual word page
 async function crawlWord(url) {
   if (await isVisited(url)) return;
+
   await markVisited(url);
 
   try {
+    console.log(`📘 Crawling word: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
+
     const html = await res.text();
     const $ = cheerio.load(html);
 
@@ -100,7 +96,7 @@ async function crawlWord(url) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (definitions.length && !(await wordExists(word))) {
+    if (!await wordExists(word)) {
       await uploadEntry({
         word,
         language,
@@ -115,51 +111,73 @@ async function crawlWord(url) {
         language_section: language
       });
     } else {
-      console.log(`⚠️ Skipped or already exists: ${word}`);
+      console.log(`⚠️ Already uploaded: ${word}`);
     }
+
+    // ✅ Find and crawl external/internal links (no meta)
+    const nextLinks = new Set();
+    $('a[href^="/wiki/"]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (href && !href.includes(':') && !href.includes('#')) {
+        const full = new URL(href, 'https://en.wiktionary.org').href;
+        nextLinks.add(full);
+      }
+    });
+
+    for (const link of nextLinks) {
+      if (!(await isVisited(link))) {
+        await crawlWord(link);
+        await new Promise((r) => setTimeout(r, 1000)); // delay
+      }
+    }
+
   } catch (err) {
     console.error('⚠️ Error:', err.message);
   }
 }
 
-// ✅ Crawl one letter's index page
-async function crawlIndex(letter) {
-  const indexUrl = `https://en.wiktionary.org/wiki/Index:${letter}`;
-  console.log(`🔤 Crawling Index:${letter}`);
-  try {
-    const res = await fetch(indexUrl);
-    if (!res.ok) return;
-    const html = await res.text();
-    const $ = cheerio.load(html);
+// ✅ Crawl A–Z index pages
+async function crawlAZ() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const start = await getCheckpoint();
+  const startIndex = letters.indexOf(start);
 
-    const links = $('a[href^="/wiki/"]')
-      .map((_, el) => new URL($(el).attr('href'), 'https://en.wiktionary.org').href)
-      .get()
-      .filter(link =>
-        !link.includes(':') && // avoids meta pages
-        !link.includes('#') &&
-        !link.includes('Wiktionary')
-      );
+  for (let i = startIndex; i < letters.length; i++) {
+    const letter = letters[i];
+    console.log(`🔤 Crawling Index:${letter}`);
+    const url = `https://en.wiktionary.org/wiki/Index:${letter}`;
 
-    for (const link of links) {
-      await crawlWord(link);
+    try {
+      const res = await fetch(url);
+      const html = await res.text();
+      const $ = cheerio.load(html);
+
+      const links = new Set();
+      $('div.mw-allpages-body a').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && !href.includes(':') && !href.includes('#')) {
+          const full = new URL(href, 'https://en.wiktionary.org').href;
+          links.add(full);
+        }
+      });
+
+      console.log(`🔗 Found ${links.size} word links`);
+      for (const link of links) {
+        await crawlWord(link);
+        await new Promise((r) => setTimeout(r, 1000)); // delay
+      }
+
+      await saveCheckpoint(letter); // save letter checkpoint
+
+    } catch (err) {
+      console.error(`❌ Failed Index:${letter}`, err.message);
     }
-
-    await saveCheckpoint(letter);
-  } catch (err) {
-    console.error(`❌ Failed Index:${letter} — ${err.message}`);
-  }
-}
-
-// ✅ Start loop A to Z
-(async () => {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const startLetter = await getCheckpoint();
-  const startIndex = alphabet.indexOf(startLetter);
-
-  for (let i = startIndex; i < alphabet.length; i++) {
-    await crawlIndex(alphabet[i]);
   }
 
   console.log('✅ Finished A–Z crawl.');
-})();
+}
+
+await crawlAZ();
+
+// Prevent Render from exiting early
+setTimeout(() => console.log('🕓 Done'), 5000);
