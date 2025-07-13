@@ -3,30 +3,37 @@ import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ✅ Supabase client
+// ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
+  'YOUR_SERVICE_ROLE_KEY'
 );
 
-// ✅ Load checkpoint
+// ✅ Helper: get checkpoint letter
 async function getCheckpoint() {
   const { data } = await supabase
     .from('fai_checkpoint')
-    .select('url')
+    .select('letter')
     .eq('id', 1)
     .single();
-  return data?.url || 'https://en.wiktionary.org/wiki/Wiktionary:All_pages';
+  return data?.letter || 'A';
 }
 
-// ✅ Save checkpoint
-async function saveCheckpoint(url) {
+// ✅ Save current checkpoint
+async function saveCheckpoint(letter) {
   await supabase
     .from('fai_checkpoint')
-    .upsert({ id: 1, url });
+    .upsert({ id: 1, letter });
 }
 
-// ✅ Check visited
+// ✅ Mark visited
+async function markVisited(url) {
+  await supabase
+    .from('fai_visited')
+    .upsert({ url });
+}
+
+// ✅ Check if visited
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
@@ -36,14 +43,7 @@ async function isVisited(url) {
   return !!data;
 }
 
-// ✅ Mark as visited
-async function markVisited(url) {
-  await supabase
-    .from('fai_visited')
-    .upsert({ url });
-}
-
-// ✅ Check if already uploaded
+// ✅ Check if word exists
 async function wordExists(word) {
   const { data } = await supabase
     .from('ftraining')
@@ -53,43 +53,26 @@ async function wordExists(word) {
   return !!data;
 }
 
-// ✅ Upload entry
+// ✅ Upload dictionary word
 async function uploadEntry(entry) {
   const { error } = await supabase
     .from('ftraining')
     .insert(entry);
-  if (error) {
-    console.error('❌ Upload error:', error.message);
-  } else {
-    console.log(`✅ Uploaded: ${entry.word} (${entry.definitions.length} defs)`);
-  }
+  if (error) console.error('Upload error:', error.message);
+  else console.log(`✅ Uploaded: ${entry.word}`);
 }
 
-// ✅ Detect if link is meta (Wiktionary:, Category:, etc.)
-function isMetaLink(href) {
-  return href.includes(':') && !href.startsWith('/wiki/Wiktionary:All_pages');
-}
-
-// ✅ Crawl function
-async function crawl(url) {
-  const visited = await isVisited(url);
-
-  if (!visited) {
-    await markVisited(url);
-    await saveCheckpoint(url);
-  } else {
-    console.log(`⚠️ Already visited: ${url}`);
-  }
+// ✅ Extract and upload real entry
+async function crawlWord(url) {
+  if (await isVisited(url)) return;
+  await markVisited(url);
 
   try {
-    console.log(`🔗 Crawling: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
-
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    // ✅ Try extracting word entry if it's a definition page
     const word = $('h1').first().text().trim();
     const title = $('title').text();
     const language = 'English';
@@ -117,14 +100,7 @@ async function crawl(url) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    // ✅ Only upload if not already uploaded and this isn't a meta/help page
-    if (
-      !visited &&
-      !await wordExists(word) &&
-      !url.includes('Wiktionary:') &&
-      !url.includes('Category:') &&
-      definitions.length > 0
-    ) {
+    if (definitions.length && !(await wordExists(word))) {
       await uploadEntry({
         word,
         language,
@@ -138,33 +114,52 @@ async function crawl(url) {
         is_phrase,
         language_section: language
       });
+    } else {
+      console.log(`⚠️ Skipped or already exists: ${word}`);
     }
-
-    // ✅ Crawl all internal links (excluding meta pages)
-    const nextLinks = new Set();
-    $('a[href^="/wiki/"]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (!isMetaLink(href) && !href.includes('#')) {
-        const link = new URL(href, 'https://en.wiktionary.org').href;
-        nextLinks.add(link);
-      }
-    });
-
-    for (const link of nextLinks) {
-      await crawl(link);
-    }
-
   } catch (err) {
     console.error('⚠️ Error:', err.message);
   }
 }
 
-// ✅ Start the crawl
-const start = await getCheckpoint();
-console.log(`🚀 Resuming crawl from: ${start}`);
-await crawl(start);
+// ✅ Crawl one letter's index page
+async function crawlIndex(letter) {
+  const indexUrl = `https://en.wiktionary.org/wiki/Index:${letter}`;
+  console.log(`🔤 Crawling Index:${letter}`);
+  try {
+    const res = await fetch(indexUrl);
+    if (!res.ok) return;
+    const html = await res.text();
+    const $ = cheerio.load(html);
 
-// ✅ Prevent Render shutdown
-setInterval(() => {
-  console.log('⏳ Still running...');
-}, 60_000); // every 1 minute
+    const links = $('a[href^="/wiki/"]')
+      .map((_, el) => new URL($(el).attr('href'), 'https://en.wiktionary.org').href)
+      .get()
+      .filter(link =>
+        !link.includes(':') && // avoids meta pages
+        !link.includes('#') &&
+        !link.includes('Wiktionary')
+      );
+
+    for (const link of links) {
+      await crawlWord(link);
+    }
+
+    await saveCheckpoint(letter);
+  } catch (err) {
+    console.error(`❌ Failed Index:${letter} — ${err.message}`);
+  }
+}
+
+// ✅ Start loop A to Z
+(async () => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const startLetter = await getCheckpoint();
+  const startIndex = alphabet.indexOf(startLetter);
+
+  for (let i = startIndex; i < alphabet.length; i++) {
+    await crawlIndex(alphabet[i]);
+  }
+
+  console.log('✅ Finished A–Z crawl.');
+})();
