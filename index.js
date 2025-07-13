@@ -6,39 +6,41 @@ import { URL } from 'url';
 // ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // Replace this with your real service role key (keep private!)
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // replace this with actual service role key
 );
 
-// ✅ Load checkpoint
+// ✅ Load last checkpoint
 async function getCheckpoint() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('fai_checkpoint')
     .select('url')
     .eq('id', 1)
     .single();
-
   return data?.url || 'https://en.wiktionary.org/wiki/apple';
 }
 
-// ✅ Save checkpoint
+// ✅ Save current checkpoint
 async function saveCheckpoint(url) {
-  await supabase.from('fai_checkpoint').upsert({ id: 1, url });
+  await supabase
+    .from('fai_checkpoint')
+    .upsert({ id: 1, url });
 }
 
-// ✅ Check if visited
+// ✅ Check if already visited
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
     .select('url')
     .eq('url', url)
-    .single();
-
+    .maybeSingle();
   return !!data;
 }
 
 // ✅ Mark as visited
 async function markVisited(url) {
-  await supabase.from('fai_visited').upsert({ url });
+  await supabase
+    .from('fai_visited')
+    .upsert({ url });
 }
 
 // ✅ Check if word already exists
@@ -48,37 +50,34 @@ async function wordExists(word) {
     .select('word')
     .eq('word', word)
     .maybeSingle();
-
   return !!data;
 }
 
-// ✅ Upload entry
+// ✅ Upload dictionary entry
 async function uploadEntry(entry) {
-  const { error } = await supabase.from('ftraining').insert(entry);
-  if (error) {
-    console.error('❌ Upload error:', error.message);
-  } else {
-    console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
-  }
+  const { error } = await supabase
+    .from('ftraining')
+    .insert(entry);
+  if (error) console.error('Upload error:', error.message);
+  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
 }
 
-// ✅ Crawler
+// ✅ Main crawl logic
 async function crawl(url, depth = 1) {
-  if (await isVisited(url) || depth < 0) {
-    console.log(`⚠️ Already visited or too shallow: ${url}`);
-    return;
-  }
+  if (depth < 0) return;
 
-  await markVisited(url);
-  await saveCheckpoint(url);
+  const visited = await isVisited(url);
+  if (!visited) {
+    await markVisited(url);
+    await saveCheckpoint(url);
+  } else {
+    console.log(`⚠️ Already visited: ${url}`);
+  }
 
   try {
     console.log(`🔗 Crawling word: ${url}`);
     const res = await fetch(url);
-    if (!res.ok) {
-      console.error(`❌ Failed to fetch: ${url}`);
-      return;
-    }
+    if (!res.ok) return;
 
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -110,7 +109,7 @@ async function crawl(url, depth = 1) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (!await wordExists(word)) {
+    if (!visited && !await wordExists(word)) {
       await uploadEntry({
         word,
         language,
@@ -124,11 +123,9 @@ async function crawl(url, depth = 1) {
         is_phrase,
         language_section: language
       });
-    } else {
-      console.log(`⏭️ Skipped existing word: ${word}`);
     }
 
-    // ✅ Crawl next links
+    // ✅ Crawl next links (even if this word was visited)
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -148,13 +145,10 @@ async function crawl(url, depth = 1) {
   }
 }
 
-// ✅ Start crawling from last checkpoint
-(async () => {
-  try {
-    const start = await getCheckpoint();
-    console.log(`🚀 Resuming crawl from: ${start}`);
-    await crawl(start, 2);
-  } catch (err) {
-    console.error('❌ Uncaught fatal error:', err.message);
-  }
-})();
+// ✅ Start
+const start = await getCheckpoint();
+console.log(`🚀 Resuming crawl from: ${start}`);
+await crawl(start, 2);
+
+// Optional: prevent Render from exiting instantly
+setTimeout(() => console.log('⏳ Done.'), 1000);
