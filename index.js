@@ -3,15 +3,15 @@ import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ✅ Supabase connection
+// ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
+  'YOUR_SERVICE_ROLE_KEY_HERE' // Replace this with your real service role key (keep private!)
 );
 
 // ✅ Load checkpoint
 async function getCheckpoint() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('fai_checkpoint')
     .select('url')
     .eq('id', 1)
@@ -31,52 +31,60 @@ async function isVisited(url) {
     .from('fai_visited')
     .select('url')
     .eq('url', url)
-    .maybeSingle();
+    .single();
+
   return !!data;
 }
 
-// ✅ Mark visited
+// ✅ Mark as visited
 async function markVisited(url) {
   await supabase.from('fai_visited').upsert({ url });
 }
 
-// ✅ Check if word exists in `ftraining`
+// ✅ Check if word already exists
 async function wordExists(word) {
   const { data } = await supabase
     .from('ftraining')
     .select('word')
     .eq('word', word)
     .maybeSingle();
+
   return !!data;
 }
 
-// ✅ Upload entry to `ftraining`
+// ✅ Upload entry
 async function uploadEntry(entry) {
   const { error } = await supabase.from('ftraining').insert(entry);
   if (error) {
-    console.error('Upload error:', error.message);
+    console.error('❌ Upload error:', error.message);
   } else {
     console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
   }
 }
 
-// ✅ Main crawler logic
+// ✅ Crawler
 async function crawl(url, depth = 1) {
-  if (await isVisited(url) || depth < 0) return;
+  if (await isVisited(url) || depth < 0) {
+    console.log(`⚠️ Already visited or too shallow: ${url}`);
+    return;
+  }
+
   await markVisited(url);
   await saveCheckpoint(url);
 
   try {
     console.log(`🔗 Crawling word: ${url}`);
     const res = await fetch(url);
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.error(`❌ Failed to fetch: ${url}`);
+      return;
+    }
 
     const html = await res.text();
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    const title = $('title').text().trim();
-
+    const title = $('title').text();
     const language = 'English';
     const pronunciation = $('span.IPA').first().text().trim();
     const type = $('span.headword-line').first().text().trim();
@@ -117,10 +125,10 @@ async function crawl(url, depth = 1) {
         language_section: language
       });
     } else {
-      console.log(`⚠️ Skipped existing: ${word}`);
+      console.log(`⏭️ Skipped existing word: ${word}`);
     }
 
-    // Crawl more words
+    // ✅ Crawl next links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -140,7 +148,13 @@ async function crawl(url, depth = 1) {
   }
 }
 
-// ✅ Start
-const start = await getCheckpoint();
-console.log(`🚀 Resuming crawl from: ${start}`);
-await crawl(start, 2);
+// ✅ Start crawling from last checkpoint
+(async () => {
+  try {
+    const start = await getCheckpoint();
+    console.log(`🚀 Resuming crawl from: ${start}`);
+    await crawl(start, 2);
+  } catch (err) {
+    console.error('❌ Uncaught fatal error:', err.message);
+  }
+})();
