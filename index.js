@@ -5,7 +5,7 @@ import { URL } from 'url';
 
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'YOUR_SUPABASE_KEY'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
 const BASE = 'https://en.wiktionary.org';
