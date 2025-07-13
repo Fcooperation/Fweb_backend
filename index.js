@@ -1,96 +1,75 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
+import { URL } from 'url';
 
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // 🔁 Replace with actual key
+  'YOUR_SUPABASE_KEY' // replace this
 );
 
-// ✅ Track visited
+const BASE = 'https://en.wiktionary.org';
+
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
 }
+
 async function markVisited(url) {
   await supabase.from('fai_visited').upsert({ url });
 }
 
-// ✅ Save checkpoint
-async function saveCheckpoint(index) {
-  await supabase.from('fai_checkpoint').upsert({ id: 1, index });
-}
-async function getCheckpoint() {
-  const { data } = await supabase.from('fai_checkpoint').select('index').eq('id', 1).maybeSingle();
-  return data?.index || 0;
-}
-
-// ✅ Supabase upload
 async function wordExists(word) {
   const { data } = await supabase.from('ftraining').select('word').eq('word', word).maybeSingle();
   return !!data;
 }
+
 async function uploadEntry(entry) {
   const { error } = await supabase.from('ftraining').insert(entry);
-  if (error) console.error('❌ Upload error:', error.message);
+  if (error) console.error('⛔ Upload error:', error.message);
   else console.log(`✅ Uploaded: ${entry.word}`);
 }
 
-// ✅ Check if English
-function isASCII(str) {
-  return /^[\x00-\x7F]+$/.test(str);
-}
-function hasEnglishSection($) {
-  return $('h2 span#English').length > 0;
-}
-
-// ✅ Extract word entry
 async function crawlWordPage(url) {
   if (await isVisited(url)) return;
+  await markVisited(url);
 
   try {
-    console.log(`🔍 Crawling: ${url}`);
     const res = await fetch(url);
-    if (!res.ok) return;
-
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    if (!hasEnglishSection($)) return;
-
     const word = $('h1').first().text().trim();
-    if (!word || !isASCII(word)) return;
+    const hasEnglishSection = $('#English').length > 0;
+    if (!hasEnglishSection) return;
 
-    const englishSection = $('span#English').closest('h2');
-    const sectionIndex = $('h2').index(englishSection);
-    const sectionContent = $('h2').eq(sectionIndex).nextUntil('h2');
+    const englishContent = $('#English').nextUntil('h2');
 
-    const pronunciation = sectionContent.find('.IPA').first().text().trim();
-    const type = sectionContent.find('.headword-line').first().text().trim();
-
+    const pronunciation = englishContent.find('.IPA').first().text().trim();
+    const type = englishContent.find('.headword-line').first().text().trim();
     const definitions = [];
-    sectionContent.find('ol > li').each((_, el) => {
+    const examples = [];
+    const anagrams = [];
+
+    englishContent.find('ol > li').each((_, el) => {
       const def = $(el).clone().find('ul, dl').remove().end().text().trim();
       if (def) definitions.push(def);
     });
 
-    const examples = [];
-    sectionContent.find('ul li').each((_, el) => {
-      const example = $(el).text().trim();
-      if (example) examples.push(example);
-    });
-
-    const anagrams = [];
-    sectionContent.find('dd:contains("Anagrams")').next('ul').find('li').each((_, el) => {
+    englishContent.find('ul li:contains("Anagrams")').each((_, el) => {
       const ana = $(el).text().trim();
       if (ana) anagrams.push(ana);
     });
 
-    const title = $('title').text();
-    const is_abbreviation = title.toLowerCase().includes('abbreviation');
+    englishContent.find('li:contains("Usage notes") ~ ul li').each((_, el) => {
+      const ex = $(el).text().trim();
+      if (ex) examples.push(ex);
+    });
+
+    const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (!(await wordExists(word))) {
+    if (!await wordExists(word)) {
       await uploadEntry({
         word,
         language: 'English',
@@ -106,42 +85,63 @@ async function crawlWordPage(url) {
       });
     }
 
-    await markVisited(url);
+    // Recursive internal crawl
+    const nextLinks = new Set();
+    $('a[href^="/wiki/"]').each((_, el) => {
+      const href = $(el).attr('href');
+      const title = decodeURIComponent(href.split('/wiki/')[1] || '');
+      if (
+        /^[a-zA-Z\u00C0-\u017F'’-]+$/.test(title) &&
+        !href.includes(':') &&
+        !href.includes('#')
+      ) {
+        nextLinks.add(new URL(href, BASE).href);
+      }
+    });
+
+    for (const link of nextLinks) {
+      await crawlWordPage(link);
+    }
+
   } catch (err) {
-    console.error('⚠️ Error:', err.message);
+    console.error('⚠️ Error crawling:', url, err.message);
   }
 }
 
-// ✅ Load word links from directory
-async function getAllWordLinks() {
-  const baseURL = 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
-  console.log(`🔎 Crawling directory: ${baseURL}`);
-  const res = await fetch(baseURL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
+async function crawlAllPages() {
+  const directoryURL = `${BASE}/wiki/Special:AllPages?from=&to=&namespace=0`;
+  console.log(`🔎 Crawling directory: ${directoryURL}`);
 
-  const links = [];
-  $('#mw-content-text a').each((_, el) => {
-    const href = $(el).attr('href');
-    if (href && href.startsWith('/wiki/')) {
-      links.push(new URL(href, 'https://en.wiktionary.org').href);
+  try {
+    const res = await fetch(directoryURL);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    const links = [];
+    $('#mw-content-text a').each((_, el) => {
+      const href = $(el).attr('href');
+      const title = decodeURIComponent(href?.split('/wiki/')[1] || '');
+      if (
+        href?.startsWith('/wiki/') &&
+        /^[a-zA-Z\u00C0-\u017F'’-]+$/.test(title) &&
+        !href.includes(':') &&
+        !href.includes('#')
+      ) {
+        links.push(new URL(href, BASE).href);
+      }
+    });
+
+    console.log(`🔗 Found ${links.length} valid word links`);
+    for (const link of links) {
+      await crawlWordPage(link);
     }
-  });
 
-  console.log(`🔗 Found ${links.length} word links`);
-  return links;
-}
-
-// ✅ Start crawling with checkpoint
-(async () => {
-  const links = await getAllWordLinks();
-  let checkpoint = await getCheckpoint();
-
-  for (let i = checkpoint; i < links.length; i++) {
-    const link = links[i];
-    await crawlWordPage(link);
-    await saveCheckpoint(i + 1);
+  } catch (err) {
+    console.error('❌ Failed to crawl directory:', err.message);
   }
 
   console.log('✅ Finished crawling all pages.');
-})();
+}
+
+await crawlAllPages();
+setTimeout(() => console.log('🕓 Done'), 1000);
