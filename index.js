@@ -3,13 +3,13 @@ import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
-// ✅ Supabase setup
+// ✅ Supabase client
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// ✅ Load last checkpoint
+// ✅ Load checkpoint
 async function getCheckpoint() {
   const { data } = await supabase
     .from('fai_checkpoint')
@@ -19,14 +19,14 @@ async function getCheckpoint() {
   return data?.url || 'https://en.wiktionary.org/wiki/Wiktionary:All_pages';
 }
 
-// ✅ Save current checkpoint
+// ✅ Save checkpoint
 async function saveCheckpoint(url) {
   await supabase
     .from('fai_checkpoint')
     .upsert({ id: 1, url });
 }
 
-// ✅ Check if already visited
+// ✅ Check visited
 async function isVisited(url) {
   const { data } = await supabase
     .from('fai_visited')
@@ -43,7 +43,7 @@ async function markVisited(url) {
     .upsert({ url });
 }
 
-// ✅ Check if word already exists
+// ✅ Check if already uploaded
 async function wordExists(word) {
   const { data } = await supabase
     .from('ftraining')
@@ -53,37 +53,43 @@ async function wordExists(word) {
   return !!data;
 }
 
-// ✅ Upload dictionary entry
+// ✅ Upload entry
 async function uploadEntry(entry) {
   const { error } = await supabase
     .from('ftraining')
     .insert(entry);
-  if (error) console.error('Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
+  if (error) {
+    console.error('❌ Upload error:', error.message);
+  } else {
+    console.log(`✅ Uploaded: ${entry.word} (${entry.definitions.length} defs)`);
+  }
 }
 
-// ✅ Main crawl logic
-async function crawl(url) {
-  const alreadyVisited = await isVisited(url);
-  const parsedURL = new URL(url);
+// ✅ Detect if link is meta (Wiktionary:, Category:, etc.)
+function isMetaLink(href) {
+  return href.includes(':') && !href.startsWith('/wiki/Wiktionary:All_pages');
+}
 
-  // Avoid meta pages
-  if (url.includes(':') && !url.includes('http')) {
-    console.log(`⛔ Skipping meta page: ${url}`);
-    return;
+// ✅ Crawl function
+async function crawl(url) {
+  const visited = await isVisited(url);
+
+  if (!visited) {
+    await markVisited(url);
+    await saveCheckpoint(url);
+  } else {
+    console.log(`⚠️ Already visited: ${url}`);
   }
 
-  await markVisited(url);
-  await saveCheckpoint(url);
-  console.log(`🔗 Crawling word: ${url}`);
-
   try {
+    console.log(`🔗 Crawling: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
 
     const html = await res.text();
     const $ = cheerio.load(html);
 
+    // ✅ Try extracting word entry if it's a definition page
     const word = $('h1').first().text().trim();
     const title = $('title').text();
     const language = 'English';
@@ -111,8 +117,14 @@ async function crawl(url) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    // ✅ Only upload if not visited before and word is not yet in DB
-    if (!alreadyVisited && !await wordExists(word)) {
+    // ✅ Only upload if not already uploaded and this isn't a meta/help page
+    if (
+      !visited &&
+      !await wordExists(word) &&
+      !url.includes('Wiktionary:') &&
+      !url.includes('Category:') &&
+      definitions.length > 0
+    ) {
       await uploadEntry({
         word,
         language,
@@ -126,32 +138,20 @@ async function crawl(url) {
         is_phrase,
         language_section: language
       });
-    } else {
-      console.log(`⚠️ Skipped upload: ${word}`);
     }
 
-    // ✅ Now crawl for internal and external links
-    const links = new Set();
-    $('a[href]').each((_, el) => {
+    // ✅ Crawl all internal links (excluding meta pages)
+    const nextLinks = new Set();
+    $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
-      if (!href) return;
-      const fullURL = new URL(href, parsedURL.origin).href;
-
-      // Avoid non-Wiktionary meta links (like /wiki/Category:, etc.)
-      if (fullURL.includes('wiktionary.org/wiki/') && !fullURL.includes(':')) {
-        links.add(fullURL);
+      if (!isMetaLink(href) && !href.includes('#')) {
+        const link = new URL(href, 'https://en.wiktionary.org').href;
+        nextLinks.add(link);
       }
     });
 
-    // Crawl all unique links found (no limit)
-    for (const link of links) {
-      const seen = await isVisited(link);
-      const exists = await wordExists(link.split('/wiki/')[1]);
-      // If not seen, crawl it fully
-      // If seen but not in storage, still crawl it to find more links
-      if (!seen || !exists) {
-        await crawl(link);
-      }
+    for (const link of nextLinks) {
+      await crawl(link);
     }
 
   } catch (err) {
@@ -159,10 +159,12 @@ async function crawl(url) {
   }
 }
 
-// ✅ Start
+// ✅ Start the crawl
 const start = await getCheckpoint();
 console.log(`🚀 Resuming crawl from: ${start}`);
 await crawl(start);
 
-// Prevent early Render shutdown
-setTimeout(() => console.log('⏳ Done.'), 1000);
+// ✅ Prevent Render shutdown
+setInterval(() => {
+  console.log('⏳ Still running...');
+}, 60_000); // every 1 minute
