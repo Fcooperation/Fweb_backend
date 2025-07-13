@@ -6,43 +6,78 @@ import { URL } from 'url';
 // ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // Replace with actual service role key
 );
 
-// ✅ Helpers
+// ✅ Get last checkpoint (pagination URL)
+async function getCheckpoint() {
+  const { data } = await supabase
+    .from('fai_checkpoint')
+    .select('url')
+    .eq('id', 1)
+    .single();
+  return data?.url || 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
+}
+
+// ✅ Save checkpoint
+async function saveCheckpoint(url) {
+  await supabase
+    .from('fai_checkpoint')
+    .upsert({ id: 1, url });
+}
+
+// ✅ Check visited
 async function isVisited(url) {
-  const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
+  const { data } = await supabase
+    .from('fai_visited')
+    .select('url')
+    .eq('url', url)
+    .maybeSingle();
   return !!data;
 }
 
+// ✅ Mark as visited
 async function markVisited(url) {
-  await supabase.from('fai_visited').upsert({ url });
+  await supabase
+    .from('fai_visited')
+    .upsert({ url });
 }
 
+// ✅ Check if word already in DB
 async function wordExists(word) {
-  const { data } = await supabase.from('ftraining').select('word').eq('word', word).maybeSingle();
+  const { data } = await supabase
+    .from('ftraining')
+    .select('word')
+    .eq('word', word)
+    .maybeSingle();
   return !!data;
 }
 
+// ✅ Upload word entry
 async function uploadEntry(entry) {
-  const { error } = await supabase.from('ftraining').insert(entry);
+  const { error } = await supabase
+    .from('ftraining')
+    .insert(entry);
   if (error) console.error('❌ Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
+  else console.log(`✅ Uploaded: ${entry.word}`);
 }
 
-// ✅ Crawl actual dictionary word page
-async function crawlWord(url) {
-  if (await isVisited(url)) return;
-  await markVisited(url);
+// ✅ Extract + upload word page
+async function processWordPage(url) {
+  const visited = await isVisited(url);
+  if (visited) return;
 
   try {
+    await markVisited(url);
+
     const res = await fetch(url);
+    if (!res.ok) return;
+
     const html = await res.text();
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    const title = $('title').text().toLowerCase();
-    const language = 'English';
+    const title = $('title').text();
     const pronunciation = $('span.IPA').first().text().trim();
     const type = $('span.headword-line').first().text().trim();
     const definitions = [];
@@ -64,113 +99,86 @@ async function crawlWord(url) {
       if (example) examples.push(example);
     });
 
-    const is_abbreviation = title.includes('abbreviation');
+    const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
     if (!await wordExists(word)) {
       await uploadEntry({
         word,
-        language,
+        language: 'English',
         type,
-        definitions,
         pronunciation,
+        definitions,
         examples,
         anagrams,
         url,
         is_abbreviation,
         is_phrase,
-        language_section: language
+        language_section: 'English'
       });
     }
 
-    // 🔁 Continue crawling from this word’s page (external/internal links)
-    const nextLinks = new Set();
+    // Crawl more links from this page
+    const links = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
       if (!href.includes(':') && !href.includes('#')) {
         const link = new URL(href, 'https://en.wiktionary.org').href;
-        nextLinks.add(link);
+        links.add(link);
       }
     });
 
-    for (const link of nextLinks) {
-      await crawlWord(link);
+    for (const link of links) {
+      await processWordPage(link);
     }
 
   } catch (err) {
-    console.error(`⚠️ Error crawling word page ${url}:`, err.message);
+    console.error('⚠️ Error processing:', url, err.message);
   }
 }
 
-// ✅ Crawl sub-index (like Index:A-a)
-async function crawlSubIndex(url) {
-  try {
-    const res = await fetch(url);
+// ✅ Crawl words from Special:AllPages directory
+async function crawlAllPages(startUrl) {
+  let nextPage = startUrl;
+
+  while (nextPage) {
+    console.log(`📘 Crawling directory: ${nextPage}`);
+    await saveCheckpoint(nextPage);
+
+    const res = await fetch(nextPage);
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    const wordLinks = new Set();
-
-    $('a[href^="/wiki/"]').each((_, el) => {
+    // Crawl word links
+    const wordLinks = [];
+    $('#mw-content-text a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
-      if (!href.includes('Index:') && !href.includes(':') && !href.includes('#')) {
+      if (!href.includes(':') && !href.includes('#')) {
         const full = new URL(href, 'https://en.wiktionary.org').href;
-        wordLinks.add(full);
+        wordLinks.push(full);
       }
     });
 
-    console.log(`🔗 Found ${wordLinks.size} word links in ${url}`);
+    console.log(`🔗 Found ${wordLinks.length} word links`);
 
     for (const link of wordLinks) {
-      await crawlWord(link);
+      await processWordPage(link);
     }
 
-  } catch (err) {
-    console.error(`❌ Error crawling sub-index ${url}:`, err.message);
+    // Find next page
+    const next = $('a:contains("next page")').attr('href');
+    if (next) {
+      nextPage = new URL(next, 'https://en.wiktionary.org').href;
+    } else {
+      console.log('✅ Reached end of all pages.');
+      break;
+    }
   }
 }
 
-// ✅ Crawl all A–Z
-async function crawlAllAZ() {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+// ✅ START
+const checkpoint = await getCheckpoint();
+await crawlAllPages(checkpoint);
 
-  for (const letter of letters) {
-    const indexUrl = `https://en.wiktionary.org/wiki/Index:${letter}`;
-    console.log(`🔤 Crawling Index:${letter}`);
-
-    try {
-      const res = await fetch(indexUrl);
-      const html = await res.text();
-      const $ = cheerio.load(html);
-
-      const subIndexes = new Set();
-
-      $('a[href^="/wiki/Index:"]').each((_, el) => {
-        const href = $(el).attr('href');
-        if (href.includes(`Index:${letter}`)) {
-          const full = new URL(href, 'https://en.wiktionary.org').href;
-          subIndexes.add(full);
-        }
-      });
-
-      if (subIndexes.size === 0) {
-        console.log(`🔗 Found no sub-index in Index:${letter}`);
-      }
-
-      for (const subIndexUrl of subIndexes) {
-        await crawlSubIndex(subIndexUrl);
-      }
-
-    } catch (err) {
-      console.error(`❌ Failed to crawl Index:${letter}`, err.message);
-    }
-  }
-
-  console.log('✅ Finished A–Z crawl.');
-}
-
-// ✅ Start crawling
-await crawlAllAZ();
-
-// 🕓 Keep alive
-setTimeout(() => console.log('🕓 Done'), 2000);
+// Optional: prevent Render from exiting early
+setTimeout(() => console.log('🕓 Done'), 1000);
