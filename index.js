@@ -6,94 +6,96 @@ import { URL } from 'url';
 // ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
+  'YOUR_SERVICE_ROLE_KEY_HERE' // Replace with actual service role key
 );
 
-// ✅ ASCII check
-const isASCII = (str) => /^[\x00-\x7F]+$/.test(str);
-
-// ✅ Load last checkpoint (word position)
-async function getCheckpoint() {
-  const { data } = await supabase
-    .from('fai_checkpoint')
-    .select('url')
-    .eq('id', 1)
-    .single();
-  return data?.url || 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
+// ✅ Utilities
+function isASCII(str) {
+  return /^[\x00-\x7F]+$/.test(str);
 }
 
-async function saveCheckpoint(url) {
-  await supabase.from('fai_checkpoint').upsert({ id: 1, url });
+// ✅ Delete everything except English
+function hasEnglishSection($) {
+  return $('h2 span#English').length > 0;
 }
 
+// ✅ Get links from directory page
+async function getAllWordLinks() {
+  const url = 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
+  console.log(`🔎 Crawling directory: ${url}`);
+  const res = await fetch(url);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  const links = [];
+  $('#mw-content-text a').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href && href.startsWith('/wiki/')) {
+      const wordUrl = new URL(href, 'https://en.wiktionary.org').href;
+      links.push(wordUrl);
+    }
+  });
+
+  console.log(`🔗 Found ${links.length} word links`);
+  return links;
+}
+
+// ✅ Check visited
 async function isVisited(url) {
-  const { data } = await supabase
-    .from('fai_visited')
-    .select('url')
-    .eq('url', url)
-    .maybeSingle();
+  const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
 }
-
 async function markVisited(url) {
   await supabase.from('fai_visited').upsert({ url });
 }
-
 async function wordExists(word) {
-  const { data } = await supabase
-    .from('ftraining')
-    .select('word')
-    .eq('word', word)
-    .maybeSingle();
+  const { data } = await supabase.from('ftraining').select('word').eq('word', word).maybeSingle();
   return !!data;
 }
-
 async function uploadEntry(entry) {
   const { error } = await supabase.from('ftraining').insert(entry);
   if (error) console.error('❌ Upload error:', error.message);
   else console.log(`✅ Uploaded: ${entry.word}`);
 }
 
-// ✅ Crawl a single word page
+// ✅ Crawl individual word
 async function crawlWordPage(url) {
-  const visited = await isVisited(url);
-  if (visited) return;
-
-  await markVisited(url);
-  await saveCheckpoint(url);
-  console.log(`🔍 Crawling word: ${url}`);
+  if (await isVisited(url)) return;
 
   try {
+    console.log(`🔍 Crawling word: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
 
     const html = await res.text();
     const $ = cheerio.load(html);
 
+    if (!hasEnglishSection($)) return;
+
     const word = $('h1').first().text().trim();
-    if (!isASCII(word)) return;
+    if (!word || !isASCII(word)) return;
 
-    const englishHeader = $('h2:has(span#English)');
-    if (englishHeader.length === 0) return;
+    const englishSection = $('span#English').closest('h2');
+    const sectionIndex = $('h2').index(englishSection);
+    const sectionContent = $('h2').eq(sectionIndex).nextUntil('h2');
 
-    const section = englishHeader.nextUntil('h2');
+    const pronunciation = sectionContent.find('.IPA').first().text().trim();
+    const type = sectionContent.find('.headword-line').first().text().trim();
+
     const definitions = [];
-    const pronunciation = section.find('span.IPA').first().text().trim();
-    const type = section.find('span.headword-line').first().text().trim();
-    const examples = [];
-    const anagrams = [];
-
-    section.find('ol > li').each((_, el) => {
+    sectionContent.find('ol > li').each((_, el) => {
       const def = $(el).clone().find('ul, dl').remove().end().text().trim();
       if (def) definitions.push(def);
     });
 
-    section.find('li:contains("Usage notes") ~ ul li').each((_, el) => {
+    const examples = [];
+    sectionContent.find('ul li:contains("Usage notes")').each((_, el) => {
       const example = $(el).text().trim();
       if (example) examples.push(example);
     });
 
-    section.find('dd:contains("Anagrams")').next('ul').find('li').each((_, el) => {
+    const anagrams = [];
+    sectionContent.find('dd:contains("Anagrams")').next('ul').find('li').each((_, el) => {
       const ana = $(el).text().trim();
       if (ana) anagrams.push(ana);
     });
@@ -102,7 +104,7 @@ async function crawlWordPage(url) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (definitions.length && !await wordExists(word)) {
+    if (!(await wordExists(word))) {
       await uploadEntry({
         word,
         language: 'English',
@@ -118,50 +120,19 @@ async function crawlWordPage(url) {
       });
     }
 
+    await markVisited(url);
   } catch (err) {
-    console.error(`❌ Error crawling ${url}:`, err.message);
+    console.error('⚠️ Error:', err.message);
   }
 }
 
-// ✅ Crawl a single AllPages page
-async function crawlDirectoryPage(startFrom = '') {
-  const url = `https://en.wiktionary.org/wiki/Special:AllPages?from=${startFrom}&to=&namespace=0`;
-  console.log(`📂 Crawling directory: ${url}`);
-  const res = await fetch(url);
-  if (!res.ok) return;
+// ✅ Start Crawl
+(async () => {
+  const links = await getAllWordLinks();
 
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  const links = [];
-  $('#mw-content-text a').each((_, el) => {
-    const href = $(el).attr('href');
-    if (href?.startsWith('/wiki/') && !href.includes(':') && !href.includes('#')) {
-      const fullUrl = new URL(href, 'https://en.wiktionary.org').href;
-      links.push(fullUrl);
-    }
-  });
-
-  const nextLink = $('a:contains("Next page")').attr('href');
-  const nextStart = nextLink ? new URLSearchParams(nextLink.split('?')[1]).get('from') : null;
-
-  console.log(`🔗 Found ${links.length} word links`);
   for (const link of links) {
     await crawlWordPage(link);
   }
 
-  if (nextStart) {
-    await saveCheckpoint(`https://en.wiktionary.org/wiki/Special:AllPages?from=${nextStart}&to=&namespace=0`);
-    await crawlDirectoryPage(nextStart);
-  } else {
-    console.log(`✅ Reached end of dictionary.`);
-  }
-}
-
-// ✅ Start from checkpoint
-const checkpointURL = await getCheckpoint();
-const startFrom = new URL(checkpointURL).searchParams.get('from') || '';
-await crawlDirectoryPage(startFrom);
-
-// Prevent exit on platforms like Render
-setTimeout(() => console.log('🕓 Done crawling full dictionary'), 1000);
+  console.log('✅ Finished crawling all pages.');
+})();
