@@ -6,38 +6,48 @@ import { URL } from 'url';
 // ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // replace this with actual service role key
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-// ✅ Load last checkpoint
+// ✅ Start from real dictionary root
+const START_URL = 'https://en.wiktionary.org/wiki/Category:English_lemmas';
+
+// ✅ Visited cache to reduce Supabase load
+const visitedCache = new Set();
+
+// ✅ Load checkpoint
 async function getCheckpoint() {
   const { data } = await supabase
     .from('fai_checkpoint')
     .select('url')
     .eq('id', 1)
     .single();
-  return data?.url || 'https://en.wiktionary.org/wiki/Wiktionary:All_pages';
+  return data?.url || START_URL;
 }
 
-// ✅ Save current checkpoint
+// ✅ Save checkpoint
 async function saveCheckpoint(url) {
   await supabase
     .from('fai_checkpoint')
     .upsert({ id: 1, url });
 }
 
-// ✅ Check if already visited
+// ✅ Check if visited
 async function isVisited(url) {
+  if (visitedCache.has(url)) return true;
   const { data } = await supabase
     .from('fai_visited')
     .select('url')
     .eq('url', url)
     .maybeSingle();
-  return !!data;
+  const result = !!data;
+  if (result) visitedCache.add(url);
+  return result;
 }
 
-// ✅ Mark as visited
+// ✅ Mark visited
 async function markVisited(url) {
+  visitedCache.add(url);
   await supabase
     .from('fai_visited')
     .upsert({ url });
@@ -58,27 +68,24 @@ async function uploadEntry(entry) {
   const { error } = await supabase
     .from('ftraining')
     .insert(entry);
-  if (error) console.error('Upload error:', error.message);
+  if (error) console.error('❌ Upload error:', error.message);
   else console.log(`✅ Uploaded: ${entry.word} | ${entry.definitions.length} defs`);
 }
 
-// ✅ Main crawl logic
-async function crawl(url, depth = 1) {
-  if (depth < 0) return;
-
-  const visited = await isVisited(url);
-  if (!visited) {
-    await markVisited(url);
-    await saveCheckpoint(url);
-  } else {
+// ✅ Main crawler logic
+async function crawl(url) {
+  if (await isVisited(url)) {
     console.log(`⚠️ Already visited: ${url}`);
+    return;
   }
 
+  await markVisited(url);
+  await saveCheckpoint(url);
+  console.log(`🔗 Crawling: ${url}`);
+
   try {
-    console.log(`🔗 Crawling word: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
-
     const html = await res.text();
     const $ = cheerio.load(html);
 
@@ -109,7 +116,7 @@ async function crawl(url, depth = 1) {
     const is_abbreviation = title.toLowerCase().includes('abbreviation');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (!visited && !await wordExists(word)) {
+    if (definitions.length && !await wordExists(word)) {
       await uploadEntry({
         word,
         language,
@@ -125,30 +132,37 @@ async function crawl(url, depth = 1) {
       });
     }
 
-    // ✅ Crawl next links (even if this word was visited)
+    // ✅ Find all valid next links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
-      if (!href.includes(':') && !href.includes('#')) {
+      if (
+        !href.includes('#') &&
+        !href.includes('Help:') &&
+        !href.includes('Talk:') &&
+        !href.includes('Wiktionary:') &&
+        !href.includes('File:') &&
+        !href.includes('Special:') &&
+        !href.includes('Category:') // comment this line if you want to allow crawling deeper categories
+      ) {
         const link = new URL(href, 'https://en.wiktionary.org').href;
         nextLinks.add(link);
       }
     });
 
-    const uniqueLinks = Array.from(nextLinks).slice(0, 5);
-    for (const link of uniqueLinks) {
-      await crawl(link, depth - 1);
+    for (const link of nextLinks) {
+      await crawl(link); // no depth limit
     }
 
   } catch (err) {
-    console.error('⚠️ Error crawling:', err.message);
+    console.error('❌ Error:', err.message);
   }
 }
 
-// ✅ Start
+// ✅ Begin crawling
 const start = await getCheckpoint();
 console.log(`🚀 Resuming crawl from: ${start}`);
-await crawl(start, 2);
+await crawl(start);
 
-// Optional: prevent Render from exiting instantly
-setTimeout(() => console.log('⏳ Done.'), 1000);
+// 🔁 Keep process alive briefly (for platforms like Render)
+setTimeout(() => console.log('⏳ Done crawling.'), 2000);
