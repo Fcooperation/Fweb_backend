@@ -1,46 +1,13 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
-import { URL } from 'url';
 
-// ✅ Supabase setup
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // Replace with actual service role key
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ' // 🔁 Replace with actual key
 );
 
-// ✅ Utilities
-function isASCII(str) {
-  return /^[\x00-\x7F]+$/.test(str);
-}
-
-// ✅ Delete everything except English
-function hasEnglishSection($) {
-  return $('h2 span#English').length > 0;
-}
-
-// ✅ Get links from directory page
-async function getAllWordLinks() {
-  const url = 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
-  console.log(`🔎 Crawling directory: ${url}`);
-  const res = await fetch(url);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  const links = [];
-  $('#mw-content-text a').each((_, el) => {
-    const href = $(el).attr('href');
-    if (href && href.startsWith('/wiki/')) {
-      const wordUrl = new URL(href, 'https://en.wiktionary.org').href;
-      links.push(wordUrl);
-    }
-  });
-
-  console.log(`🔗 Found ${links.length} word links`);
-  return links;
-}
-
-// ✅ Check visited
+// ✅ Track visited
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
@@ -48,6 +15,17 @@ async function isVisited(url) {
 async function markVisited(url) {
   await supabase.from('fai_visited').upsert({ url });
 }
+
+// ✅ Save checkpoint
+async function saveCheckpoint(index) {
+  await supabase.from('fai_checkpoint').upsert({ id: 1, index });
+}
+async function getCheckpoint() {
+  const { data } = await supabase.from('fai_checkpoint').select('index').eq('id', 1).maybeSingle();
+  return data?.index || 0;
+}
+
+// ✅ Supabase upload
 async function wordExists(word) {
   const { data } = await supabase.from('ftraining').select('word').eq('word', word).maybeSingle();
   return !!data;
@@ -58,12 +36,20 @@ async function uploadEntry(entry) {
   else console.log(`✅ Uploaded: ${entry.word}`);
 }
 
-// ✅ Crawl individual word
+// ✅ Check if English
+function isASCII(str) {
+  return /^[\x00-\x7F]+$/.test(str);
+}
+function hasEnglishSection($) {
+  return $('h2 span#English').length > 0;
+}
+
+// ✅ Extract word entry
 async function crawlWordPage(url) {
   if (await isVisited(url)) return;
 
   try {
-    console.log(`🔍 Crawling word: ${url}`);
+    console.log(`🔍 Crawling: ${url}`);
     const res = await fetch(url);
     if (!res.ok) return;
 
@@ -89,7 +75,7 @@ async function crawlWordPage(url) {
     });
 
     const examples = [];
-    sectionContent.find('ul li:contains("Usage notes")').each((_, el) => {
+    sectionContent.find('ul li').each((_, el) => {
       const example = $(el).text().trim();
       if (example) examples.push(example);
     });
@@ -126,12 +112,35 @@ async function crawlWordPage(url) {
   }
 }
 
-// ✅ Start Crawl
+// ✅ Load word links from directory
+async function getAllWordLinks() {
+  const baseURL = 'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0';
+  console.log(`🔎 Crawling directory: ${baseURL}`);
+  const res = await fetch(baseURL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  const links = [];
+  $('#mw-content-text a').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href && href.startsWith('/wiki/')) {
+      links.push(new URL(href, 'https://en.wiktionary.org').href);
+    }
+  });
+
+  console.log(`🔗 Found ${links.length} word links`);
+  return links;
+}
+
+// ✅ Start crawling with checkpoint
 (async () => {
   const links = await getAllWordLinks();
+  let checkpoint = await getCheckpoint();
 
-  for (const link of links) {
+  for (let i = checkpoint; i < links.length; i++) {
+    const link = links[i];
     await crawlWordPage(link);
+    await saveCheckpoint(i + 1);
   }
 
   console.log('✅ Finished crawling all pages.');
