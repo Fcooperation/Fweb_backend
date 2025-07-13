@@ -16,7 +16,7 @@ async function getCheckpoint() {
     .select('url')
     .eq('id', 1)
     .single();
-  return data?.url || 'https://en.wiktionary.org/wiki/apple';
+  return data?.url || 'https://en.wiktionary.org/wiki/Wiktionary:All_pages';
 }
 
 // ✅ Save current checkpoint
