@@ -27,7 +27,7 @@ async function wordExists(word) {
 async function uploadEntry(entry) {
   const { error } = await supabase.from('ftraining').insert(entry);
   if (error) console.error('⛔ Upload error:', error.message);
-  else console.log(`✅ Uploaded: ${entry.word}`);
+  else console.log(`✅ Uploaded: ${entry.word} (${entry.tokens} tokens)`);
 }
 
 async function updateCheckpoint(url) {
@@ -37,6 +37,10 @@ async function updateCheckpoint(url) {
 async function getCheckpoint() {
   const { data } = await supabase.from('fai_checkpoint').select('url').eq('id', 1).maybeSingle();
   return data?.url || null;
+}
+
+function countTokens(definitions) {
+  return definitions.reduce((acc, def) => acc + def.split(/\s+/).filter(Boolean).length, 0);
 }
 
 async function crawlWordPage(url) {
@@ -74,6 +78,10 @@ async function crawlWordPage(url) {
       if (ex) examples.push(ex);
     });
 
+    // Skip upload if no real definition or too short
+    const totalTokenCount = countTokens(definitions);
+    if (definitions.length === 0 || totalTokenCount < 5) return;
+
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
 
@@ -89,11 +97,11 @@ async function crawlWordPage(url) {
         url,
         is_abbreviation,
         is_phrase,
-        language_section: 'English'
+        language_section: 'English',
+        tokens: totalTokenCount
       });
     }
 
-    // Follow internal valid links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
