@@ -27,7 +27,7 @@ return !!data;
 async function uploadEntry(entry) {
 const { error } = await supabase.from('ftraining').insert(entry);
 if (error) console.error('⛔ Upload error:', error.message);
-else console.log(✅ Uploaded: ${entry.word});
+else console.log('✅ Uploaded: ${entry.word}');
 }
 
 async function updateCheckpoint(url) {
