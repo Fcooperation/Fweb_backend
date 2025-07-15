@@ -2,15 +2,6 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import http from 'http';
-
-// ⏩ Open port (needed for Render web service)
-http.createServer((_, res) => {
-  res.writeHead(200);
-  res.end('Crawler running...');
-}).listen(process.env.PORT || 10000, () => {
-  console.log(`🌐 Port bound on ${process.env.PORT || 10000}, starting crawler...`);
-});
 
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
@@ -112,22 +103,6 @@ async function crawlWordPage(url) {
       });
     }
 
-    // Internal valid links
-    const nextLinks = new Set();
-    $('a[href^="/wiki/"]').each((_, el) => {
-      const href = $(el).attr('href');
-      const title = decodeURIComponent(href.split('/wiki/')[1] || '');
-      if (
-        /^[a-zA-Z\u00C0-\u017F'’-]+$/.test(title) &&
-        !href.includes(':') &&
-        !href.includes('#')
-      ) {
-        nextLinks.add(new URL(href, BASE).href);
-      }
-    });
-
-    // NOTE: We don’t crawl links recursively anymore (to save memory)
-
   } catch (err) {
     console.error('⚠️ Error crawling:', url, err.message);
   }
@@ -165,7 +140,7 @@ async function crawlAllPages() {
     for (const link of crawlQueue) {
       if (count++ >= MAX_PAGES) break;
       await crawlWordPage(link);
-      await new Promise(r => setTimeout(r, 150)); // memory-safe delay
+      await new Promise(r => setTimeout(r, 150));
     }
 
   } catch (err) {
