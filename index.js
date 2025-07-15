@@ -1,6 +1,5 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
-import { createServer } from 'http';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
 
@@ -10,16 +9,6 @@ const supabase = createClient(
 );
 
 const BASE = 'https://en.wiktionary.org';
-
-// === PORT SETUP ===
-const PORT = process.env.PORT || 3000;
-createServer((req, res) => {
-  res.writeHead(200);
-  res.end('Crawler is alive!\n');
-}).listen(PORT, () => {
-  console.log(`🌐 Port bound on ${PORT}, starting crawler...`);
-  crawlAllPages();  // 🟢 START the crawler after binding port
-});
 
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
@@ -50,12 +39,6 @@ async function getCheckpoint() {
   return data?.url || null;
 }
 
-function countTokens(definitions) {
-  return definitions
-    .map(d => d.split(/\s+/).length)
-    .reduce((a, b) => a + b, 0);
-}
-
 async function crawlWordPage(url) {
   if (await isVisited(url)) return;
   await markVisited(url);
@@ -67,7 +50,7 @@ async function crawlWordPage(url) {
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    if (!$('#English').length || word.length <= 4) return;
+    if (!$('#English').length) return;
 
     const englishContent = $('#English').nextUntil('h2');
     const pronunciation = englishContent.find('.IPA').first().text().trim();
@@ -93,9 +76,8 @@ async function crawlWordPage(url) {
 
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
-    const tokens = countTokens(definitions);
 
-    if (!await wordExists(word) && definitions.length > 0) {
+    if (!await wordExists(word)) {
       await uploadEntry({
         word,
         language: 'English',
@@ -107,11 +89,11 @@ async function crawlWordPage(url) {
         url,
         is_abbreviation,
         is_phrase,
-        language_section: 'English',
-        tokens,
+        language_section: 'English'
       });
     }
 
+    // Follow internal valid links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -173,3 +155,6 @@ async function crawlAllPages() {
 
   console.log('✅ Finished crawling all pages.');
 }
+
+await crawlAllPages();
+setTimeout(() => console.log('🕓 Done'), 1000);
