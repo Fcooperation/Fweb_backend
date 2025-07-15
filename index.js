@@ -1,10 +1,9 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
+import { createServer } from 'http';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import http from 'http'; // ⬅️ for keeping port open on Render
 
-// Create Supabase client
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
@@ -12,15 +11,16 @@ const supabase = createClient(
 
 const BASE = 'https://en.wiktionary.org';
 
-// Keep port open on Render (dummy server)
-http.createServer((req, res) => {
-  res.end('Crawler is running!');
-}).listen(process.env.PORT || 3000, () => {
-  console.log('🌐 Port bound, starting crawler...');
-  crawlAllPages(); // start crawling only after port is bound
+// === PORT SETUP ===
+const PORT = process.env.PORT || 3000;
+createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Crawler is alive!\n');
+}).listen(PORT, () => {
+  console.log(`🌐 Port bound on ${PORT}, starting crawler...`);
+  crawlAllPages();  // 🟢 START the crawler after binding port
 });
 
-// Helpers
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
@@ -93,7 +93,6 @@ async function crawlWordPage(url) {
 
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
-
     const tokens = countTokens(definitions);
 
     if (!await wordExists(word) && definitions.length > 0) {
@@ -165,7 +164,7 @@ async function crawlAllPages() {
     console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} remaining`);
     for (const link of crawlQueue) {
       await crawlWordPage(link);
-      await new Promise(r => setTimeout(r, 150)); // delay to avoid memory crash
+      await new Promise(r => setTimeout(r, 150)); // memory-safe delay
     }
 
   } catch (err) {
