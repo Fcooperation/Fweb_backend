@@ -2,6 +2,15 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
+import http from 'http';
+
+// ⏩ Open port (needed for Render web service)
+http.createServer((_, res) => {
+  res.writeHead(200);
+  res.end('Crawler running...');
+}).listen(process.env.PORT || 10000, () => {
+  console.log(`🌐 Port bound on ${process.env.PORT || 10000}, starting crawler...`);
+});
 
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
@@ -9,6 +18,7 @@ const supabase = createClient(
 );
 
 const BASE = 'https://en.wiktionary.org';
+const MAX_PAGES = 20;
 
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
@@ -39,6 +49,10 @@ async function getCheckpoint() {
   return data?.url || null;
 }
 
+function countTokens(definitions) {
+  return definitions.map(d => d.split(/\s+/).length).reduce((a, b) => a + b, 0);
+}
+
 async function crawlWordPage(url) {
   if (await isVisited(url)) return;
   await markVisited(url);
@@ -50,19 +64,22 @@ async function crawlWordPage(url) {
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    if (!$('#English').length) return;
+    if (!$('#English').length || word.length <= 4) return;
 
     const englishContent = $('#English').nextUntil('h2');
     const pronunciation = englishContent.find('.IPA').first().text().trim();
     const type = englishContent.find('.headword-line').first().text().trim();
     const definitions = [];
-    const examples = [];
-    const anagrams = [];
 
     englishContent.find('ol > li').each((_, el) => {
       const def = $(el).clone().find('ul, dl').remove().end().text().trim();
       if (def) definitions.push(def);
     });
+
+    if (definitions.length === 0) return;
+
+    const examples = [];
+    const anagrams = [];
 
     englishContent.find('ul li:contains("Anagrams")').each((_, el) => {
       const ana = $(el).text().trim();
@@ -76,6 +93,7 @@ async function crawlWordPage(url) {
 
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
+    const tokens = countTokens(definitions);
 
     if (!await wordExists(word)) {
       await uploadEntry({
@@ -89,11 +107,12 @@ async function crawlWordPage(url) {
         url,
         is_abbreviation,
         is_phrase,
-        language_section: 'English'
+        language_section: 'English',
+        tokens
       });
     }
 
-    // Follow internal valid links
+    // Internal valid links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -107,9 +126,7 @@ async function crawlWordPage(url) {
       }
     });
 
-    for (const link of nextLinks) {
-      await crawlWordPage(link);
-    }
+    // NOTE: We don’t crawl links recursively anymore (to save memory)
 
   } catch (err) {
     console.error('⚠️ Error crawling:', url, err.message);
@@ -144,7 +161,9 @@ async function crawlAllPages() {
     const crawlQueue = links.slice(startIndex);
 
     console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} remaining`);
+    let count = 0;
     for (const link of crawlQueue) {
+      if (count++ >= MAX_PAGES) break;
       await crawlWordPage(link);
       await new Promise(r => setTimeout(r, 150)); // memory-safe delay
     }
@@ -153,8 +172,7 @@ async function crawlAllPages() {
     console.error('❌ Failed to crawl directory:', err.message);
   }
 
-  console.log('✅ Finished crawling all pages.');
+  console.log('✅ Finished crawling this batch.');
 }
 
 await crawlAllPages();
-setTimeout(() => console.log('🕓 Done'), 1000);
