@@ -39,10 +39,6 @@ async function getCheckpoint() {
   return data?.url || null;
 }
 
-function countTokens(definitions) {
-  return definitions.reduce((acc, def) => acc + def.split(/\s+/).filter(Boolean).length, 0);
-}
-
 async function crawlWordPage(url) {
   if (await isVisited(url)) return;
   await markVisited(url);
@@ -78,9 +74,11 @@ async function crawlWordPage(url) {
       if (ex) examples.push(ex);
     });
 
-    // Skip upload if no real definition or too short
-    const totalTokenCount = countTokens(definitions);
-    if (definitions.length === 0 || totalTokenCount < 5) return;
+    // Token logic: count total words from definitions
+    const totalDef = definitions.join(' ');
+    const tokens = totalDef.split(/\s+/).filter(Boolean).length;
+
+    if (tokens < 5) return; // skip empty/short definitions
 
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
@@ -98,10 +96,11 @@ async function crawlWordPage(url) {
         is_abbreviation,
         is_phrase,
         language_section: 'English',
-        tokens: totalTokenCount
+        tokens
       });
     }
 
+    // Follow internal valid links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
