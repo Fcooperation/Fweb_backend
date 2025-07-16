@@ -8,14 +8,17 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ'
 );
 
-const BASE = [
-  'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0', // Wiktionary (already used)
-  'https://wordnet.princeton.edu/',                      // WordNet
-  'https://www.vocabulary.com/dictionary/',              // Vocabulary.com
-  'https://www.yourdictionary.com/',                     // YourDictionary
-  'https://www.etymonline.com/',                         // Etymonline (etymology)
-  'https://dictionary.cambridge.org/browse/english/'     // Cambridge Dictionary
+// ✅ Dictionary source list
+const sites = [
+  'https://en.wiktionary.org/wiki/Special:AllPages?from=&to=&namespace=0',
+  'https://www.vocabulary.com/dictionary/',
+  'https://www.yourdictionary.com/',
+  'https://www.etymonline.com/',
+  'https://dictionary.cambridge.org/browse/english/',
+  'https://wordnet.princeton.edu/'
 ];
+
+// ✅ Supabase helpers
 async function isVisited(url) {
   const { data } = await supabase.from('fai_visited').select('url').eq('url', url).maybeSingle();
   return !!data;
@@ -45,7 +48,8 @@ async function getCheckpoint() {
   return data?.url || null;
 }
 
-async function crawlWordPage(url) {
+// ✅ Page crawler (Wiktionary-specific for now)
+async function crawlWordPage(url, BASE) {
   if (await isVisited(url)) return;
   await markVisited(url);
   await updateCheckpoint(url);
@@ -99,7 +103,6 @@ async function crawlWordPage(url) {
       });
     }
 
-    // Follow internal valid links
     const nextLinks = new Set();
     $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
@@ -114,7 +117,7 @@ async function crawlWordPage(url) {
     });
 
     for (const link of nextLinks) {
-      await crawlWordPage(link);
+      await crawlWordPage(link, BASE);
     }
 
   } catch (err) {
@@ -122,13 +125,14 @@ async function crawlWordPage(url) {
   }
 }
 
-async function crawlAllPages() {
+// ✅ Entry crawler per site
+async function crawlFromSite(startURL) {
+  const BASE = new URL(startURL).origin;
   const checkpoint = await getCheckpoint();
-  const directoryURL = `${BASE}/wiki/Special:AllPages?from=&to=&namespace=0`;
-  console.log(`🔎 Crawling directory: ${directoryURL}`);
+  console.log(`🌐 Starting: ${startURL}`);
 
   try {
-    const res = await fetch(directoryURL);
+    const res = await fetch(startURL);
     const html = await res.text();
     const $ = cheerio.load(html);
 
@@ -149,18 +153,23 @@ async function crawlAllPages() {
     const startIndex = checkpoint ? links.findIndex(l => l === checkpoint) + 1 : 0;
     const crawlQueue = links.slice(startIndex);
 
-    console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} remaining`);
+    console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} links`);
     for (const link of crawlQueue) {
-      await crawlWordPage(link);
-      await new Promise(r => setTimeout(r, 150)); // memory-safe delay
+      await crawlWordPage(link, BASE);
+      await new Promise(r => setTimeout(r, 200));
     }
 
   } catch (err) {
-    console.error('❌ Failed to crawl directory:', err.message);
+    console.error('❌ Failed to crawl:', startURL, err.message);
   }
-
-  console.log('✅ Finished crawling all pages.');
 }
 
-await crawlAllPages();
-setTimeout(() => console.log('🕓 Done'), 1000);
+// ✅ Loop through all dictionary sites
+async function main() {
+  for (const site of sites) {
+    await crawlFromSite(site);
+  }
+  console.log('✅ Finished all dictionary sites.');
+}
+
+await main();
