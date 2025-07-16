@@ -50,11 +50,12 @@ async function crawlWordPage(url) {
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    if (!$('#English').length) return;
+    if (!$('#English').length || !word) return;
 
     const englishContent = $('#English').nextUntil('h2');
     const pronunciation = englishContent.find('.IPA').first().text().trim();
     const type = englishContent.find('.headword-line').first().text().trim();
+
     const definitions = [];
     const examples = [];
     const anagrams = [];
@@ -64,7 +65,7 @@ async function crawlWordPage(url) {
       if (def) definitions.push(def);
     });
 
-    if (!definitions.length) return;
+    if (definitions.length === 0) return;
 
     englishContent.find('ul li:contains("Anagrams")').each((_, el) => {
       const ana = $(el).text().trim();
@@ -79,7 +80,7 @@ async function crawlWordPage(url) {
     const is_abbreviation = word.toLowerCase().includes('abbr');
     const is_phrase = word.includes(' ') || word.includes('-');
 
-    if (!(await wordExists(word))) {
+    if (!await wordExists(word)) {
       await uploadEntry({
         word,
         language: 'English',
@@ -119,7 +120,7 @@ async function crawlWordPage(url) {
 
 async function crawlAllPages() {
   const checkpoint = await getCheckpoint();
-  const directoryURL = `${BASE}/wiki/Special:AllPages?from=&to=&namespace=0`;
+  const directoryURL = `${BASE}/wiki/Special:AllPages?from=A&namespace=0`;
   console.log(`🌐 Starting: ${directoryURL}`);
 
   try {
@@ -145,10 +146,9 @@ async function crawlAllPages() {
     const crawlQueue = links.slice(startIndex);
 
     console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} links`);
-
     for (const link of crawlQueue) {
       await crawlWordPage(link);
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 150)); // Safe delay
     }
 
   } catch (err) {
@@ -159,3 +159,4 @@ async function crawlAllPages() {
 }
 
 await crawlAllPages();
+setTimeout(() => console.log('🕓 Done'), 1000);
