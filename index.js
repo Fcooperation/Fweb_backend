@@ -41,7 +41,13 @@ async function getCheckpoint() {
 }
 
 async function crawlWordPage(url) {
-  if (await isVisited(url)) return;
+  console.log(`🔍 Checking: ${url}`);
+
+  if (await isVisited(url)) {
+    console.log(`⏭️ Already visited: ${url}`);
+    return;
+  }
+
   await markVisited(url);
   await updateCheckpoint(url);
 
@@ -51,7 +57,10 @@ async function crawlWordPage(url) {
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    if (!$('#English').length) return;
+    if (!$('#English').length) {
+      console.log(`❌ No English section: ${url}`);
+      return;
+    }
 
     const englishContent = $('#English').nextUntil('h2');
     const pronunciation = englishContent.find('.IPA').first().text().trim();
@@ -65,16 +74,19 @@ async function crawlWordPage(url) {
       if (def) definitions.push(def);
     });
 
-    if (definitions.length === 0) return;
-
-    englishContent.find('ul li:contains("Anagrams")').each((_, el) => {
-      const ana = $(el).text().trim();
-      if (ana) anagrams.push(ana);
-    });
+    if (definitions.length === 0) {
+      console.log(`⚠️ No definitions found for ${word}`);
+      return;
+    }
 
     englishContent.find('li:contains("Usage notes") ~ ul li').each((_, el) => {
       const ex = $(el).text().trim();
       if (ex) examples.push(ex);
+    });
+
+    englishContent.find('ul li:contains("Anagrams")').each((_, el) => {
+      const ana = $(el).text().trim();
+      if (ana) anagrams.push(ana);
     });
 
     const is_abbreviation = word.toLowerCase().includes('abbr');
@@ -94,11 +106,13 @@ async function crawlWordPage(url) {
         is_phrase,
         language_section: 'English'
       });
+    } else {
+      console.log(`⚠️ Word already exists in storage: ${word}`);
     }
 
-    // Crawl internal links
+    // Follow internal valid links
     const nextLinks = new Set();
-    $('#mw-content-text a[href^="/wiki/"]').each((_, el) => {
+    $('a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
       const title = decodeURIComponent(href.split('/wiki/')[1] || '');
       if (
@@ -112,7 +126,7 @@ async function crawlWordPage(url) {
 
     for (const link of nextLinks) {
       await crawlWordPage(link);
-      await new Promise(r => setTimeout(r, 150)); // memory-safe delay
+      await new Promise(r => setTimeout(r, 150)); // delay for safety
     }
 
   } catch (err) {
@@ -161,11 +175,4 @@ async function crawlAllPages() {
   console.log('✅ Finished Wiktionary crawl.');
 }
 
-// Keep server open (for Render)
-http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Server is live\n');
-}).listen(process.env.PORT || 10000, () => {
-  console.log('🟢 Server listening...');
-  crawlAllPages().then(() => console.log('🕓 Done'));
-});
+crawlAllPages();
