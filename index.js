@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { URL } from 'url';
-import express from 'express';
+import http from 'http';
 
 const supabase = createClient(
   'https://pwsxezhugsxosbwhkdvf.supabase.co',
@@ -51,12 +51,11 @@ async function crawlWordPage(url) {
     const $ = cheerio.load(html);
 
     const word = $('h1').first().text().trim();
-    if (!$('#English').length || !word) return;
+    if (!$('#English').length) return;
 
     const englishContent = $('#English').nextUntil('h2');
     const pronunciation = englishContent.find('.IPA').first().text().trim();
     const type = englishContent.find('.headword-line').first().text().trim();
-
     const definitions = [];
     const examples = [];
     const anagrams = [];
@@ -97,8 +96,9 @@ async function crawlWordPage(url) {
       });
     }
 
+    // Crawl internal links
     const nextLinks = new Set();
-    $('a[href^="/wiki/"]').each((_, el) => {
+    $('#mw-content-text a[href^="/wiki/"]').each((_, el) => {
       const href = $(el).attr('href');
       const title = decodeURIComponent(href.split('/wiki/')[1] || '');
       if (
@@ -112,6 +112,7 @@ async function crawlWordPage(url) {
 
     for (const link of nextLinks) {
       await crawlWordPage(link);
+      await new Promise(r => setTimeout(r, 150)); // memory-safe delay
     }
 
   } catch (err) {
@@ -130,7 +131,7 @@ async function crawlAllPages() {
     const $ = cheerio.load(html);
 
     const links = [];
-    $('.mw-allpages-body a').each((_, el) => {
+    $('#mw-content-text a').each((_, el) => {
       const href = $(el).attr('href');
       const title = decodeURIComponent(href?.split('/wiki/')[1] || '');
       if (
@@ -147,6 +148,7 @@ async function crawlAllPages() {
     const crawlQueue = links.slice(startIndex);
 
     console.log(`🔗 Resuming from checkpoint... ${crawlQueue.length} links`);
+
     for (const link of crawlQueue) {
       await crawlWordPage(link);
       await new Promise(r => setTimeout(r, 150));
@@ -159,12 +161,11 @@ async function crawlAllPages() {
   console.log('✅ Finished Wiktionary crawl.');
 }
 
-// Start crawl
-crawlAllPages();
-
-// Open Express port to keep Render alive
-const app = express();
-app.get('/', (req, res) => res.send('✅ fAI Crawler is running'));
-app.listen(process.env.PORT || 3000, () => {
-  console.log('🚀 Server listening...');
+// Keep server open (for Render)
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Server is live\n');
+}).listen(process.env.PORT || 10000, () => {
+  console.log('🟢 Server listening...');
+  crawlAllPages().then(() => console.log('🕓 Done'));
 });
