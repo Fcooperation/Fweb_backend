@@ -2,7 +2,7 @@ const axios = require("axios");
 const path = require("path");
 
 // CONFIG
-const API_TOKEN = "YOUR_GOFILE_TOKEN_HERE";
+const API_TOKEN = "e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO";
 const API_BASE = "https://api.gofile.io";
 
 // Get root folder of your account
