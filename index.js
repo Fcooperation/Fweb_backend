@@ -1,75 +1,74 @@
-// index.js
-const express = require("express");
-const cors = require("cors");
 const axios = require("axios");
-const app = express();
+const path = require("path");
 
-const token = "e1LOiRxizCSLqTmyZ27AeZuN10qu0wfO"; // Your Gofile token
-const GOFILE_API = "https://api.gofile.io";
+// CONFIG
+const API_TOKEN = "YOUR_GOFILE_TOKEN_HERE";
+const API_BASE = "https://api.gofile.io";
 
-app.use(cors());
-app.use(express.json());
+// Get root folder of your account
+async function getRootFolder() {
+  const res = await axios.get(`${API_BASE}/getAccountDetails?token=${API_TOKEN}`);
+  return res.data.data.rootFolder;
+}
 
-app.get("/", (req, res) => {
-  res.send("Fserver backend is live!");
-});
+// Find or create folder for a domain (e.g. "archive.org")
+async function getOrCreateFolderForSite(siteName, parentFolderId) {
+  const contentRes = await axios.get(`${API_BASE}/getContent?contentId=${parentFolderId}`);
+  const folders = contentRes.data.data.contents || {};
 
-app.post("/online", async (req, res) => {
-  const ip = req.ip;
-  const time = new Date().toISOString();
-  console.log(`✅ User online: ${ip} at ${time}`);
-
-  try {
-    const rootResp = await axios.get(`${GOFILE_API}/getAccountDetails?token=${token}`);
-    const folders = rootResp.data.data.rootFolder.contents || {};
-
-    const allFiles = [];
-
-    // Fetch all files from all folders
-    for (const folderId in folders) {
-      const folderMeta = folders[folderId];
-      if (folderMeta.type !== "folder") continue;
-
-      const folderContentResp = await axios.get(`${GOFILE_API}/getContent?contentId=${folderMeta.id}&token=${token}`);
-      const files = folderContentResp.data.data.contents;
-
-      for (const fileId in files) {
-        const file = files[fileId];
-        if (file.type === "file") {
-          allFiles.push({
-            fileId: file.id,
-            directLink: file.link,
-            name: file.name,
-            date: file.createdAt
-          });
-        }
-      }
+  for (let item of Object.values(folders)) {
+    if (item.type === "folder" && item.name === siteName) {
+      return item.id;
     }
-
-    // Sort files by date (oldest first)
-    allFiles.sort((a, b) => a.date - b.date);
-
-    // Touch every file by downloading 1 byte
-    for (const file of allFiles) {
-      try {
-        await axios.get(file.directLink, {
-          headers: { Range: "bytes=0-0" },
-          responseType: "arraybuffer",
-        });
-        console.log(`🟢 Touched file: ${file.name}`);
-      } catch (err) {
-        console.warn(`🔴 Could not touch ${file.name}: ${err.response?.status || err.message}`);
-      }
-    }
-
-    res.status(200).json({ message: "Files touched successfully." });
-  } catch (error) {
-    console.error("❌ Error touching Gofile files:", error.message);
-    res.status(500).json({ error: "Failed to update files." });
   }
-});
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+  // Create new folder if it doesn't exist
+  const newFolder = await axios.put(`${API_BASE}/createFolder`, null, {
+    params: {
+      token: API_TOKEN,
+      parentFolderId,
+      folderName: siteName
+    }
+  });
+
+  return newFolder.data.data.id;
+}
+
+// Download 1 byte from each file to reset expiry timer
+async function touchFilesInFolder(folderId) {
+  const res = await axios.get(`${API_BASE}/getContent?contentId=${folderId}`);
+  const items = res.data.data.contents || {};
+
+  const files = Object.values(items).filter(i => i.type === "file");
+
+  // Sort oldest to newest
+  files.sort((a, b) => new Date(a.creationDate) - new Date(b.creationDate));
+
+  for (let file of files) {
+    try {
+      const url = file.link;
+      const response = await axios.get(url, {
+        headers: { Range: "bytes=0-0" },
+        timeout: 10000,
+      });
+      console.log(`✅ Touched ${file.name}`);
+    } catch (err) {
+      console.warn(`⚠️ Failed to touch ${file.name}: ${err.message}`);
+    }
+  }
+}
+
+// MAIN
+(async () => {
+  try {
+    const rootFolderId = await getRootFolder();
+    const siteDomain = "archive.org"; // change to your domain or make dynamic
+    const siteFolderId = await getOrCreateFolderForSite(siteDomain, rootFolderId);
+
+    console.log(`📁 Folder for ${siteDomain}: ${siteFolderId}`);
+    await touchFilesInFolder(siteFolderId);
+    console.log("✅ All files touched.");
+  } catch (err) {
+    console.error("❌ Error:", err.message);
+  }
+})();
