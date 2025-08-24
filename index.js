@@ -1,23 +1,24 @@
+import express from "express";
 import fetch from "node-fetch";
+import cors from "cors";
 
-// Your Arli AI API key
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Arli API key
 const API_KEY = "9aa52f54-cad1-4200-9299-015926f1c3e6";
 
-// Example test prompts
-const prompts = [
-  "Hello Arli, can you summarize this test message?",
-  "Give me a short joke.",
-  "Explain Node.js in simple terms."
-];
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// Simple queue mechanism
+// Queue mechanism
 let isBusy = false;
 
-// Function to call Arli AI with retry for concurrency limit
+// Function to call Arli with retries
 async function askArli(prompt, retries = 5) {
-  // Wait until the previous request finishes
   while (isBusy) {
-    await new Promise(res => setTimeout(res, 2000)); // wait 2s
+    await new Promise(res => setTimeout(res, 2000));
   }
   isBusy = true;
 
@@ -32,33 +33,38 @@ async function askArli(prompt, retries = 5) {
         body: JSON.stringify({
           model: "Gemma-3-27B-it",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 100
+          max_tokens: 200
         })
       });
 
       const data = await response.json();
 
-      // If concurrency error, wait and retry
       if (data.message?.includes("can only make 1 requests at a time")) {
         console.log(`Concurrency limit hit for prompt: "${prompt}", retrying in 2s (attempt ${attempt})...`);
         await new Promise(res => setTimeout(res, 2000));
       } else {
-        console.log(`Prompt: "${prompt}"\nArli Response:`, data);
-        break;
+        return data.choices?.[0]?.message?.content || data;
       }
     }
+    return { error: "Failed due to concurrency limit" };
   } catch (error) {
     console.error("Error calling Arli API:", error);
+    return { error: error.message };
   } finally {
-    isBusy = false; // Mark request finished
+    isBusy = false;
   }
 }
 
-// Function to run all prompts sequentially
-async function runTestQueue() {
-  for (const prompt of prompts) {
-    await askArli(prompt); // ensures one at a time
-  }
-}
+// API endpoint
+app.post("/api/ask", async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "No prompt provided" });
 
-runTestQueue();
+  const result = await askArli(prompt);
+  res.json({ response: result });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Fweb backend running on port ${PORT}`);
+});
