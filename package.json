@@ -1,15 +1,18 @@
 {
-  "name": "fweb-arli-test",
+  "name": "fweb-backend",
   "version": "1.0.0",
-  "description": "Test script for Arli AI API integration in Fweb",
-  "main": "testArli.js",
+  "description": "Fweb backend with Arli AI integration",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node testArli.js"
+    "start": "npm start"
   },
   "author": "Francis",
   "license": "MIT",
   "dependencies": {
-    "node-fetch": "^3.4.0"
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
   }
 }
