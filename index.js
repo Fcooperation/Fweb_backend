@@ -15,7 +15,7 @@ async function testArli() {
         "Authorization": `Bearer ${API_KEY}`
       },
       body: JSON.stringify({
-        model: "arliai-gpt-1",
+        model: "Gemma-3-27B-it",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 100
       })
