@@ -31,7 +31,7 @@ async function askArli(prompt, retries = 5) {
           "Authorization": `Bearer ${API_KEY}`
         },
         body: JSON.stringify({
-          model: "Gemma-3-27B-it",
+          model: "Qwen3-235B-A22B-Thinking-2507",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 200
         })
