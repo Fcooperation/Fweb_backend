@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Fweb backend with Arli AI integration",
   "main": "index.js",
-  "type": "module",
+  
   "scripts": {
     "start": "node index.js"
   },
