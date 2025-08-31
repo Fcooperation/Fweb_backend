@@ -1,41 +1,50 @@
-const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
+import express from "express";
+import fetch from "node-fetch";
+import * as cheerio from "cheerio";
 
 const app = express();
-const PORT = 3000;
-
 app.use(express.json());
 
-// API endpoint to fetch and rebuild a site
-app.post("/api/search", async (req, res) => {
+app.post("/api/ask", async (req, res) => {
   try {
     const { query } = req.body;
 
-    // For now, treat the query as a full URL
-    const response = await axios.get(query);
-    const $ = cheerio.load(response.data);
+    // If the user typed "ebsu.edu.ng", make sure it has https://
+    let url = query.startsWith("http") ? query : `https://${query}`;
 
+    // Fetch the raw HTML
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(500).json({ error: "Failed to fetch site" });
+    }
+    const html = await response.text();
+
+    // Use cheerio to extract in block format
+    const $ = cheerio.load(html);
     let blocks = [];
 
-    $("body").children().each((i, el) => {
-      blocks.push({
-        tag: el.name,
-        html: $.html(el)
-      });
+    $("h1, h2, h3, p, img, a, ul, ol, li").each((i, el) => {
+      const tag = el.tagName;
+      if (tag === "img") {
+        blocks.push(`<img src="${$(el).attr("src")}" alt=""/>`);
+      } else if (tag === "a") {
+        blocks.push(`<a href="${$(el).attr("href")}">${$(el).text()}</a>`);
+      } else {
+        blocks.push(`<${tag}>${$(el).text()}</${tag}>`);
+      }
     });
 
     res.json({
-      url: query,
-      blocks
+      url,
+      content: blocks.join("\n")
     });
 
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ error: "Failed to fetch site" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(3000, () => {
+  console.log("Server running on http://localhost:3000");
 });
