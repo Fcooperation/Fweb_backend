@@ -1,6 +1,6 @@
 // index.js
 import express from 'express';
-import fetch from 'node-fetch';
+import axios from 'axios';
 import cors from 'cors';
 import { JSDOM } from 'jsdom';
 
@@ -17,8 +17,8 @@ app.post('/crawl', async (req, res) => {
 
   try {
     // Fetch the site
-    const response = await fetch(url);
-    const html = await response.text();
+    const response = await axios.get(url);
+    const html = response.data;
 
     // Parse the DOM
     const dom = new JSDOM(html);
