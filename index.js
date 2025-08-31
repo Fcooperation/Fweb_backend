@@ -1,26 +1,41 @@
-// index.js
-import express from 'express';
-import fetch from 'node-fetch'; // Use node-fetch v2.6.1 for CommonJS compatibility
-import cors from 'cors';
+const express = require("express");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 const app = express();
-app.use(cors());
+const PORT = 3000;
+
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
-
-app.post('/search', async (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'No query provided' });
-
+// API endpoint to fetch and rebuild a site
+app.post("/api/search", async (req, res) => {
   try {
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const response = await fetch(searchUrl);
-    const html = await response.text();
-    res.json({ html });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const { query } = req.body;
+
+    // For now, treat the query as a full URL
+    const response = await axios.get(query);
+    const $ = cheerio.load(response.data);
+
+    let blocks = [];
+
+    $("body").children().each((i, el) => {
+      blocks.push({
+        tag: el.name,
+        html: $.html(el)
+      });
+    });
+
+    res.json({
+      url: query,
+      blocks
+    });
+
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: "Failed to fetch site" });
   }
 });
 
-app.listen(PORT, () => console.log(`Fweb backend running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
