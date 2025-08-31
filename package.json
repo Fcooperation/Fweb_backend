@@ -2,6 +2,7 @@
   "name": "fweb-backend",
   "version": "1.0.0",
   "description": "Backend for Fweb search and site crawling",
+  "type":"module",
   "main": "index.js",
   
   "scripts": {
