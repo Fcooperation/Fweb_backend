@@ -1,50 +1,51 @@
-import express from "express";
-import fetch from "node-fetch";
-import * as cheerio from "cheerio";
+// index.js
+import express from 'express';
+import fetch from 'node-fetch';
+import cors from 'cors';
+import { JSDOM } from 'jsdom';
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-app.post("/api/ask", async (req, res) => {
+const PORT = process.env.PORT || 3000;
+
+// Crawl endpoint
+app.post('/crawl', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'No URL provided' });
+
   try {
-    const { query } = req.body;
-
-    // If the user typed "ebsu.edu.ng", make sure it has https://
-    let url = query.startsWith("http") ? query : `https://${query}`;
-
-    // Fetch the raw HTML
+    // Fetch the site
     const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(500).json({ error: "Failed to fetch site" });
-    }
     const html = await response.text();
 
-    // Use cheerio to extract in block format
-    const $ = cheerio.load(html);
-    let blocks = [];
+    // Parse the DOM
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
 
-    $("h1, h2, h3, p, img, a, ul, ol, li").each((i, el) => {
-      const tag = el.tagName;
-      if (tag === "img") {
-        blocks.push(`<img src="${$(el).attr("src")}" alt=""/>`);
-      } else if (tag === "a") {
-        blocks.push(`<a href="${$(el).attr("href")}">${$(el).text()}</a>`);
+    // Extract content blocks
+    const blocks = [];
+    document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, img, video, audio, pre, code, li').forEach(el => {
+      if (el.tagName.toLowerCase() === 'img') {
+        blocks.push({ type: 'image', src: el.src });
+      } else if (el.tagName.toLowerCase() === 'video') {
+        blocks.push({ type: 'video', src: el.src });
+      } else if (el.tagName.toLowerCase() === 'audio') {
+        blocks.push({ type: 'audio', src: el.src });
       } else {
-        blocks.push(`<${tag}>${$(el).text()}</${tag}>`);
+        blocks.push({ type: 'text', tag: el.tagName.toLowerCase(), content: el.textContent.trim() });
       }
     });
 
-    res.json({
-      url,
-      content: blocks.join("\n")
-    });
+    console.log(`Crawled ${url}, extracted ${blocks.length} blocks`);
+
+    // Instead of sending content, just confirm completion
+    res.json({ message: 'done crawling' });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
-});
+app.listen(PORT, () => console.log(`Fweb backend running on port ${PORT}`));
