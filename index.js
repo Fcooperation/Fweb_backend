@@ -1,15 +1,12 @@
-// index.js
 import express from "express";
 import nodemailer from "nodemailer";
 
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
-
 // Gmail credentials (hardcoded)
 const GMAIL_USER = "fcooperationweb@gmail.com";
-const GMAIL_PASS = "cablqfvaevscrooh"; // Use Gmail App Password
+const GMAIL_PASS = "cablqfvaevscrooh"; // Gmail App Password
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -22,9 +19,20 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Test connection to Gmail SMTP
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP connection failed:", error);
+  } else {
+    console.log("SMTP server is ready to send emails");
+  }
+});
+
 // Endpoint to send test verification email
 app.post("/send-verification", async (req, res) => {
   try {
+    console.log("Received request to /send-verification");
+
     const mailOptions = {
       from: `"Fweb Verification" <${GMAIL_USER}>`,
       to: "thefcooperation@gmail.com",
@@ -48,6 +56,5 @@ app.post("/send-verification", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Export app for Render / platform to handle the port automatically
+export default app;
