@@ -1,51 +1,48 @@
-// index.js
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-import { JSDOM } from 'jsdom';
+import express from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const PORT = process.env.PORT || 5000;
 
-const PORT = process.env.PORT || 3000;
+// Create uploads folder if it doesn’t exist
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
 
-// Crawl endpoint
-app.post('/crawl', async (req, res) => {
-  const { url } = req.body;
-  if (!url) return res.status(400).json({ error: 'No URL provided' });
-
-  try {
-    // Fetch the site
-    const response = await axios.get(url);
-    const html = response.data;
-
-    // Parse the DOM
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-
-    // Extract content blocks
-    const blocks = [];
-    document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, img, video, audio, pre, code, li').forEach(el => {
-      if (el.tagName.toLowerCase() === 'img') {
-        blocks.push({ type: 'image', src: el.src });
-      } else if (el.tagName.toLowerCase() === 'video') {
-        blocks.push({ type: 'video', src: el.src });
-      } else if (el.tagName.toLowerCase() === 'audio') {
-        blocks.push({ type: 'audio', src: el.src });
-      } else {
-        blocks.push({ type: 'text', tag: el.tagName.toLowerCase(), content: el.textContent.trim() });
-      }
-    });
-
-    console.log(`Crawled ${url}, extracted ${blocks.length} blocks`);
-
-    // Instead of sending content, just confirm completion
-    res.json({ message: 'done crawling' });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// Multer setup (to handle image uploads)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + "-" + file.originalname;
+    cb(null, uniqueName);
+  },
 });
 
-app.listen(PORT, () => console.log(`Fweb backend running on port ${PORT}`));
+const upload = multer({ storage });
+
+// Serve uploaded files as static
+app.use("/uploads", express.static(uploadDir));
+
+// Upload endpoint
+app.post("/upload", upload.single("profilePic"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  // File saved on server
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+
+  return res.json({
+    success: true,
+    url: fileUrl, // Send back URL for frontend
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
