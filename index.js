@@ -1,34 +1,40 @@
-import express from "express";
-import bodyParser from "body-parser";
-import cors from "cors";
-import nodemailer from "nodemailer";
+import express from 'express';
+import nodemailer from 'nodemailer';
+import cors from 'cors';
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
+const PORT = process.env.PORT || 3000;
+
+// Hardcoded Gmail creds
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  service: 'gmail',
   auth: {
-    user: "fcooperationweb@gmail.com",   // your Gmail
-    pass: "cabl qfva evsc rooh",         // app password
-  },
-});
-
-app.post("/send", async (req, res) => {
-  const { to, subject, text } = req.body;
-
-  try {
-    const info = await transporter.sendMail({
-      from: "fcooperationweb@gmail.com",
-      to,
-      subject,
-      text,
-    });
-    res.json({ success: true, info });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
+    user: 'fcooperationweb@gmail.com',
+    pass: 'cablqfvaevscrooh' // your app password
   }
 });
 
-app.listen(5000, () => console.log("SMTP server running on port 5000"));
+app.post('/send-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, error: "No email provided" });
+
+  try {
+    // Here you could generate a token and save it for verification later
+    const mailOptions = {
+      from: '"Fweb" <fcooperationweb@gmail.com>',
+      to: email,
+      subject: 'Fweb Email Verification',
+      text: `Hello! Click this link to verify your email: http://localhost:3000/verify?email=${encodeURIComponent(email)}`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`Fweb backend running on port ${PORT}`));
