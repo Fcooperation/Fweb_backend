@@ -1,6 +1,7 @@
 // fcrawler.js
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { runFcards } from "./fcards.js"; // 👈 import fcards
 
 // Function to handle search/crawling
 export async function handleSearch(query) {
@@ -35,7 +36,7 @@ export async function handleSearch(query) {
     // Load HTML into cheerio
     const $ = cheerio.load(html);
 
-    // Extract text blocks (e.g. paragraphs, headings, list items)
+    // Extract text blocks (paragraphs, headings, list items)
     let blocks = [];
     $("p, h1, h2, h3, h4, h5, h6, li").each((_, el) => {
       const text = $(el).text().trim();
@@ -46,15 +47,8 @@ export async function handleSearch(query) {
 
     // If no blocks → probably JS rendered
     if (blocks.length === 0) {
-      return [
-        {
-          title: "JS Rendered",
-          url,
-          snippet: "This site requires JavaScript execution. Forwarding to fcards.js.",
-          html: null,
-          type: "jsRendered"
-        }
-      ];
+      console.log("⚡ Forwarding to fcards.js for JS-rendered site...");
+      return await runFcards(url); // 👈 call fcards.js
     }
 
     // ✅ Return both summary + raw HTML
