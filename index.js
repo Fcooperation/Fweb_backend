@@ -1,18 +1,19 @@
-// server.js
+// index.js
 import express from "express";
 import cors from "cors";
+import { handleSearch } from "./fcrawler.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-// Simple route
+// Root route
 app.get("/", (req, res) => {
   res.send("Fweb backend is running 🚀");
 });
 
-// Search endpoint
+// Search route → delegates to fcrawler.js
 app.get("/search", (req, res) => {
   const query = req.query.q;
 
@@ -20,26 +21,8 @@ app.get("/search", (req, res) => {
     return res.status(400).json({ error: "No query provided" });
   }
 
-  // Check if query looks like a link
-  const isLink = /^https?:\/\/|^[\w-]+\.[a-z]{2,}/i.test(query);
-
-  if (isLink) {
-    return res.json([
-      {
-        title: "Detected Link",
-        url: query.startsWith("http") ? query : "https://" + query,
-        snippet: "This search input looks like a website link."
-      }
-    ]);
-  } else {
-    return res.json([
-      {
-        title: "Detected Normal Search",
-        url: "https://www.google.com/search?q=" + encodeURIComponent(query),
-        snippet: "This search input looks like a normal search query."
-      }
-    ]);
-  }
+  const results = handleSearch(query);
+  res.json(results);
 });
 
 // Start server
