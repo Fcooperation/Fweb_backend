@@ -1,7 +1,6 @@
 // fcrawler.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { runFcards } from "./fcards.js";
 
 // Function to handle search/crawling
 export async function handleSearch(query) {
@@ -39,9 +38,17 @@ export async function handleSearch(query) {
       if (text.length > 30) blocks.push(text);
     });
 
+    // Treat JS-rendered sites as normal search
     if (blocks.length === 0) {
-      console.log("⚡ Forwarding to fcards.js for JS-rendered site...");
-      return await runFcards(url);
+      return [
+        {
+          title: "Normal Search (JS Site)",
+          url,
+          snippet: "This site seems to be JS-rendered; treated as a normal search query.",
+          html: null,
+          type: "normalSearch"
+        }
+      ];
     }
 
     return [
