@@ -1,68 +1,48 @@
+// server.js
 import express from "express";
-import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-
-dotenv.config();
+import cors from "cors";
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
 
-const PORT = process.env.PORT || 10000;
+app.use(cors());
 
-// Gmail credentials from .env
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_PASS;
-
-// Create transporter
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // false for TLS
-  requireTLS: true,
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_PASS,
-  },
+// Simple route
+app.get("/", (req, res) => {
+  res.send("Fweb backend is running 🚀");
 });
 
-// Verify transporter
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("SMTP verification failed:", error);
+// Search endpoint
+app.get("/search", (req, res) => {
+  const query = req.query.q;
+
+  if (!query) {
+    return res.status(400).json({ error: "No query provided" });
+  }
+
+  // Check if query looks like a link
+  const isLink = /^https?:\/\/|^[\w-]+\.[a-z]{2,}/i.test(query);
+
+  if (isLink) {
+    return res.json([
+      {
+        title: "Detected Link",
+        url: query.startsWith("http") ? query : "https://" + query,
+        snippet: "This search input looks like a website link."
+      }
+    ]);
   } else {
-    console.log("SMTP server is ready to send emails");
+    return res.json([
+      {
+        title: "Detected Normal Search",
+        url: "https://www.google.com/search?q=" + encodeURIComponent(query),
+        snippet: "This search input looks like a normal search query."
+      }
+    ]);
   }
 });
 
-// Endpoint to send verification email
-app.post("/send-verification", async (req, res) => {
-  const { toEmail } = req.body;
-  if (!toEmail) return res.status(400).json({ success: false, error: "No recipient email provided" });
-
-  try {
-    console.log(`Preparing to send email to: ${toEmail}`);
-
-    const mailOptions = {
-      from: `"Fweb Verification" <${GMAIL_USER}>`,
-      to: toEmail,
-      subject: "Fweb Email Verification Test",
-      text: "This is a test verification email from Fweb. ✅",
-      html: "<p>This is a <strong>test verification email</strong> from Fweb. ✅</p>",
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-
-    console.log("Email sent successfully!");
-    console.log("Message ID:", info.messageId);
-    console.log("Envelope:", info.envelope);
-
-    res.json({ success: true, message: `Verification email sent to ${toEmail}`, info });
-  } catch (err) {
-    console.error("Error sending email:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
+// Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
