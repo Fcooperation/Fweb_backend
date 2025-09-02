@@ -13,16 +13,21 @@ app.get("/", (req, res) => {
   res.send("Fweb backend is running 🚀");
 });
 
-// Search route → delegates to fcrawler.js
-app.get("/search", (req, res) => {
+// Search route → async handler
+app.get("/search", async (req, res) => {
   const query = req.query.q;
 
   if (!query) {
     return res.status(400).json({ error: "No query provided" });
   }
 
-  const results = handleSearch(query);
-  res.json(results);
+  try {
+    const results = await handleSearch(query); // ✅ await here
+    res.json(results);
+  } catch (err) {
+    console.error("❌ Backend error:", err.message);
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
 });
 
 // Start server
