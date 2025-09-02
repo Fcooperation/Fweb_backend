@@ -11,7 +11,8 @@ export async function handleSearch(query) {
       {
         title: "Normal Search Ignored",
         url: null,
-        snippet: "Normal text queries are not yet supported."
+        snippet: "Normal text queries are not yet supported.",
+        html: null
       }
     ];
   }
@@ -48,19 +49,19 @@ export async function handleSearch(query) {
         {
           title: "Blocked by JS",
           url,
-          snippet: "This site requires JavaScript and cannot be crawled with static HTML."
+          snippet: "This site requires JavaScript and cannot be crawled with static HTML.",
+          html: null
         }
       ];
     }
 
-    // TODO: Later → save to DB or index
-    console.log("✅ Crawled blocks from", url, "\n", blocks.slice(0, 5)); // show first 5 in logs
-
+    // ✅ Return both summary + raw HTML
     return [
       {
         title: "Done Crawling",
         url,
-        snippet: `Captured ${blocks.length} content blocks from the page.`
+        snippet: `Captured ${blocks.length} content blocks from the page.`,
+        html // raw html sent back to frontend
       }
     ];
   } catch (err) {
@@ -71,7 +72,8 @@ export async function handleSearch(query) {
         {
           title: "Blocked by Robots",
           url,
-          snippet: "Access to this page was forbidden (robots.txt or server block)."
+          snippet: "Access to this page was forbidden (robots.txt or server block).",
+          html: null
         }
       ];
     }
@@ -80,7 +82,8 @@ export async function handleSearch(query) {
       {
         title: "Crawl Failed",
         url,
-        snippet: err.message
+        snippet: err.message,
+        html: null
       }
     ];
   }
