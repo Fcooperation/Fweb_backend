@@ -12,7 +12,8 @@ export async function handleSearch(query) {
         title: "Normal Search Ignored",
         url: null,
         snippet: "Normal text queries are not yet supported.",
-        html: null
+        html: null,
+        type: "ignored"
       }
     ];
   }
@@ -38,19 +39,20 @@ export async function handleSearch(query) {
     let blocks = [];
     $("p, h1, h2, h3, h4, h5, h6, li").each((_, el) => {
       const text = $(el).text().trim();
-      if (text.length > 30) { // ignore very short fragments
+      if (text.length > 30) {
         blocks.push(text);
       }
     });
 
-    // If no blocks → probably blocked by JS
+    // If no blocks → probably JS rendered
     if (blocks.length === 0) {
       return [
         {
-          title: "Blocked by JS",
+          title: "JS Rendered",
           url,
-          snippet: "This site requires JavaScript and cannot be crawled with static HTML.",
-          html: null
+          snippet: "This site requires JavaScript execution. Forwarding to fcards.js.",
+          html: null,
+          type: "jsRendered"
         }
       ];
     }
@@ -61,7 +63,8 @@ export async function handleSearch(query) {
         title: "Done Crawling",
         url,
         snippet: `Captured ${blocks.length} content blocks from the page.`,
-        html // raw html sent back to frontend
+        html,
+        type: "static"
       }
     ];
   } catch (err) {
@@ -73,7 +76,8 @@ export async function handleSearch(query) {
           title: "Blocked by Robots",
           url,
           snippet: "Access to this page was forbidden (robots.txt or server block).",
-          html: null
+          html: null,
+          type: "robotsBlocked"
         }
       ];
     }
@@ -83,7 +87,8 @@ export async function handleSearch(query) {
         title: "Crawl Failed",
         url,
         snippet: err.message,
-        html: null
+        html: null,
+        type: "error"
       }
     ];
   }
