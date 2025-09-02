@@ -13,7 +13,7 @@ export async function handleSearch(query) {
         url: null,
         snippet: "Normal text queries are not yet supported.",
         html: null,
-        fcards: null
+        blocks: [] // keep consistent return shape
       }
     ];
   }
@@ -24,14 +24,18 @@ export async function handleSearch(query) {
   try {
     // Fetch page
     const response = await axios.get(url, {
-      headers: { "User-Agent": "FwebCrawler/1.0 (+https://fweb.africa)" },
+      headers: {
+        "User-Agent": "FwebCrawler/1.0 (+https://fweb.africa)"
+      },
       timeout: 10000
     });
 
     const html = response.data;
+
+    // Load HTML into cheerio
     const $ = cheerio.load(html);
 
-    // Extract text blocks
+    // Extract text blocks (for fallback when JS only)
     let blocks = [];
     $("p, h1, h2, h3, h4, h5, h6, li").each((_, el) => {
       const text = $(el).text().trim();
@@ -40,34 +44,27 @@ export async function handleSearch(query) {
       }
     });
 
-    // --- Case: JS-rendered site (no blocks found) ---
+    // If no blocks → JS-rendered → use fCards only
     if (blocks.length === 0) {
       return [
         {
           title: "Blocked by JS",
           url,
-          snippet: "This site requires JavaScript. Showing fCards instead.",
-          html: null, // no raw HTML
-          fcards: [
-            {
-              title: $("title").first().text().trim() || "Untitled Page",
-              url,
-              snippet: "Preview unavailable due to JS rendering.",
-              blocks: [] // empty because Cheerio couldn’t parse them
-            }
-          ]
+          snippet: "This site requires JavaScript and cannot be crawled with static HTML.",
+          html: null,     // no raw HTML
+          blocks          // send blocks for fCards
         }
       ];
     }
 
-    // --- Case: Normal static site ---
+    // ✅ Static site → return raw HTML only
     return [
       {
         title: "Done Crawling",
         url,
         snippet: `Captured ${blocks.length} content blocks from the page.`,
-        html, // ✅ send full HTML for iframe rendering
-        fcards: null // no need for fCards
+        html,     // full raw html
+        blocks: [] // don't send fCards here
       }
     ];
   } catch (err) {
@@ -78,9 +75,9 @@ export async function handleSearch(query) {
         {
           title: "Blocked by Robots",
           url,
-          snippet: "Access forbidden (robots.txt or server block).",
+          snippet: "Access to this page was forbidden (robots.txt or server block).",
           html: null,
-          fcards: null
+          blocks: []
         }
       ];
     }
@@ -91,7 +88,7 @@ export async function handleSearch(query) {
         url,
         snippet: err.message,
         html: null,
-        fcards: null
+        blocks: []
       }
     ];
   }
