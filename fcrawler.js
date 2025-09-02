@@ -13,7 +13,9 @@ export async function handleSearch(query) {
         url: null,
         snippet: "Normal text queries are not yet supported.",
         favicon: null,
-        blocks: []
+        blocks: [],
+        html: null,
+        mode: "ignored"
       }
     ];
   }
@@ -43,7 +45,6 @@ export async function handleSearch(query) {
       "/favicon.ico";
 
     if (favicon && !favicon.startsWith("http")) {
-      // Convert relative favicon to absolute
       try {
         const urlObj = new URL(url);
         favicon = new URL(favicon, urlObj.origin).href;
@@ -62,24 +63,30 @@ export async function handleSearch(query) {
     });
 
     if (blocks.length === 0) {
+      // ✅ JS-rendered → return fCard summary only
       return [
         {
-          title: "Blocked by JS",
+          title,
           url,
-          snippet: "This site requires JavaScript and cannot be crawled with static HTML.",
+          snippet: "This site appears JS-rendered, showing fCard instead.",
           favicon,
-          blocks: []
+          blocks: [],
+          html: null,
+          mode: "fcards"
         }
       ];
     }
 
+    // ✅ Static HTML → return full page for browser-like rendering
     return [
       {
         title,
         url,
-        snippet: blocks[0].slice(0, 160) + "...", // preview snippet
+        snippet: blocks[0].slice(0, 160) + "...",
         favicon,
-        blocks
+        blocks,
+        html, // full raw HTML
+        mode: "browser"
       }
     ];
   } catch (err) {
@@ -92,7 +99,9 @@ export async function handleSearch(query) {
           url,
           snippet: "Access to this page was forbidden (robots.txt or server block).",
           favicon: null,
-          blocks: []
+          blocks: [],
+          html: null,
+          mode: "error"
         }
       ];
     }
@@ -103,7 +112,9 @@ export async function handleSearch(query) {
         url,
         snippet: err.message,
         favicon: null,
-        blocks: []
+        blocks: [],
+        html: null,
+        mode: "error"
       }
     ];
   }
