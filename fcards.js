@@ -20,13 +20,12 @@ export async function runFcards(url) {
       $('link[rel="shortcut icon"]').attr("href") ||
       "/favicon.ico";
 
-    // Normalize favicon URL
     if (favicon && !favicon.startsWith("http")) {
       favicon = new URL(favicon, url).href;
     }
 
-    // Extract links and build fcards directly
-    let cardsHTML = "";
+    // Extract links in order
+    let cards = [];
     $("a").each((_, el) => {
       const href = $(el).attr("href");
       const text = $(el).text().trim();
@@ -39,37 +38,20 @@ export async function runFcards(url) {
           return;
         }
 
-        const safeTitle = text.length > 80 ? text.substring(0, 77) + "..." : text;
-
-        // ✅ Build fcard HTML directly
-        cardsHTML += `
-          <a href="${absoluteUrl}" target="_blank" class="fcard">
-            <img src="${favicon}" class="favicon" onerror="this.style.display='none'"/>
-            <span>${safeTitle}</span>
-          </a>
-        `;
+        cards.push({
+          title: text.length > 80 ? text.substring(0, 77) + "..." : text,
+          url: absoluteUrl,
+          favicon
+        });
       }
     });
 
-    if (!cardsHTML) {
-      return [
-        {
-          title: "JS Site Detected",
-          url,
-          snippet: "No links could be extracted from this JavaScript-rendered site.",
-          html: `<div class="fcard blocked">No links found.</div>`,
-          type: "jsRendered-empty"
-        }
-      ];
-    }
-
-    // ✅ Return one object with HTML ready to drop into frontend
     return [
       {
-        title: "JS Rendered Fcards",
+        title: "JS Rendered Links",
         url,
-        snippet: "Links extracted and built into fcards.",
-        html: `<div class="fcards">${cardsHTML}</div>`,
+        snippet: `Extracted ${cards.length} links.`,
+        cards,
         type: "jsRendered"
       }
     ];
@@ -80,7 +62,7 @@ export async function runFcards(url) {
         title: "Fcards Failed",
         url,
         snippet: err.message,
-        html: `<div class="fcard blocked">Error: ${err.message}</div>`,
+        cards: [],
         type: "error"
       }
     ];
