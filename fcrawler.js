@@ -12,7 +12,8 @@ export async function handleSearch(query) {
         title: "Normal Search Ignored",
         url: null,
         snippet: "Normal text queries are not yet supported.",
-        html: null
+        favicon: null,
+        blocks: []
       }
     ];
   }
@@ -30,38 +31,55 @@ export async function handleSearch(query) {
     });
 
     const html = response.data;
-
-    // Load HTML into cheerio
     const $ = cheerio.load(html);
 
-    // Extract text blocks (e.g. paragraphs, headings, list items)
+    // --- Extract Metadata ---
+    const title = $("title").first().text().trim() || "Untitled Page";
+
+    // Try to find favicon
+    let favicon =
+      $('link[rel="icon"]').attr("href") ||
+      $('link[rel="shortcut icon"]').attr("href") ||
+      "/favicon.ico";
+
+    if (favicon && !favicon.startsWith("http")) {
+      // Convert relative favicon to absolute
+      try {
+        const urlObj = new URL(url);
+        favicon = new URL(favicon, urlObj.origin).href;
+      } catch {
+        favicon = null;
+      }
+    }
+
+    // Extract text blocks
     let blocks = [];
     $("p, h1, h2, h3, h4, h5, h6, li").each((_, el) => {
       const text = $(el).text().trim();
-      if (text.length > 30) { // ignore very short fragments
+      if (text.length > 30) {
         blocks.push(text);
       }
     });
 
-    // If no blocks → probably blocked by JS
     if (blocks.length === 0) {
       return [
         {
           title: "Blocked by JS",
           url,
           snippet: "This site requires JavaScript and cannot be crawled with static HTML.",
-          html: null
+          favicon,
+          blocks: []
         }
       ];
     }
 
-    // ✅ Return both summary + raw HTML
     return [
       {
-        title: "Done Crawling",
+        title,
         url,
-        snippet: `Captured ${blocks.length} content blocks from the page.`,
-        html // raw html sent back to frontend
+        snippet: blocks[0].slice(0, 160) + "...", // preview snippet
+        favicon,
+        blocks
       }
     ];
   } catch (err) {
@@ -73,7 +91,8 @@ export async function handleSearch(query) {
           title: "Blocked by Robots",
           url,
           snippet: "Access to this page was forbidden (robots.txt or server block).",
-          html: null
+          favicon: null,
+          blocks: []
         }
       ];
     }
@@ -83,7 +102,8 @@ export async function handleSearch(query) {
         title: "Crawl Failed",
         url,
         snippet: err.message,
-        html: null
+        favicon: null,
+        blocks: []
       }
     ];
   }
