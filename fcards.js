@@ -1,4 +1,3 @@
-// fcards.js
 import axios from "axios";
 import * as cheerio from "cheerio";
 
@@ -26,8 +25,8 @@ export async function runFcards(url) {
       favicon = new URL(favicon, url).href;
     }
 
-    // Extract links
-    let cards = [];
+    // Extract links and build fcards directly
+    let cardsHTML = "";
     $("a").each((_, el) => {
       const href = $(el).attr("href");
       const text = $(el).text().trim();
@@ -40,33 +39,37 @@ export async function runFcards(url) {
           return;
         }
 
-        cards.push({
-          title: text.length > 80 ? text.substring(0, 77) + "..." : text,
-          url: absoluteUrl,
-          favicon
-        });
+        const safeTitle = text.length > 80 ? text.substring(0, 77) + "..." : text;
+
+        // ✅ Build fcard HTML directly
+        cardsHTML += `
+          <a href="${absoluteUrl}" target="_blank" class="fcard">
+            <img src="${favicon}" class="favicon" onerror="this.style.display='none'"/>
+            <span>${safeTitle}</span>
+          </a>
+        `;
       }
     });
 
-    if (cards.length === 0) {
+    if (!cardsHTML) {
       return [
         {
           title: "JS Site Detected",
           url,
           snippet: "No links could be extracted from this JavaScript-rendered site.",
-          html: null,
+          html: `<div class="fcard blocked">No links found.</div>`,
           type: "jsRendered-empty"
         }
       ];
     }
 
+    // ✅ Return one object with HTML ready to drop into frontend
     return [
       {
         title: "JS Rendered Fcards",
         url,
-        snippet: `Extracted ${cards.length} links as fcards.`,
-        cards,
-        favicon,
+        snippet: "Links extracted and built into fcards.",
+        html: `<div class="fcards">${cardsHTML}</div>`,
         type: "jsRendered"
       }
     ];
@@ -77,7 +80,7 @@ export async function runFcards(url) {
         title: "Fcards Failed",
         url,
         snippet: err.message,
-        html: null,
+        html: `<div class="fcard blocked">Error: ${err.message}</div>`,
         type: "error"
       }
     ];
