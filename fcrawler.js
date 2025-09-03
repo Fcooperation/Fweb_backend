@@ -8,6 +8,7 @@ import { downloadImage } from "./utils.js"; // your image downloader
 const visited = new Set();
 const maxDepth = 2;
 
+// Main export
 export async function crawlSite(startUrl) {
   visited.clear();
   const siteData = { pages: [] };
@@ -15,6 +16,7 @@ export async function crawlSite(startUrl) {
   return generateHtml(siteData);
 }
 
+// Crawl each page recursively
 async function crawlPage(url, depth, siteData) {
   if (visited.has(url) || depth > maxDepth) return;
   visited.add(url);
@@ -24,28 +26,32 @@ async function crawlPage(url, depth, siteData) {
     const html = response.data;
     const $ = cheerio.load(html);
 
-    let isJsRendered = $("p, h1, h2, h3, h4, h5, h6, li").length === 0;
+    let textBlocks = $("p, h1, h2, h3, h4, h5, h6, li").map((_, el) => $(el).text().trim()).get();
+    let isJsRendered = textBlocks.length === 0;
+
     const pageInfo = { url, depth, html: "", links: [] };
 
     if (isJsRendered) {
-      // JS-rendered page: only keep the link
+      // JS-rendered: treat as normal search link
       pageInfo.html = `<p>JS-rendered content, see <a href="${url}" target="_blank">${url}</a></p>`;
       siteData.pages.push(pageInfo);
       return;
     }
 
     // Download images and rewrite src
-    const imgs = $("img");
-    for (const img of imgs.toArray()) {
+    const imgs = $("img").toArray();
+    for (const img of imgs) {
       let src = $(img).attr("src");
       if (!src) continue;
       try {
         const absUrl = new URL(src, url).href;
         const filename = path.basename(absUrl.split("?")[0]);
-        const localPath = path.join("images", filename);
+        const localDir = path.join(process.cwd(), "images");
+        if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
+        const localPath = path.join(localDir, filename);
         await downloadImage(absUrl, localPath);
-        $(img).attr("src", localPath);
-      } catch {
+        $(img).attr("src", "images/" + filename); // path relative to HTML
+      } catch (e) {
         continue;
       }
     }
@@ -68,16 +74,33 @@ async function crawlPage(url, depth, siteData) {
   }
 }
 
+// Combine all pages into single HTML
 function generateHtml(siteData) {
-  // Combine all pages into one HTML file for frontend
-  let html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Crawled Site</title></head><body>";
+  let html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Crawled Site</title>
+<style>
+  body { font-family: sans-serif; }
+  section { margin-bottom: 40px; border-bottom: 1px solid #ccc; padding-bottom: 20px; }
+  img { max-width: 200px; margin: 5px; }
+  ul { list-style: disc; padding-left: 20px; }
+</style>
+</head>
+<body>`;
+
   for (const page of siteData.pages) {
-    html += `<section><h2>Page: ${page.url}</h2>${page.html}<p>Links:</p><ul>`;
+    html += `<section>
+<h2>Page: <a href="${page.url}" target="_blank">${page.url}</a></h2>
+${page.html}
+<p>Links:</p><ul>`;
     for (const link of page.links) {
       html += `<li><a href="${link}" target="_blank">${link}</a></li>`;
     }
-    html += "</ul></section><hr/>";
+    html += `</ul></section>`;
   }
-  html += "</body></html>";
+
+  html += `</body></html>`;
   return html;
 }
