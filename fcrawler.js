@@ -1,115 +1,83 @@
 // fcrawler.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
-import { downloadImage } from "./utils.js"; // we'll define a helper to download images
+import path from "path";
+import { downloadImage } from "./utils.js"; // your image downloader
 
-// Function to handle search/crawling
-export async function handleSearch(query) {
-  const isLink = /^https?:\/\/|^[\w-]+\.[a-z]{2,}/i.test(query);
+const visited = new Set();
+const maxDepth = 2;
 
-  if (!isLink) {
-    return [
-      {
-        title: "Normal Search",
-        url: null,
-        snippet: "This is a normal search query, not a URL.",
-        html: null,
-        type: "normalSearch"
-      }
-    ];
-  }
+export async function crawlSite(startUrl) {
+  visited.clear();
+  const siteData = { pages: [] };
+  await crawlPage(startUrl, 0, siteData);
+  return generateHtml(siteData);
+}
 
-  const url = query.startsWith("http") ? query : "https://" + query;
+async function crawlPage(url, depth, siteData) {
+  if (visited.has(url) || depth > maxDepth) return;
+  visited.add(url);
 
   try {
-    const response = await axios.get(url, {
-      headers: { "User-Agent": "FwebCrawler/1.0 (+https://fweb.africa)" },
-      timeout: 10000
-    });
-
+    const response = await axios.get(url, { headers: { "User-Agent": "FwebCrawler/1.0" }, timeout: 10000 });
     const html = response.data;
     const $ = cheerio.load(html);
 
-    // Extract text blocks to check if JS-rendered
-    let blocks = [];
-    $("p, h1, h2, h3, h4, h5, h6, li").each((_, el) => {
-      const text = $(el).text().trim();
-      if (text.length > 30) blocks.push(text);
-    });
+    let isJsRendered = $("p, h1, h2, h3, h4, h5, h6, li").length === 0;
+    const pageInfo = { url, depth, html: "", links: [] };
 
-    // If JS-rendered, treat as normal search
-    if (blocks.length === 0) {
-      return [
-        {
-          title: "Normal Search (JS Site)",
-          url,
-          snippet: "This site seems JS-rendered; treated as a normal search query.",
-          html: null,
-          type: "normalSearch"
-        }
-      ];
+    if (isJsRendered) {
+      // JS-rendered page: only keep the link
+      pageInfo.html = `<p>JS-rendered content, see <a href="${url}" target="_blank">${url}</a></p>`;
+      siteData.pages.push(pageInfo);
+      return;
     }
 
-    // --- REWRITE LINKS to open in frontend ---
-    $("a").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href) {
-        try {
-          const absoluteUrl = new URL(href, url).href;
-          // Rewrite link to open inside frontend search
-          $(el).attr("href", `javascript:performSearch('${absoluteUrl}')`);
-          $(el).attr("target", "_self");
-        } catch {}
+    // Download images and rewrite src
+    const imgs = $("img");
+    for (const img of imgs.toArray()) {
+      let src = $(img).attr("src");
+      if (!src) continue;
+      try {
+        const absUrl = new URL(src, url).href;
+        const filename = path.basename(absUrl.split("?")[0]);
+        const localPath = path.join("images", filename);
+        await downloadImage(absUrl, localPath);
+        $(img).attr("src", localPath);
+      } catch {
+        continue;
       }
-    });
+    }
 
-    // --- DOWNLOAD & REWRITE IMAGE SRC ---
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    $("img").each((_, el) => {
-      let src = $(el).attr("src");
-      if (src) {
-        try {
-          const absoluteSrc = new URL(src, url).href;
-          const localFileName = path.basename(new URL(src, url).pathname);
-          const localPath = path.join(__dirname, "public", "images", localFileName);
+    pageInfo.html = $.html();
+    siteData.pages.push(pageInfo);
 
-          // Ensure the images folder exists
-          fs.mkdirSync(path.dirname(localPath), { recursive: true });
+    // Follow links recursively
+    const links = $("a[href]").map((_, el) => $(el).attr("href")).get();
+    for (const link of links) {
+      try {
+        const absoluteUrl = new URL(link, url).href;
+        pageInfo.links.push(absoluteUrl);
+        await crawlPage(absoluteUrl, depth + 1, siteData);
+      } catch {}
+    }
 
-          // Download image
-          downloadImage(absoluteSrc, localPath);
-
-          // Rewrite src to local path
-          $(el).attr("src", `/images/${localFileName}`);
-        } catch {}
-      }
-    });
-
-    const fixedHtml = $.html();
-
-    return [
-      {
-        title: "Done Crawling",
-        url,
-        snippet: `Captured ${blocks.length} content blocks from the page.`,
-        html: fixedHtml,
-        type: "static"
-      }
-    ];
   } catch (err) {
-    console.error("❌ Crawl error:", err.message);
-
-    return [
-      {
-        title: "Crawl Failed",
-        url,
-        snippet: err.message,
-        html: null,
-        type: "error"
-      }
-    ];
+    console.error(`Failed to crawl ${url}:`, err.message);
   }
+}
+
+function generateHtml(siteData) {
+  // Combine all pages into one HTML file for frontend
+  let html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Crawled Site</title></head><body>";
+  for (const page of siteData.pages) {
+    html += `<section><h2>Page: ${page.url}</h2>${page.html}<p>Links:</p><ul>`;
+    for (const link of page.links) {
+      html += `<li><a href="${link}" target="_blank">${link}</a></li>`;
+    }
+    html += "</ul></section><hr/>";
+  }
+  html += "</body></html>";
+  return html;
 }
