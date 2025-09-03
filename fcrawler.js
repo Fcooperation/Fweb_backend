@@ -5,9 +5,50 @@ import * as cheerio from "cheerio";
 // Hardcoded trusted sources
 const sources = [
   (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}`,
+(q) => `https://www.britannica.com/search?query=${encodeURIComponent(q)}`,
+(q) => `https://www.quora.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.infoplease.com/search/${encodeURIComponent(q)}`,
+(q) => `https://www.bbc.co.uk/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.theguardian.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.nationalgeographic.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.npr.org/search?query=${encodeURIComponent(q)}`,
+(q) => `https://www.history.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(q)}`,
+
+  (q) => `https://www.techcrunch.com/search/${encodeURIComponent(q)}`,
+(q) => `https://www.theverge.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.howtogeek.com/search/${encodeURIComponent(q)}`,
+(q) => `https://www.makeuseof.com/?s=${encodeURIComponent(q)}`,
+(q) => `https://www.zdnet.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.wired.com/search/?q=${encodeURIComponent(q)}`,
+(q) => `https://www.digitaltrends.com/?s=${encodeURIComponent(q)}`,
+(q) => `https://www.tomshardware.com/search?searchTerm=${encodeURIComponent(q)}`,
+(q) => `https://arstechnica.com/search/?query=${encodeURIComponent(q)}`,
+(q) => `https://developer.mozilla.org/en-US/search?q=${encodeURIComponent(q)}`,
+
+  (q) => `https://www.nature.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.scientificamerican.com/search/?q=${encodeURIComponent(q)}`,
+(q) => `https://www.space.com/search?searchTerm=${encodeURIComponent(q)}`,
+(q) => `https://www.sciencenews.org/?s=${encodeURIComponent(q)}`,
+(q) => `https://www.livescience.com/search?searchTerm=${encodeURIComponent(q)}`,
+(q) => `https://www.nih.gov/search?query=${encodeURIComponent(q)}`,
+(q) => `https://www.mayoclinic.org/search/search-results?q=${encodeURIComponent(q)}`,
+(q) => `https://www.healthline.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.webmd.com/search/search_results/default.aspx?query=${encodeURIComponent(q)}`,
+(q) => `https://www.nationalgeographic.com/science/search?q=${encodeURIComponent(q)}`,
+
   (q) => `https://www.britannica.com/search?query=${encodeURIComponent(q)}`,
-  (q) => `https://www.petmd.com/search?query=${encodeURIComponent(q)}`
-];
+(q) => `https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(q)}`,
+(q) => `https://plato.stanford.edu/search/searcher.py?query=${encodeURIComponent(q)}`,
+(q) => `https://www.jstor.org/action/doBasicSearch?Query=${encodeURIComponent(q)}`,
+(q) => `https://scholar.google.com/scholar?q=${encodeURIComponent(q)}`,
+(q) => `https://www.coursehero.com/search/?q=${encodeURIComponent(q)}`,
+(q) => `https://quizlet.com/subject/${encodeURIComponent(q)}`,
+(q) => `https://www.sparknotes.com/search?q=${encodeURIComponent(q)}`,
+(q) => `https://www.ck12.org/search/?q=${encodeURIComponent(q)}`,
+(q) => `https://eric.ed.gov/?q=${encodeURIComponent(q)}`,
+
+  ];
 
 export async function handleSearch(query) {
   const isLink = /^https?:\/\/|^[\w-]+\.[a-z]{2,}/i.test(query);
