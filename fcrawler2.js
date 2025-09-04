@@ -65,11 +65,41 @@ function pickCategories(query) {
   return ["general"];
 }
 
+// 🔹 Try to extract official website (Wikipedia only for now)
+async function extractOfficialSite(query) {
+  try {
+    const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`;
+    const response = await axios.get(wikiUrl, {
+      headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
+      timeout: 8000,
+    });
+
+    const $ = cheerio.load(response.data);
+
+    // Wikipedia infobox "Official website" link
+    const officialLink = $('a.external.text:contains("Official website")').attr("href");
+
+    if (officialLink) {
+      return {
+        title: "Official Website",
+        url: officialLink,
+        favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=" + officialLink,
+        snippet: `The official site for ${query}`,
+        type: "fcards",
+      };
+    }
+  } catch (err) {
+    console.error("❌ Failed to extract official site:", err.message);
+  }
+  return null;
+}
+
 // 🔹 Normal search handler
 export async function handleNormalSearch(query) {
   const categories = pickCategories(query);
   const selectedSources = categories.flatMap((cat) => sourceCategories[cat]);
 
+  // Fetch all normal sources
   const requests = selectedSources.map(async (buildUrl) => {
     const url = buildUrl(query);
     try {
@@ -100,9 +130,15 @@ export async function handleNormalSearch(query) {
   });
 
   const results = await Promise.allSettled(requests);
-  const cards = results
+  let cards = results
     .filter((r) => r.status === "fulfilled" && r.value)
     .map((r) => r.value);
+
+  // Try to prepend official site if found
+  const officialCard = await extractOfficialSite(query);
+  if (officialCard) {
+    cards.unshift(officialCard);
+  }
 
   return cards.length > 0
     ? cards
