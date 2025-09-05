@@ -1,70 +1,35 @@
-// index.js
+// test-backend.js
 import express from "express";
 import cors from "cors";
-import { handleSearch } from "./fcrawler.js";
-import { signup, login } from "./faccount.js";
+import { signup } from "./faccount.js"; // make sure faccount.js exports signup
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3001;
 
 app.use(cors());
-app.use(express.json()); // ✅ to read JSON body
+app.use(express.json());
 
-// Root route
 app.get("/", (req, res) => {
-  res.send("Fweb backend is running 🚀");
+  res.send("Fweb test backend running 🚀");
 });
 
-// Search route
-app.get("/search", async (req, res) => {
-  const query = req.query.q;
-
-  if (!query) {
-    return res.status(400).json({ error: "No query provided" });
-  }
-
+// Test route to create your account
+app.get("/create-test-account", async (req, res) => {
   try {
-    const results = await handleSearch(query);
-    res.json(results);
-  } catch (err) {
-    console.error("❌ Backend error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
-  }
-});
+    const account = await signup({
+      firstname: "Francis",
+      lastname: "",
+      email: "nwankwofrancis2009@gmail.com",
+      password: "Onyedika",
+    });
 
-// Signup route
-app.post("/signup", async (req, res) => {
-  try {
-    const { firstname, lastname, email, password } = req.body;
-    if (!firstname || !lastname || !email || !password) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const account = await signup({ firstname, lastname, email, password });
     res.json({ success: true, account });
   } catch (err) {
-    console.error("❌ Signup error:", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("❌ Test signup error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Login route
-app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const user = await login({ email, password });
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error("❌ Login error:", err.message);
-    res.status(401).json({ error: err.message });
-  }
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Test backend running on port ${PORT}`);
 });
