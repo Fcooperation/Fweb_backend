@@ -12,17 +12,14 @@ export async function login({ email, password }) {
     .from("fwebaccount")
     .select("username, email, password_hash, status")
     .eq("email", email)
-    .eq("password_hash", password) // plain for now
+    .eq("password_hash", password) // plaintext for now
     .single();
 
   if (error || !data) {
     throw new Error("Invalid credentials");
   }
 
-  // Check status
-  if (data.status === "active") {
-    return { status: "active", username: data.username };
-  } else {
-    return { status: "not active", username: data.username };
-  }
+  // Return status to frontend
+  if (data.status === "active") return { status: "active", username: data.username };
+  return { status: "not active", username: data.username };
 }
