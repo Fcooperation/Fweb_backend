@@ -1,47 +1,73 @@
-// test-backend.js
+// index.js
 import express from "express";
 import cors from "cors";
-import { createClient } from "@supabase/supabase-js";
-
-// Supabase setup
-const supabaseUrl = "https://pwsxezhugsxosbwhkdvf.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { handleSearch } from "./fcrawler.js";
+import { signup, login } from "./faccount.js";
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // ✅ to read JSON body
 
+// Root route
 app.get("/", (req, res) => {
-  res.send("Fweb Supabase test backend running 🚀");
+res.send("Fweb backend is running 🚀");
 });
 
-// Route to save the test account
-app.get("/create-test-account", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("fwebaccount")
-      .insert([
-        {
-          username: "Francis",
-          email: "nwankwofrancis2009@gmail.com",
-          password_hash: "Onyedika",
-          status: "active",
-        },
-      ])
-      .select();
+// Search route
+app.get("/search", async (req, res) => {
+const query = req.query.q;
 
-    if (error) throw error;
+if (!query) {
+return res.status(400).json({ error: "No query provided" });
+}
 
-    res.json({ success: true, account: data[0] });
-  } catch (err) {
-    console.error("❌ Error saving test account:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
+try {
+const results = await handleSearch(query);
+res.json(results);
+} catch (err) {
+console.error("❌ Backend error:", err.message);
+res.status(500).json({ error: "Internal server error", details: err.message });
+}
 });
 
+// Signup route
+app.post("/signup", async (req, res) => {
+try {
+const { firstname, lastname, email, password } = req.body;
+if (!firstname || !lastname || !email || !password) {
+return res.status(400).json({ error: "Missing fields" });
+}
+
+const account = await signup({ firstname, lastname, email, password });  
+res.json({ success: true, account });
+
+} catch (err) {
+console.error("❌ Signup error:", err.message);
+res.status(500).json({ error: err.message });
+}
+});
+
+// Login route
+app.post("/login", async (req, res) => {
+try {
+const { email, password } = req.body;
+if (!email || !password) {
+return res.status(400).json({ error: "Missing fields" });
+}
+
+const user = await login({ email, password });  
+res.json({ success: true, user });
+
+} catch (err) {
+console.error("❌ Login error:", err.message);
+res.status(401).json({ error: err.message });
+}
+});
+
+// Start server
 app.listen(PORT, () => {
-  console.log(`✅ Test backend running on port ${PORT}`);
+console.log(✅ Server running on port ${PORT});
 });
+
