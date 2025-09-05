@@ -2,26 +2,23 @@
 import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
-import { signup, login } from "./faccount.js";
+import { login } from "./faccount.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json()); // ✅ to parse JSON bodies
+app.use(express.json()); // parse JSON
 
-// Root route
+// Root
 app.get("/", (req, res) => {
   res.send("Fweb backend is running 🚀");
 });
 
-// Search route
+// Search route (keep fcrawler)
 app.get("/search", async (req, res) => {
   const query = req.query.q;
-
-  if (!query) {
-    return res.status(400).json({ error: "No query provided" });
-  }
+  if (!query) return res.status(400).json({ error: "No query provided" });
 
   try {
     const results = await handleSearch(query);
@@ -32,31 +29,11 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// Signup route
-app.post("/signup", async (req, res) => {
-  try {
-    const { firstname, lastname, email, password } = req.body;
-
-    if (!firstname || !lastname || !email || !password) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const account = await signup({ firstname, lastname, email, password });
-    res.json({ success: true, account });
-  } catch (err) {
-    console.error("❌ Signup error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Login route
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
+    if (!email || !password) return res.status(400).json({ error: "Missing fields" });
 
     const user = await login({ email, password });
     res.json({ success: true, user });
@@ -66,7 +43,4 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
