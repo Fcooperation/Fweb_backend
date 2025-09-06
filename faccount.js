@@ -3,50 +3,38 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = "https://pwsxezhugsxosbwhkdvf.supabase.co";
 const supabaseAnonKey =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🔹 Login: fetch user and check status
 export async function login({ email, password }) {
-  let { data, error } = await supabase
-    .from("fwebaccount")
-    .select("username, email, status, created_at, suspended_until")
-    .eq("email", email)
-    .eq("password_hash", password) // plaintext for now
-    .single();
+const { data, error } = await supabase
+.from("fwebaccount")
+.select("username, email, status, created_at") // ✅ include created_at
+.eq("email", email)
+.eq("password_hash", password) // plaintext for now
+.single();
 
-  if (error || !data) {
-    throw new Error("Invalid credentials");
-  }
+if (error || !data) {
+throw new Error("Invalid credentials");
+}
 
-  // 🔹 Handle suspension expiry
-  if (data.status === "suspended" && data.suspended_until) {
-    const now = new Date();
-    const until = new Date(data.suspended_until);
+// 🔹 Reject if not active
+if (data.status !== "active") {
+return {
+status: "not active",
+email: data.email,
+username: data.username,
+created_at: data.created_at,
+};
+}
 
-    if (now >= until) {
-      // ✅ suspension expired → auto-reactivate
-      await supabase
-        .from("fwebaccount")
-        .update({ status: "active", suspended_until: null })
-        .eq("email", data.email);
-
-      data.status = "active";
-      data.suspended_until = null;
-    }
-  }
-
-  // 🔹 Reject suspended/banned accounts
-  if (data.status === "suspended" || data.status === "banned") {
-    throw new Error("Account is not active");
-  }
-
-  // 🔹 Return account info if active
-  return {
-    status: "active",
-    email: data.email,
-    username: data.username,
-    created_at: data.created_at,
-  };
+// 🔹 Return full account info
+return {
+status: "active",
+email: data.email,
+username: data.username,
+created_at: data.created_at,
+};
 }
