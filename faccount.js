@@ -2,40 +2,28 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = "https://pwsxezhugsxosbwhkdvf.supabase.co";
-const supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function login(req, res) {
-  const body = req.body || {};
-  const { email, password } = body;
+// 🔹 Pure login function (no req/res)
+export async function login({ email, password }) {
+  const { data: user, error } = await supabase
+    .from("fwebaccount")
+    .select("username, email, status, created_at, password_hash")
+    .eq("email", email)
+    .eq("password_hash", password) // ⚠ plaintext for now
+    .single();
 
-  if (!email || !password) {
-    return res.json({ success: false, error: "Email and password required" });
+  if (error || !user) {
+    throw new Error("Invalid credentials");
   }
 
-  try {
-    const { data: user, error } = await supabase
-      .from("fwebaccount")
-      .select("username, email, status, created_at, password_hash")
-      .eq("email", email)
-      .eq("password_hash", password) // ⚠ plaintext for now
-      .single();
-
-    if (error || !user) {
-      return res.json({ success: false, error: "Invalid credentials" });
-    }
-
-    return res.json({
-      success: true,
-      user: {
-        status: user.status,
-        email: user.email,
-        username: user.username,
-        created_at: user.created_at,
-      },
-    });
-  } catch (err) {
-    return res.json({ success: false, error: err.message });
-  }
+  return {
+    status: user.status,
+    email: user.email,
+    username: user.username,
+    created_at: user.created_at,
+  };
 }
