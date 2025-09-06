@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export async function login({ email, password }) {
   let { data, error } = await supabase
     .from("fwebaccount")
-    .select("username, email, status, created_at, suspended_until") // ✅ include suspended_until
+    .select("username, email, status, created_at, suspended_until")
     .eq("email", email)
     .eq("password_hash", password) // plaintext for now
     .single();
@@ -26,7 +26,7 @@ export async function login({ email, password }) {
     const until = new Date(data.suspended_until);
 
     if (now >= until) {
-      // suspension expired → update to active
+      // ✅ suspension expired → auto-reactivate
       await supabase
         .from("fwebaccount")
         .update({ status: "active", suspended_until: null })
@@ -37,12 +37,16 @@ export async function login({ email, password }) {
     }
   }
 
-  // 🔹 Return info
+  // 🔹 Reject suspended/banned accounts
+  if (data.status === "suspended" || data.status === "banned") {
+    throw new Error("Account is not active");
+  }
+
+  // 🔹 Return account info if active
   return {
-    status: data.status,
+    status: "active",
     email: data.email,
     username: data.username,
     created_at: data.created_at,
-    suspended_until: data.suspended_until,
   };
 }
