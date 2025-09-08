@@ -1,63 +1,39 @@
+// fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-// 🔹 Trusted sources grouped by category
+// 🔹 Trusted sources for text
 const sourceCategories = {
   general: [
     (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}`,
     (q) => `https://www.britannica.com/search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.quora.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.infoplease.com/search/${encodeURIComponent(q)}`,
-    (q) => `https://www.bbc.co.uk/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.theguardian.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.nationalgeographic.com/search?q=${encodeURIComponent(q)}`,
     (q) => `https://www.npr.org/search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.history.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(q)}`
+    (q) => `https://www.theguardian.com/search?q=${encodeURIComponent(q)}`
   ],
-
   tech: [
-    (q) => `https://techcrunch.com/search/${encodeURIComponent(q)}`,
-    (q) => `https://www.theverge.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.howtogeek.com/search/${encodeURIComponent(q)}`,
-    (q) => `https://www.makeuseof.com/?s=${encodeURIComponent(q)}`,
-    (q) => `https://www.zdnet.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.wired.com/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.digitaltrends.com/?s=${encodeURIComponent(q)}`,
-    (q) => `https://www.tomshardware.com/search?searchTerm=${encodeURIComponent(q)}`,
-    (q) => `https://arstechnica.com/search/?query=${encodeURIComponent(q)}`,
-    (q) => `https://developer.mozilla.org/en-US/search?q=${encodeURIComponent(q)}`
+    (q) => `https://www.techradar.com/search?q=${encodeURIComponent(q)}`,
+    (q) => `https://www.theverge.com/search?q=${encodeURIComponent(q)}`
   ],
-
   science: [
     (q) => `https://www.nature.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.scientificamerican.com/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.space.com/search?searchTerm=${encodeURIComponent(q)}`,
-    (q) => `https://www.sciencenews.org/?s=${encodeURIComponent(q)}`,
-    (q) => `https://www.livescience.com/search?searchTerm=${encodeURIComponent(q)}`,
-    (q) => `https://www.nih.gov/search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.mayoclinic.org/search/search-results?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.healthline.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.webmd.com/search/search_results/default.aspx?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.nationalgeographic.com/science/search?q=${encodeURIComponent(q)}`
+    (q) => `https://www.scientificamerican.com/search/?q=${encodeURIComponent(q)}`
   ],
-
   education: [
-    (q) => `https://plato.stanford.edu/search/searcher.py?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.jstor.org/action/doBasicSearch?Query=${encodeURIComponent(q)}`,
-    (q) => `https://scholar.google.com/scholar?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.coursehero.com/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://quizlet.com/subject/${encodeURIComponent(q)}`,
-    (q) => `https://www.sparknotes.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.ck12.org/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://eric.ed.gov/?q=${encodeURIComponent(q)}`,
-    (q) => `https://ocw.mit.edu/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.edx.org/search?q=${encodeURIComponent(q)}`
+    (q) => `https://scholar.google.com/scholar?q=${encodeURIComponent(q)}`
   ]
 };
 
-// 🔹 Common top-level domains
-const TLDs = [".com", ".org", ".net", ".io", ".co", ".ai", ".dev", ".app", ".info", ".edu"];
+// 🔹 Hardcoded image & video sites
+const imageSites = [
+  (q) => `https://unsplash.com/s/photos/${encodeURIComponent(q)}`,
+  (q) => `https://www.pexels.com/search/${encodeURIComponent(q)}/`,
+  (q) => `https://pixabay.com/images/search/${encodeURIComponent(q)}/`
+];
+
+const videoSites = [
+  (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
+  (q) => `https://vimeo.com/search?q=${encodeURIComponent(q)}`
+];
 
 // 🔹 Pick categories dynamically
 function pickCategories(query) {
@@ -68,93 +44,97 @@ function pickCategories(query) {
   return ["general"];
 }
 
-// 🔹 Try official site by appending TLDs
-async function tryOfficialDomains(query) {
-  if (query.includes(" ")) return null; // only one-word searches
-
-  for (const tld of TLDs) {
-    const url = `https://${query}${tld}`;
-    try {
-      const response = await axios.get(url, {
-        headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
-        timeout: 5000,
-      });
-
-      const $ = cheerio.load(response.data);
-
-      const title = $("title").first().text().trim() || url;
-      const snippet = $("p").first().text().trim().substring(0, 200) || `Official website for ${query}`;
-      const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
-
-      return {
-        title,
-        url,
-        favicon,
-        snippet,
-        type: "fcards",
-      };
-    } catch (err) {
-      // Try next TLD silently
-    }
+// 🔹 Fetch HTML and parse with cheerio
+async function fetchHTML(url) {
+  try {
+    const { data } = await axios.get(url, {
+      headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
+      timeout: 8000
+    });
+    return cheerio.load(data);
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
-// 🔹 Normal search handler
+// 🔹 Crawl text (fcards)
 export async function handleNormalSearch(query) {
   const categories = pickCategories(query);
-  const selectedSources = categories.flatMap((cat) => sourceCategories[cat]);
+  const selectedSources = categories.flatMap(cat => sourceCategories[cat]);
 
-  const requests = selectedSources.map(async (buildUrl) => {
+  const textResults = await Promise.all(selectedSources.map(async buildUrl => {
     const url = buildUrl(query);
-    try {
-      const response = await axios.get(url, {
-        headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
-        timeout: 8000,
-      });
+    const $ = await fetchHTML(url);
+    if (!$) return null;
 
-      const html = response.data;
-      const $ = cheerio.load(html);
+    const title = $("title").first().text().trim() || url;
+    const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
+    let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
+    if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
 
-      const title = $("title").first().text().trim() || url;
-      const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
-      let favicon =
-        $('link[rel="icon"]').attr("href") ||
-        $('link[rel="shortcut icon"]').attr("href") ||
-        "/favicon.ico";
+    return { type: "fcards", title, url, favicon, snippet };
+  }));
 
-      if (favicon && !favicon.startsWith("http")) {
-        favicon = new URL(favicon, url).href;
-      }
+  return textResults.filter(r => r);
+}
 
-      return { title, url, favicon, snippet, type: "fcards" };
-    } catch (err) {
-      console.error("❌ Fcards fetch failed for", url, err.message);
-      return null;
-    }
-  });
+// 🔹 Crawl images
+export async function handleImagesSearch(query) {
+  const results = [];
 
-  const results = await Promise.allSettled(requests);
-  let cards = results
-    .filter((r) => r.status === "fulfilled" && r.value)
-    .map((r) => r.value);
+  for (const buildUrl of imageSites) {
+    const url = buildUrl(query);
+    const $ = await fetchHTML(url);
+    if (!$) continue;
 
-  // 🔹 Prepend official site if found
-  const officialCard = await tryOfficialDomains(query);
-  if (officialCard) {
-    cards.unshift(officialCard);
+    $("img").each((i, el) => {
+      const src = $(el).attr("src") || $(el).attr("data-src");
+      const alt = $(el).attr("alt") || "Image";
+      if (src) results.push({ type: "image", src, title: alt });
+    });
   }
 
-  return cards.length > 0
-    ? cards
-    : [
-        {
-          title: "No Results",
-          url: null,
-          snippet: "No fcards could be generated for this query.",
-          html: null,
-          type: "fcards-empty",
-        },
-      ];
+  return results;
+}
+
+// 🔹 Crawl videos
+export async function handleVideoSearch(query) {
+  const results = [];
+
+  for (const buildUrl of videoSites) {
+    const url = buildUrl(query);
+    const $ = await fetchHTML(url);
+    if (!$) continue;
+
+    // YouTube parsing (simplified)
+    $("a").each((i, el) => {
+      const href = $(el).attr("href");
+      const title = $(el).attr("title") || $(el).text().trim() || "Video";
+      if (href && href.startsWith("/watch")) {
+        results.push({ type: "video", title, url: "https://youtube.com" + href });
+      }
+    });
+
+    // Vimeo parsing (simplified)
+    $("a").each((i, el) => {
+      const href = $(el).attr("href");
+      const title = $(el).text().trim() || "Video";
+      if (href && href.includes("/")) {
+        results.push({ type: "video", title, url: "https://vimeo.com" + href });
+      }
+    });
+  }
+
+  return results;
+}
+
+// 🔹 Combined search
+export async function handleFullSearch(query) {
+  const [fcards, images, videos] = await Promise.all([
+    handleNormalSearch(query),
+    handleImagesSearch(query),
+    handleVideoSearch(query)
+  ]);
+
+  return { fcards, images, videos };
 }
