@@ -1,21 +1,14 @@
-// index.js
-import express from "express";
-import cors from "cors";
-import { handleSearch } from "./fcrawler.js";
-import { login } from "./faccount.js";
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json()); // parse JSON
-
 // Root
 app.get("/", (req, res) => {
   res.send("Fweb backend is running 🚀");
 });
 
-// Search route (keep fcrawler)
+// Health check (pingable by UptimeRobot)
+app.get("/health", (req, res) => {
+  res.status(200).send("ok");
+});
+
+// Search route
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "No query provided" });
@@ -42,5 +35,3 @@ app.post("/login", async (req, res) => {
     res.status(401).json({ error: err.message });
   }
 });
-
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
