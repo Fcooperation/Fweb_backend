@@ -2,7 +2,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-// 🔹 Trusted sources for text, images, videos
+// 🔹 Trusted sources for text
 const sourceCategories = {
   general: [
     (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}`,
@@ -23,16 +23,18 @@ const sourceCategories = {
   ]
 };
 
-// 🔹 Hardcoded image/video-only sites (for completeness)
+// 🔹 Hardcoded image & video sites
 const imageSites = [
   (q) => `https://unsplash.com/s/photos/${encodeURIComponent(q)}`,
   (q) => `https://www.pexels.com/search/${encodeURIComponent(q)}/`,
-  (q) => `https://pixabay.com/images/search/${encodeURIComponent(q)}/`
+  (q) => `https://pixabay.com/images/search/${encodeURIComponent(q)}/`,
+  (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}` // added Wikipedia images
 ];
 
 const videoSites = [
   (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
-  (q) => `https://vimeo.com/search?q=${encodeURIComponent(q)}`
+  (q) => `https://vimeo.com/search?q=${encodeURIComponent(q)}`,
+  (q) => `https://www.theguardian.com/uk/video` // example video section
 ];
 
 // 🔹 Pick categories dynamically
@@ -44,7 +46,7 @@ function pickCategories(query) {
   return ["general"];
 }
 
-// 🔹 Fetch HTML safely
+// 🔹 Fetch HTML and parse with cheerio
 async function fetchHTML(url) {
   try {
     const { data } = await axios.get(url, {
@@ -57,63 +59,88 @@ async function fetchHTML(url) {
   }
 }
 
-// 🔹 Crawl text, images, videos from a source
-async function crawlSource(buildUrl, query) {
-  const url = buildUrl(query);
-  const $ = await fetchHTML(url);
-  if (!$) return { fcards: [], images: [], videos: [] };
+// 🔹 Crawl text (fcards)
+export async function handleNormalSearch(query) {
+  const categories = pickCategories(query);
+  const selectedSources = categories.flatMap(cat => sourceCategories[cat]);
 
-  // --- Text/Fcards ---
-  const title = $("title").first().text().trim() || url;
-  const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
-  let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
-  if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
+  const textResults = await Promise.all(selectedSources.map(async buildUrl => {
+    const url = buildUrl(query);
+    const $ = await fetchHTML(url);
+    if (!$) return null;
 
-  const fcards = [{ type: "fcards", title, url, favicon, snippet }];
+    const title = $("title").first().text().trim() || url;
+    const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
+    let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
+    if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
 
-  // --- Images ---
-  const images = [];
-  $("img").each((i, el) => {
-    let src = $(el).attr("src") || $(el).attr("data-src");
-    const alt = $(el).attr("alt") || "Image";
-    if (src) {
-      if (!src.startsWith("http")) src = new URL(src, url).href;
-      images.push({ type: "image", src, title: alt });
-    }
-  });
+    return { type: "fcards", title, url, favicon, snippet };
+  }));
 
-  // --- Videos ---
-  const videos = [];
-  $("a").each((i, el) => {
-    const href = $(el).attr("href");
-    const title = $(el).attr("title") || $(el).text().trim() || "Video";
-    if (!href) return;
-
-    // YouTube / Vimeo / links containing video extensions
-    if (href.includes("youtube.com/watch") || href.includes("vimeo.com") || href.endsWith(".mp4") || href.endsWith(".webm")) {
-      let videoUrl = href.startsWith("http") ? href : new URL(href, url).href;
-      videos.push({ type: "video", title, url: videoUrl });
-    }
-  });
-
-  return { fcards, images, videos };
+  return textResults.filter(r => r);
 }
 
-// 🔹 Full search
+// 🔹 Crawl images
+export async function handleImagesSearch(query) {
+  const results = [];
+
+  for (const buildUrl of imageSites) {
+    const url = buildUrl(query);
+    const $ = await fetchHTML(url);
+    if (!$) continue;
+
+    // Universal image selector
+    $("img").each((i, el) => {
+      let src = $(el).attr("src") || $(el).attr("data-src") || $(el).attr("data-lazy-src");
+      const alt = $(el).attr("alt") || "Image";
+
+      // Skip icons and tiny images
+      if (src && !src.includes("sprite") && !src.includes("logo") && !src.includes("icon")) {
+        // Fix relative URLs
+        if (src.startsWith("//")) src = "https:" + src;
+        if (src.startsWith("/")) src = new URL(src, url).href;
+        results.push({ type: "image", src, title: alt });
+      }
+    });
+  }
+
+  return results;
+}
+
+// 🔹 Crawl videos
+export async function handleVideoSearch(query) {
+  const results = [];
+
+  for (const buildUrl of videoSites) {
+    const url = buildUrl(query);
+    const $ = await fetchHTML(url);
+    if (!$) continue;
+
+    $("a").each((i, el) => {
+      const href = $(el).attr("href");
+      const title = $(el).attr("title") || $(el).text().trim() || "Video";
+
+      // YouTube links
+      if (href && href.startsWith("/watch")) results.push({ type: "video", title, url: "https://youtube.com" + href });
+
+      // Vimeo links
+      else if (href && href.includes("vimeo.com")) results.push({ type: "video", title, url: href });
+
+      // Guardian video links (example)
+      else if (href && href.includes("/video/")) results.push({ type: "video", title, url: "https://www.theguardian.com" + href });
+    });
+  }
+
+  return results;
+}
+
+// 🔹 Combined search
 export async function handleFullSearch(query) {
-  const categories = pickCategories(query);
-  const sources = categories.flatMap(cat => sourceCategories[cat]);
-
-  const results = await Promise.all(sources.map(src => crawlSource(src, query)));
-
-  // Also crawl dedicated image/video sites
-  const imageResults = await Promise.all(imageSites.map(src => crawlSource(src, query)));
-  const videoResults = await Promise.all(videoSites.map(src => crawlSource(src, query)));
-
-  // Combine results
-  const fcards = results.flatMap(r => r.fcards);
-  const images = [...results.flatMap(r => r.images), ...imageResults.flatMap(r => r.images)];
-  const videos = [...results.flatMap(r => r.videos), ...videoResults.flatMap(r => r.videos)];
+  const [fcards, images, videos] = await Promise.all([
+    handleNormalSearch(query),
+    handleImagesSearch(query),
+    handleVideoSearch(query)
+  ]);
 
   return { fcards, images, videos };
 }
