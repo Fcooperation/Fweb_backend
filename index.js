@@ -17,7 +17,13 @@ app.use(express.json());
 // Logging Middleware
 // ------------------------------
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`
+    );
+  });
   next();
 });
 
@@ -25,7 +31,7 @@ app.use((req, res, next) => {
 // Routes
 // ------------------------------
 
-// Health check route for uptime monitors
+// Health check route (pingable by uptime monitors)
 app.get("/health", (req, res) => {
   res.status(200).send("ok");
 });
@@ -37,6 +43,7 @@ app.get("/", (req, res) => {
 
 // Search route
 app.get("/search", async (req, res) => {
+  console.log(`🔍 Search requested: ${req.query.q}`);
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "No query provided" });
 
@@ -51,6 +58,7 @@ app.get("/search", async (req, res) => {
 
 // Login route
 app.post("/login", async (req, res) => {
+  console.log(`🔑 Login attempt: ${req.body.email}`);
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Missing fields" });
@@ -66,8 +74,8 @@ app.post("/login", async (req, res) => {
 // ------------------------------
 // Global Error Handlers
 // ------------------------------
-process.on("unhandledRejection", (err) => console.error("Unhandled Rejection:", err));
-process.on("uncaughtException", (err) => console.error("Uncaught Exception:", err));
+process.on("unhandledRejection", (err) => console.error("❌ Unhandled Rejection:", err));
+process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err));
 
 // ------------------------------
 // Start Server
