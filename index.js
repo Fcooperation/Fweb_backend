@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { handleNormalSearch } from "./fcrawler.js"; // ← updated Fcards function
+import { handleSearch } from "./fcrawler.js"; // ← updated Fcards function
 import { login } from "./faccount.js";
 import axios from "axios";
 import * as cheerio from "cheerio";
