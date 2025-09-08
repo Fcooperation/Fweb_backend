@@ -1,9 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { handleSearch } from "./fcrawler.js";
+import { handleNormalSearch } from "./fcrawler.js"; // ← updated Fcards function
 import { login } from "./faccount.js";
-import { fetchImages } from "./fimages.js"; // new
-import { fetchVideos } from "./fvids.js";   // new
+import axios from "axios";
+import * as cheerio from "cheerio";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +27,51 @@ app.use((req, res, next) => {
 });
 
 // ------------------------------
+// Helpers
+// ------------------------------
+
+// Bing Images
+async function fetchImages(query, limit = 40) {
+  const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&count=${limit}`;
+  try {
+    const response = await axios.get(url, { headers: { "User-Agent": "FwebBot/1.0" }, timeout: 8000 });
+    const $ = cheerio.load(response.data);
+    const images = [];
+    $("a.iusc").each((i, el) => {
+      if (images.length >= limit) return false;
+      try {
+        const m = $(el).attr("m");
+        const data = JSON.parse(m);
+        if (data?.murl) images.push({ url: data.murl, title: data.t || "" });
+      } catch {}
+    });
+    return images;
+  } catch (err) {
+    console.error("❌ Image fetch failed:", err.message);
+    return [];
+  }
+}
+
+// YouTube Videos
+async function fetchVideos(query, limit = 20) {
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+  try {
+    const response = await axios.get(url, { headers: { "User-Agent": "FwebBot/1.0" }, timeout: 8000 });
+    const html = response.data;
+    const videoUrls = [];
+    const regex = /"videoId":"(.*?)"/g;
+    let match;
+    while ((match = regex.exec(html)) !== null && videoUrls.length < limit) {
+      videoUrls.push({ url: `https://www.youtube.com/watch?v=${match[1]}`, title: "" });
+    }
+    return videoUrls;
+  } catch (err) {
+    console.error("❌ Video fetch failed:", err.message);
+    return [];
+  }
+}
+
+// ------------------------------
 // Routes
 // ------------------------------
 
@@ -36,49 +81,20 @@ app.get("/health", (req, res) => res.status(200).send("ok"));
 // Root
 app.get("/", (req, res) => res.send("Fweb backend is running 🚀"));
 
-// Normal Search
+// Unified Search (Web + Images + Videos)
 app.get("/search", async (req, res) => {
-  console.log(`🔍 Search requested: ${req.query.q}`);
-  if (!req.query.q) return res.status(400).json({ error: "No query provided" });
-
-  try {
-    const results = await handleSearch(req.query.q);
-    res.json(results);
-  } catch (err) {
-    console.error("❌ Backend error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
-  }
-});
-
-// ------------------------------
-// Images search route
-// ------------------------------
-app.get("/fimages", async (req, res) => {
-  const query = req.query.q;
+  const query = req.query.q?.trim();
   if (!query) return res.status(400).json({ error: "No query provided" });
 
   try {
-    const images = await fetchImages(query);
-    res.json(images);
-  } catch (err) {
-    console.error("❌ Images fetch error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
-  }
-});
+    const webResults = await handleNormalSearch(query); // Fcards
+    const images = await fetchImages(query, 40);
+    const videos = await fetchVideos(query, 20);
 
-// ------------------------------
-// Videos search route
-// ------------------------------
-app.get("/fvids", async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: "No query provided" });
-
-  try {
-    const videos = await fetchVideos(query);
-    res.json(videos);
+    res.json({ web: webResults, images, videos });
   } catch (err) {
-    console.error("❌ Videos fetch error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
+    console.error("❌ Search error:", err);
+    res.status(500).json({ error: "Search failed" });
   }
 });
 
@@ -97,7 +113,9 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// ------------------------------
 // Global error handlers
+// ------------------------------
 process.on("unhandledRejection", (err) => console.error("❌ Unhandled Rejection:", err));
 process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err));
 
