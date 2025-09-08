@@ -1,11 +1,38 @@
-// Root
-app.get("/", (req, res) => {
-  res.send("Fweb backend is running 🚀");
+// index.js
+import express from "express";
+import cors from "cors";
+import { handleSearch } from "./fcrawler.js";
+import { login } from "./faccount.js";
+
+// ------------------------------
+// App Setup
+// ------------------------------
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// ------------------------------
+// Logging Middleware
+// ------------------------------
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
 });
 
-// Health check (pingable by UptimeRobot)
+// ------------------------------
+// Routes
+// ------------------------------
+
+// Health check route for uptime monitors
 app.get("/health", (req, res) => {
   res.status(200).send("ok");
+});
+
+// Root route
+app.get("/", (req, res) => {
+  res.send("Fweb backend is running 🚀");
 });
 
 // Search route
@@ -34,4 +61,17 @@ app.post("/login", async (req, res) => {
     console.error("❌ Login error:", err.message);
     res.status(401).json({ error: err.message });
   }
+});
+
+// ------------------------------
+// Global Error Handlers
+// ------------------------------
+process.on("unhandledRejection", (err) => console.error("Unhandled Rejection:", err));
+process.on("uncaughtException", (err) => console.error("Uncaught Exception:", err));
+
+// ------------------------------
+// Start Server
+// ------------------------------
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });
