@@ -1,3 +1,4 @@
+// index.js
 import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
@@ -14,10 +15,15 @@ app.use(express.json());
 // ------------------------------
 app.use((req, res, next) => {
   const start = Date.now();
+
+  // Always log incoming request immediately (optional)
+  console.log(`[INCOMING] ${req.method} ${req.url}`);
+
   res.on("finish", () => {
     const duration = Date.now() - start;
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`);
   });
+
   next();
 });
 
@@ -25,7 +31,7 @@ app.use((req, res, next) => {
 // Routes
 // ------------------------------
 
-// Health check
+// Health check (pingable by UptimeRobot)
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // Root
@@ -61,7 +67,7 @@ app.post("/login", async (req, res) => {
 });
 
 // ------------------------------
-// Global Error Handlers
+// Global error handlers
 // ------------------------------
 process.on("unhandledRejection", (err) => console.error("❌ Unhandled Rejection:", err));
 process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err));
