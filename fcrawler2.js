@@ -2,7 +2,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-// 🔹 Trusted sources for text
+// 🔹 Trusted sources for text, images, videos
 const sourceCategories = {
   general: [
     (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}`,
@@ -23,7 +23,7 @@ const sourceCategories = {
   ]
 };
 
-// 🔹 Hardcoded image & video sites
+// 🔹 Hardcoded image/video-only sites (for completeness)
 const imageSites = [
   (q) => `https://unsplash.com/s/photos/${encodeURIComponent(q)}`,
   (q) => `https://www.pexels.com/search/${encodeURIComponent(q)}/`,
@@ -44,7 +44,7 @@ function pickCategories(query) {
   return ["general"];
 }
 
-// 🔹 Fetch HTML and parse with cheerio
+// 🔹 Fetch HTML safely
 async function fetchHTML(url) {
   try {
     const { data } = await axios.get(url, {
@@ -57,84 +57,63 @@ async function fetchHTML(url) {
   }
 }
 
-// 🔹 Crawl text (fcards)
-export async function handleNormalSearch(query) {
-  const categories = pickCategories(query);
-  const selectedSources = categories.flatMap(cat => sourceCategories[cat]);
+// 🔹 Crawl text, images, videos from a source
+async function crawlSource(buildUrl, query) {
+  const url = buildUrl(query);
+  const $ = await fetchHTML(url);
+  if (!$) return { fcards: [], images: [], videos: [] };
 
-  const textResults = await Promise.all(selectedSources.map(async buildUrl => {
-    const url = buildUrl(query);
-    const $ = await fetchHTML(url);
-    if (!$) return null;
+  // --- Text/Fcards ---
+  const title = $("title").first().text().trim() || url;
+  const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
+  let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
+  if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
 
-    const title = $("title").first().text().trim() || url;
-    const snippet = $("p").first().text().trim().substring(0, 200) || "No snippet available.";
-    let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
-    if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
+  const fcards = [{ type: "fcards", title, url, favicon, snippet }];
 
-    return { type: "fcards", title, url, favicon, snippet };
-  }));
+  // --- Images ---
+  const images = [];
+  $("img").each((i, el) => {
+    let src = $(el).attr("src") || $(el).attr("data-src");
+    const alt = $(el).attr("alt") || "Image";
+    if (src) {
+      if (!src.startsWith("http")) src = new URL(src, url).href;
+      images.push({ type: "image", src, title: alt });
+    }
+  });
 
-  return textResults.filter(r => r);
+  // --- Videos ---
+  const videos = [];
+  $("a").each((i, el) => {
+    const href = $(el).attr("href");
+    const title = $(el).attr("title") || $(el).text().trim() || "Video";
+    if (!href) return;
+
+    // YouTube / Vimeo / links containing video extensions
+    if (href.includes("youtube.com/watch") || href.includes("vimeo.com") || href.endsWith(".mp4") || href.endsWith(".webm")) {
+      let videoUrl = href.startsWith("http") ? href : new URL(href, url).href;
+      videos.push({ type: "video", title, url: videoUrl });
+    }
+  });
+
+  return { fcards, images, videos };
 }
 
-// 🔹 Crawl images
-export async function handleImagesSearch(query) {
-  const results = [];
-
-  for (const buildUrl of imageSites) {
-    const url = buildUrl(query);
-    const $ = await fetchHTML(url);
-    if (!$) continue;
-
-    $("img").each((i, el) => {
-      const src = $(el).attr("src") || $(el).attr("data-src");
-      const alt = $(el).attr("alt") || "Image";
-      if (src) results.push({ type: "image", src, title: alt });
-    });
-  }
-
-  return results;
-}
-
-// 🔹 Crawl videos
-export async function handleVideoSearch(query) {
-  const results = [];
-
-  for (const buildUrl of videoSites) {
-    const url = buildUrl(query);
-    const $ = await fetchHTML(url);
-    if (!$) continue;
-
-    // YouTube parsing (simplified)
-    $("a").each((i, el) => {
-      const href = $(el).attr("href");
-      const title = $(el).attr("title") || $(el).text().trim() || "Video";
-      if (href && href.startsWith("/watch")) {
-        results.push({ type: "video", title, url: "https://youtube.com" + href });
-      }
-    });
-
-    // Vimeo parsing (simplified)
-    $("a").each((i, el) => {
-      const href = $(el).attr("href");
-      const title = $(el).text().trim() || "Video";
-      if (href && href.includes("/")) {
-        results.push({ type: "video", title, url: "https://vimeo.com" + href });
-      }
-    });
-  }
-
-  return results;
-}
-
-// 🔹 Combined search
+// 🔹 Full search
 export async function handleFullSearch(query) {
-  const [fcards, images, videos] = await Promise.all([
-    handleNormalSearch(query),
-    handleImagesSearch(query),
-    handleVideoSearch(query)
-  ]);
+  const categories = pickCategories(query);
+  const sources = categories.flatMap(cat => sourceCategories[cat]);
+
+  const results = await Promise.all(sources.map(src => crawlSource(src, query)));
+
+  // Also crawl dedicated image/video sites
+  const imageResults = await Promise.all(imageSites.map(src => crawlSource(src, query)));
+  const videoResults = await Promise.all(videoSites.map(src => crawlSource(src, query)));
+
+  // Combine results
+  const fcards = results.flatMap(r => r.fcards);
+  const images = [...results.flatMap(r => r.images), ...imageResults.flatMap(r => r.images)];
+  const videos = [...results.flatMap(r => r.videos), ...videoResults.flatMap(r => r.videos)];
 
   return { fcards, images, videos };
 }
