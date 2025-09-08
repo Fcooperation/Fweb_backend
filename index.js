@@ -1,12 +1,8 @@
-// index.js
 import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
 import { login } from "./faccount.js";
 
-// ------------------------------
-// App Setup
-// ------------------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -14,15 +10,13 @@ app.use(cors());
 app.use(express.json());
 
 // ------------------------------
-// Logging Middleware
+// Logging middleware
 // ------------------------------
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    console.log(
-      `[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`
-    );
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`);
   });
   next();
 });
@@ -31,24 +25,19 @@ app.use((req, res, next) => {
 // Routes
 // ------------------------------
 
-// Health check route (pingable by uptime monitors)
-app.get("/health", (req, res) => {
-  res.status(200).send("ok");
-});
+// Health check
+app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// Root route
-app.get("/", (req, res) => {
-  res.send("Fweb backend is running 🚀");
-});
+// Root
+app.get("/", (req, res) => res.send("Fweb backend is running 🚀"));
 
-// Search route
+// Search
 app.get("/search", async (req, res) => {
   console.log(`🔍 Search requested: ${req.query.q}`);
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: "No query provided" });
+  if (!req.query.q) return res.status(400).json({ error: "No query provided" });
 
   try {
-    const results = await handleSearch(query);
+    const results = await handleSearch(req.query.q);
     res.json(results);
   } catch (err) {
     console.error("❌ Backend error:", err.message);
@@ -56,13 +45,13 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// Login route
+// Login
 app.post("/login", async (req, res) => {
   console.log(`🔑 Login attempt: ${req.body.email}`);
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Missing fields" });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Missing fields" });
 
+  try {
     const user = await login({ email, password });
     res.json({ success: true, user });
   } catch (err) {
@@ -80,6 +69,4 @@ process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:"
 // ------------------------------
 // Start Server
 // ------------------------------
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
