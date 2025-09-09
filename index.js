@@ -16,8 +16,7 @@ app.use(express.json());
 // ------------------------------
 app.use((req, res, next) => {
 const start = Date.now();
-console.log([INCOMING] ${req.method} ${req.url});
-
+console.log(`[INCOMING] ${req.method} ${req.url}`);
 res.on("finish", () => {
 const duration = Date.now() - start;
 console.log([${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms);
