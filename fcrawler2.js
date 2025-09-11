@@ -100,11 +100,42 @@ async function tryOfficialDomains(query) {
   return null;
 }
 
-// 🔹 Normal search handler
+// 🔹 Image search (basic scrape from DuckDuckGo)
+async function fetchImages(query) {
+  try {
+    const url = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
+    const res = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      timeout: 8000,
+    });
+
+    const $ = cheerio.load(res.data);
+    const images = [];
+
+    $("img").each((i, el) => {
+      const src = $(el).attr("src");
+      if (src && src.startsWith("http")) {
+        images.push({
+          url: src,
+          alt: $(el).attr("alt") || query,
+          type: "image",
+        });
+      }
+    });
+
+    return images.slice(0, 10);
+  } catch (err) {
+    console.error("❌ Image fetch failed:", err.message);
+    return [];
+  }
+}
+
+// 🔹 Normal search handler (now returns fcards + images)
 export async function handleNormalSearch(query) {
   const categories = pickCategories(query);
   const selectedSources = categories.flatMap((cat) => sourceCategories[cat]);
 
+  // 🔹 Fcards fetch
   const requests = selectedSources.map(async (buildUrl) => {
     const url = buildUrl(query);
     try {
@@ -143,15 +174,26 @@ export async function handleNormalSearch(query) {
     cards.unshift(officialCard);
   }
 
-  return cards.length > 0
-    ? cards
-    : [
-        {
-          title: "No Results",
-          url: null,
-          snippet: "No fcards could be generated for this query.",
-          html: null,
-          type: "fcards-empty",
-        },
-      ];
+  // 🔹 Fetch images
+  const images = await fetchImages(query);
+
+  // 🔹 Return both fcards + images
+  return {
+    fcards: cards.length > 0 ? cards : [
+      {
+        title: "No Results",
+        url: null,
+        snippet: "No fcards could be generated for this query.",
+        html: null,
+        type: "fcards-empty",
+      },
+    ],
+    images: images.length > 0 ? images : [
+      {
+        url: null,
+        alt: "No images found",
+        type: "image-empty",
+      },
+    ],
+  };
 }
