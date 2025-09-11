@@ -1,41 +1,34 @@
 // fimages.js
 import axios from "axios";
-import * as cheerio from "cheerio";
 
-/**
- * Fetch images based on a query.
- * @param {string} query - The search term
- * @returns {Promise<Array<{ url: string, thumbnail: string }>>}
- */
 export async function fetchImages(query) {
-  try {
-    // Use DuckDuckGo image search (no API key needed)
-    const searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
+  if (!query) return [];
 
-    const { data } = await axios.get(searchUrl, {
+  try {
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2`;
+
+    const response = await axios.get(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
       },
     });
 
-    const $ = cheerio.load(data);
-    const results = [];
+    // ✅ Match both raw and escaped "murl"
+    const matches = [
+      ...response.data.matchAll(/"murl":"([^"]+)"/g),          // normal
+      ...response.data.matchAll(/\\"murl\\":\\"(https:[^"]+)\\"/g), // escaped
+    ];
 
-    $("img").each((i, el) => {
-      const src = $(el).attr("src");
-      if (src && src.startsWith("http")) {
-        results.push({
-          url: src,
-          thumbnail: src,
-        });
-      }
-    });
+    const results = matches.map((m) => ({
+      url: m[1].replace(/\\\//g, "/"), // fix slashes if escaped
+      thumbnail: m[1].replace(/\\\//g, "/"),
+      source: `https://www.bing.com/images/search?q=${encodeURIComponent(query)}`,
+    }));
 
-    // Limit results
     return results.slice(0, 20);
   } catch (err) {
-    console.error("❌ fetchImages error:", err.message);
+    console.error("❌ Bing image fetch failed:", err.message);
     return [];
   }
 }
