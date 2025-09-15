@@ -87,7 +87,7 @@ export const sourceCategories = {
     (q) => `https://www.ku.ac.ke/search?search_api_fulltext=${encodeURIComponent(q)}`
   ]
 };
- // 🔹 Top-level domains for official domain testing
+// 🔹 Top-level domains for official domain testing
 export const TLDs = [
   // 🔹 Generic / global
   ".com", ".org", ".net", ".io", ".co", ".ai", ".dev", ".app", ".info", ".edu",
@@ -111,6 +111,7 @@ export const TLDs = [
   ".online", ".media", ".digital", ".center", ".network", ".group", ".world", ".club", ".space", ".ventures",
   ".finance", ".fund", ".capital", ".market", ".shop", ".store", ".pro", ".expert", ".guru", ".coach"
 ];
+
 // 🔹 Pick categories dynamically
 function pickCategories(query) {
   const q = query.toLowerCase();
@@ -125,12 +126,11 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, '');
 }
 
-// 🔹 Try official site by appending TLDs (collect multiple results)
+// 🔹 Crawl all official TLD domains simultaneously
 async function tryOfficialDomains(query) {
   const domainQuery = normalizeForDomain(query);
-  const cards = [];
 
-  for (const tld of TLDs) {
+  const promises = TLDs.map(async (tld) => {
     const url = `https://${domainQuery}${tld}`;
     try {
       const response = await axios.get(url, {
@@ -143,21 +143,25 @@ async function tryOfficialDomains(query) {
       const snippet = $("p").first().text().trim().substring(0, 200) || `Official website for ${query}`;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
 
-      cards.push({ title, url, favicon, snippet, type: "fcards" });
+      return { title, url, favicon, snippet, type: "fcards" };
     } catch (err) {
-      // silently try next TLD
+      return null; // fail silently
     }
-  }
+  });
 
-  return cards.length > 0 ? cards : null;
+  const results = await Promise.allSettled(promises);
+
+  return results
+    .filter(r => r.status === "fulfilled" && r.value)
+    .map(r => r.value)
+    .filter(Boolean);
 }
 
-// 🔹 Normal search handler
-export async function handleNormalSearch(query) {
-  const categories = pickCategories(query);
-  const selectedSources = categories.flatMap((cat) => sourceCategories[cat]);
+// 🔹 Crawl all source sites simultaneously
+async function crawlSources(query, categories) {
+  const selectedSources = categories.flatMap(cat => sourceCategories[cat]);
 
-  const requests = selectedSources.map(async (buildUrl) => {
+  const promises = selectedSources.map(async (buildUrl) => {
     const url = buildUrl(query);
     try {
       const response = await axios.get(url, {
@@ -184,14 +188,25 @@ export async function handleNormalSearch(query) {
     }
   });
 
-  const results = await Promise.allSettled(requests);
-  let cards = results
-    .filter((r) => r.status === "fulfilled" && r.value)
-    .map((r) => r.value);
+  const results = await Promise.allSettled(promises);
 
-  // 🔹 Prepend all official sites if found
-  const officialCards = await tryOfficialDomains(query);
-  if (officialCards) cards.unshift(...officialCards);
+  return results
+    .filter(r => r.status === "fulfilled" && r.value)
+    .map(r => r.value)
+    .filter(Boolean);
+}
+
+// 🔹 Normal search handler (fully parallel)
+export async function handleNormalSearch(query) {
+  const categories = pickCategories(query);
+
+  // 🔹 Crawl both official domains and source sites simultaneously
+  const [officialCards, sourceCards] = await Promise.all([
+    tryOfficialDomains(query),
+    crawlSources(query, categories)
+  ]);
+
+  const cards = [...(officialCards || []), ...(sourceCards || [])];
 
   return cards.length > 0
     ? cards
