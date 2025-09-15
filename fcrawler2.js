@@ -2,7 +2,6 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 
 // 🔹 Trusted sources grouped by category
-// 🔹 Trusted sources grouped by category
 export const sourceCategories = {
   general: [
     (q) => `https://en.wikipedia.org/wiki/${encodeURIComponent(q)}`,
@@ -15,17 +14,17 @@ export const sourceCategories = {
     (q) => `https://www.npr.org/search?query=${encodeURIComponent(q)}`,
     (q) => `https://www.history.com/search?q=${encodeURIComponent(q)}`,
     (q) => `https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(q)}`,
-    
-    // 🔹 African general sources
-    (q) => `https://www.sabcnews.com/sabcsearch/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.timeslive.co.za/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.news24.com/search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.ghanaweb.com/Search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.vanguardngr.com/?s=${encodeURIComponent(q)}`,
-    (q) => `https://www.dailytrust.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.thisdaylive.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.premiumtimesng.com/search?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.thecitizen.co.tz/search/?q=${encodeURIComponent(q)}`,
+
+    // 🔹 African general sources  
+    (q) => `https://www.sabcnews.com/sabcsearch/?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.timeslive.co.za/search/?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.news24.com/search?query=${encodeURIComponent(q)}`,  
+    (q) => `https://www.ghanaweb.com/Search/?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.vanguardngr.com/?s=${encodeURIComponent(q)}`,  
+    (q) => `https://www.dailytrust.com/search?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.thisdaylive.com/search?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.premiumtimesng.com/search?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.thecitizen.co.tz/search/?q=${encodeURIComponent(q)}`,  
     (q) => `https://www.nation.africa/search?search=${encodeURIComponent(q)}`
   ],
 
@@ -41,11 +40,11 @@ export const sourceCategories = {
     (q) => `https://arstechnica.com/search/?query=${encodeURIComponent(q)}`,
     (q) => `https://developer.mozilla.org/en-US/search?q=${encodeURIComponent(q)}`,
 
-    // 🔹 African tech sources (static / minimal JS)
-    (q) => `https://techpoint.africa/search/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.techzim.co.zw/?s=${encodeURIComponent(q)}`,
-    (q) => `https://www.itweb.co.za/search-results/?q=${encodeURIComponent(q)}`,
-    (q) => `https://www.businessdailyafrica.com/search/?q=${encodeURIComponent(q)}`,
+    // 🔹 African tech sources (static / minimal JS)  
+    (q) => `https://techpoint.africa/search/?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.techzim.co.zw/?s=${encodeURIComponent(q)}`,  
+    (q) => `https://www.itweb.co.za/search-results/?q=${encodeURIComponent(q)}`,  
+    (q) => `https://www.businessdailyafrica.com/search/?q=${encodeURIComponent(q)}`,  
     (q) => `https://www.techweez.com/?s=${encodeURIComponent(q)}`
   ],
 
@@ -61,10 +60,10 @@ export const sourceCategories = {
     (q) => `https://www.webmd.com/search/search_results/default.aspx?query=${encodeURIComponent(q)}`,
     (q) => `https://www.nationalgeographic.com/science/search?q=${encodeURIComponent(q)}`,
 
-    // 🔹 African science / health
-    (q) => `https://www.ajol.info/index.php/ajol/search/search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.health24.com/Search?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.medicalbrief.co.za/?s=${encodeURIComponent(q)}`,
+    // 🔹 African science / health  
+    (q) => `https://www.ajol.info/index.php/ajol/search/search?query=${encodeURIComponent(q)}`,  
+    (q) => `https://www.health24.com/Search?query=${encodeURIComponent(q)}`,  
+    (q) => `https://www.medicalbrief.co.za/?s=${encodeURIComponent(q)}`,  
     (q) => `https://www.ghanahealthservice.org/search.php?q=${encodeURIComponent(q)}`
   ],
 
@@ -80,33 +79,37 @@ export const sourceCategories = {
     (q) => `https://ocw.mit.edu/search/?q=${encodeURIComponent(q)}`,
     (q) => `https://www.edx.org/search?q=${encodeURIComponent(q)}`,
 
-    // 🔹 African education sources
-    (q) => `https://www.nou.edu.ng/search/node/${encodeURIComponent(q)}`,
-    (q) => `https://www.unisa.ac.za/sites/corporate/default/Search-Results?query=${encodeURIComponent(q)}`,
-    (q) => `https://www.uct.ac.za/search?search_api_fulltext=${encodeURIComponent(q)}`,
-    (q) => `https://www.ug.edu.gh/search/node/${encodeURIComponent(q)}`,
+    // 🔹 African education sources  
+    (q) => `https://www.nou.edu.ng/search/node/${encodeURIComponent(q)}`,  
+    (q) => `https://www.unisa.ac.za/sites/corporate/default/Search-Results?query=${encodeURIComponent(q)}`,  
+    (q) => `https://www.uct.ac.za/search?search_api_fulltext=${encodeURIComponent(q)}`,  
+    (q) => `https://www.ug.edu.gh/search/node/${encodeURIComponent(q)}`,  
     (q) => `https://www.ku.ac.ke/search?search_api_fulltext=${encodeURIComponent(q)}`
   ]
 };
-// 🔹 Top-level domains for official domain testing
+ // 🔹 Top-level domains for official domain testing
 export const TLDs = [
   // 🔹 Generic / global
   ".com", ".org", ".net", ".io", ".co", ".ai", ".dev", ".app", ".info", ".edu",
   ".biz", ".tech", ".online", ".site", ".store", ".web", ".me", ".cloud", ".xyz", ".pro",
   ".global", ".today", ".news", ".media", ".agency", ".solutions", ".systems", ".services",
   ".group", ".network", ".digital", ".world", ".center", ".space", ".company", ".studio", ".website",
+  ".tech", ".info", ".online", ".site", ".app", ".store", ".dev", ".cloud", ".network", ".digital",
+  ".solutions", ".services", ".group", ".world", ".center", ".space", ".company", ".studio", ".website",
+  ".news", ".live", ".press", ".tv", ".fm", ".music", ".video", ".photo", ".pictures", ".design",
 
   // 🔹 African country TLDs
   ".ng", ".za", ".ke", ".gh", ".tz", ".ug", ".eg", ".dz", ".ma", ".sn",
   ".ci", ".ml", ".cm", ".et", ".mu", ".bw", ".na", ".rw", ".zw", ".zm",
-  ".ls", ".mg", ".gh", ".sd", ".tn", ".ly", ".gn", ".bf", ".cg", ".gq",
-  ".er", ".dj", ".sc", ".km", ".so", ".st", ".cv", ".mw", ".ao", ".ml",
-  ".ne", ".td", ".mr", ".ss", ".ga", ".bi", ".bj", ".cg", ".km", ".ls",
-  ".sz", ".tg", ".gm", ".lr", ".sl", ".dj", ".re", ".yt", ".mu", ".ma",
+  ".ls", ".mg", ".sd", ".tn", ".ly", ".gn", ".bf", ".cg", ".gq", ".er",
+  ".dj", ".sc", ".km", ".so", ".st", ".cv", ".mw", ".ao", ".ne", ".td",
+  ".mr", ".ss", ".ga", ".bi", ".bj", ".sz", ".tg", ".gm", ".lr", ".sl",
+  ".re", ".yt", ".mu", ".ma", ".mw", ".zm", ".ke", ".tz", ".ug", ".za",
 
-  // 🔹 More generic for completeness
-  ".tech", ".info", ".online", ".site", ".app", ".store", ".dev", ".cloud", ".network", ".digital",
-  ".solutions", ".services", ".group", ".world", ".center", ".space", ".company", ".studio", ".website", ".news"
+  // 🔹 More generic / niche / tech
+  ".academy", ".solutions", ".systems", ".services", ".technology", ".consulting", ".engineering", ".institute", ".studio", ".company",
+  ".online", ".media", ".digital", ".center", ".network", ".group", ".world", ".club", ".space", ".ventures",
+  ".finance", ".fund", ".capital", ".market", ".shop", ".store", ".pro", ".expert", ".guru", ".coach"
 ];
 // 🔹 Pick categories dynamically
 function pickCategories(query) {
@@ -119,13 +122,13 @@ function pickCategories(query) {
 
 // 🔹 Helper: normalize any multi-word query for domains
 function normalizeForDomain(query) {
-  // Remove all non-alphanumeric characters and join words
   return query.replace(/[^a-zA-Z0-9]/g, '');
 }
 
-// 🔹 Try official site by appending TLDs
+// 🔹 Try official site by appending TLDs (collect multiple results)
 async function tryOfficialDomains(query) {
   const domainQuery = normalizeForDomain(query);
+  const cards = [];
 
   for (const tld of TLDs) {
     const url = `https://${domainQuery}${tld}`;
@@ -140,13 +143,13 @@ async function tryOfficialDomains(query) {
       const snippet = $("p").first().text().trim().substring(0, 200) || `Official website for ${query}`;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
 
-      return { title, url, favicon, snippet, type: "fcards" };
+      cards.push({ title, url, favicon, snippet, type: "fcards" });
     } catch (err) {
       // silently try next TLD
     }
   }
 
-  return null;
+  return cards.length > 0 ? cards : null;
 }
 
 // 🔹 Normal search handler
@@ -186,9 +189,9 @@ export async function handleNormalSearch(query) {
     .filter((r) => r.status === "fulfilled" && r.value)
     .map((r) => r.value);
 
-  // 🔹 Prepend official site if found
-  const officialCard = await tryOfficialDomains(query);
-  if (officialCard) cards.unshift(officialCard);
+  // 🔹 Prepend all official sites if found
+  const officialCards = await tryOfficialDomains(query);
+  if (officialCards) cards.unshift(...officialCards);
 
   return cards.length > 0
     ? cards
