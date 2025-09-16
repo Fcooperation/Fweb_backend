@@ -1,8 +1,8 @@
 // fai.js
 import fetch from "node-fetch";
 
-// Replace with your actual DeepSeek API key
-const DEEPSEEK_API_KEY = "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";
+// Replace with your OpenRouter API key
+const OPENROUTER_API_KEY = "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";
 
 /**
  * Fetches FAI response and related links for a query.
@@ -18,47 +18,38 @@ export async function fetchFAI(query) {
   if (!query) throw new Error("No query provided to FAI");
 
   try {
-    // ===== 1️⃣ Call DeepSeek AI endpoint =====
-    const aiResponse = await fetch("https://api.deepseek.ai/v1/ask", {
+    // ===== 1️⃣ Call OpenRouter DeepSeek model =====
+    const aiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        query,
-        mode: "concise", // or "detailed"
-        max_results: 1
+        model: "deepseek/deepseek-chat",
+        messages: [
+          { role: "system", content: "You are a helpful AI for Fweb search results." },
+          { role: "user", content: query }
+        ]
       })
     });
 
     const aiData = await aiResponse.json();
-    const answer = aiData?.response?.text || "No AI response available";
+    const answer =
+      aiData?.choices?.[0]?.message?.content || "No AI response available";
 
-    // ===== 2️⃣ Call DeepSeek search/links endpoint =====
-    const linksResponse = await fetch("https://api.deepseek.ai/v1/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        query,
-        max_results: 6 // number of Fcards
-      })
-    });
-
-    const linksData = await linksResponse.json();
-
-    const links = (linksData?.results || []).map(item => ({
-      title: item.title || item.url,
-      url: item.url,
-      snippet: item.snippet || "",
-      favicon: item.favicon || `https://www.google.com/s2/favicons?sz=64&domain_url=${item.url}`
-    }));
+    // ===== 2️⃣ (Placeholder) Links – since OpenRouter doesn’t return search links =====
+    // For now, we return empty links or mock Google links
+    const links = [
+      {
+        title: "Search more on Google",
+        url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+        snippet: "See additional results on Google.",
+        favicon: "https://www.google.com/favicon.ico",
+      }
+    ];
 
     return { answer, links };
-
   } catch (err) {
     console.error("❌ FAI fetch error:", err.message);
     throw new Error("Failed to fetch FAI data");
