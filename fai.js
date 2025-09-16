@@ -1,20 +1,53 @@
-// ffai.js
-import fetch from "node-fetch"; // if using node-fetch, or built-in fetch in Node 20+
+// fai.js
+import axios from "axios";
 
-export async function fetchFAI(query) {
-  // Simulate AI praising/answering
-  const answer = `💡 FAI Insight: You searched for "${query}". Here’s a concise explanation and relevant insights.`;
+// Replace with your DeepSeek/OpenRouter API key
+const DEEPSEEK_API_KEY = "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";
 
-  // Example: simulate related links from your fcrawler or Google
-  const links = [
-    { title: "Example Link 1", url: "https://example.com/1", favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=https://example.com/1", snippet: "Snippet for link 1" },
-    { title: "Example Link 2", url: "https://example.com/2", favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=https://example.com/2", snippet: "Snippet for link 2" },
-    { title: "Example Link 3", url: "https://example.com/3", favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=https://example.com/3", snippet: "Snippet for link 3" },
-  ];
+// Function to generate AI response and Fcards
+export async function handleFAI(query) {
+  if (!query) throw new Error("No query provided for FAI");
 
-  // In real implementation:
-  // 1. Use an AI model to generate the answer text.
-  // 2. Crawl/fetch relevant links using fcrawler logic.
+  try {
+    // 1️⃣ AI-generated response
+    const aiResponse = await axios.post(
+      "https://openrouter.ai/api/v1/responses",
+      {
+        model: "deepseek-r1:free",
+        input: `You are an intelligent search assistant. Analyze this search query and give a structured, informative, accurate, and well-formatted response, suitable to display at the top of search results:\n"${query}"`,
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${DEEPSEEK_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  return { answer, links };
+    const aiText = aiResponse.data.output?.[0]?.content?.[0]?.text || "No AI response";
+
+    // 2️⃣ Generate Fcards (dummy example — replace with real search/crawler logic)
+    // Here, you could integrate your fcrawler.js or call your search API
+    const fcards = [
+      {
+        title: `Example link for "${query}"`,
+        url: "https://example.com",
+        snippet: `This is a snippet describing the content of "${query}"`,
+        favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=https://example.com",
+        type: "link"
+      },
+      {
+        title: `Another example for "${query}"`,
+        url: "https://example.org",
+        snippet: "Another snippet for demonstration purposes",
+        favicon: "https://www.google.com/s2/favicons?sz=64&domain_url=https://example.org",
+        type: "link"
+      }
+    ];
+
+    return { aiText, fcards };
+  } catch (err) {
+    console.error("❌ FAI error:", err.message);
+    throw new Error("FAI request failed");
+  }
 }
