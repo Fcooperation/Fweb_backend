@@ -106,7 +106,22 @@ app.post("/login", async (req, res) => {
 // ------------------------------
 process.on("unhandledRejection", (err) => console.error("❌ Unhandled Rejection:", err));
 process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err));
+// ------------------------------
+// FAI Search route
+// ------------------------------
+app.get("/fai", async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.status(400).json({ error: "No query provided" });
 
+  try {
+    // fetchFAI returns structured { answer, links: [...] }
+    const faiResults = await fetchFAI(query);
+    res.json(faiResults);
+  } catch (err) {
+    console.error("❌ FAI error:", err.message);
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
 // ------------------------------
 // Start Server
 // ------------------------------
