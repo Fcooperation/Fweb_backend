@@ -1,14 +1,14 @@
 // fai.js
 import fetch from "node-fetch";
 
-// Replace with your actual OpenRouter API key
+// ⚠️ Use your actual OpenRouter API key
 const OPENROUTER_API_KEY = "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";
 
 /**
  * Fetches FAI response and related links for a query.
  * Returns an object:
  * {
- *   answer: "<HTML or structured text for top AI response>",
+ *   answer: "<AI response text>",
  *   links: [
  *     { title, url, snippet, favicon }
  *   ]
@@ -18,8 +18,8 @@ export async function fetchFAI(query) {
   if (!query) throw new Error("No query provided to FAI");
 
   try {
-    // ===== 1️⃣ Call OpenRouter DeepSeek chat model =====
-    const aiResponse = await fetch("https://openrouter.ai/v1/chat/completions", {
+    // ===== 1️⃣ Call OpenRouter DeepSeek =====
+    const aiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -28,26 +28,33 @@ export async function fetchFAI(query) {
       body: JSON.stringify({
         model: "deepseek/deepseek-chat",
         messages: [
-          { role: "system", content: "You are a helpful assistant." },
+          { role: "system", content: "You are a helpful assistant that gives concise useful answers." },
           { role: "user", content: query }
-        ],
-        stream: false
+        ]
       })
     });
 
-    const aiData = await aiResponse.json();
+    const rawText = await aiResponse.text();
+    console.log("🔍 Raw AI response:", rawText);
 
-    // Extract AI answer
-    const answer = aiData?.choices?.[0]?.message?.content || "No AI response available";
+    let aiData;
+    try {
+      aiData = JSON.parse(rawText);
+    } catch (e) {
+      throw new Error("OpenRouter returned non-JSON: " + rawText.slice(0, 200));
+    }
 
-    // ===== 2️⃣ Create fallback links (Fcards) =====
-    // OpenRouter DeepSeek doesn’t provide search results directly, so we fallback to Google
+    const answer =
+      aiData?.choices?.[0]?.message?.content?.trim() ||
+      "No AI response available";
+
+    // ===== 2️⃣ Build Fcards (links to search) =====
     const links = [
       {
-        title: `Search more on Google`,
+        title: "Search more on Google",
         url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-        snippet: `See additional results on Google.`,
-        favicon: `https://www.google.com/favicon.ico`
+        snippet: "See additional results on Google.",
+        favicon: "https://www.google.com/favicon.ico"
       }
     ];
 
@@ -55,15 +62,14 @@ export async function fetchFAI(query) {
 
   } catch (err) {
     console.error("❌ FAI fetch error:", err.message);
-    // Always return fallback Google link if something fails
     return {
-      answer: "No AI response available",
+      answer: "Error fetching AI response",
       links: [
         {
-          title: `Search more on Google`,
+          title: "Search manually on Google",
           url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `See additional results on Google.`,
-          favicon: `https://www.google.com/favicon.ico`
+          snippet: "See additional results on Google.",
+          favicon: "https://www.google.com/favicon.ico"
         }
       ]
     };
