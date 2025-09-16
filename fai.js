@@ -8,7 +8,7 @@ const DEEPSEEK_API_KEY = "sk-or-v1-4c55617d5f714f20c9350face4908a33888d66d25be08
  * Fetches FAI response and related links for a query.
  * Returns an object:
  * {
- *   fai: "<HTML or structured text for top AI response>",
+ *   answer: "<HTML or structured text for top AI response>",
  *   links: [
  *     { title, url, snippet, favicon }
  *   ]
@@ -27,17 +27,15 @@ export async function fetchFAI(query) {
       },
       body: JSON.stringify({
         query,
-        mode: "concise", // concise or detailed
+        mode: "concise", // or "detailed"
         max_results: 1
       })
     });
 
     const aiData = await aiResponse.json();
+    const answer = aiData?.response?.text || "No AI response available";
 
-    // Extract the AI text for top response
-    const faiText = aiData?.response?.text || "No AI response available";
-
-    // ===== 2️⃣ Call DeepSeek links/search endpoint =====
+    // ===== 2️⃣ Call DeepSeek search/links endpoint =====
     const linksResponse = await fetch("https://api.deepseek.ai/v1/search", {
       method: "POST",
       headers: {
@@ -59,8 +57,7 @@ export async function fetchFAI(query) {
       favicon: item.favicon || `https://www.google.com/s2/favicons?sz=64&domain_url=${item.url}`
     }));
 
-    // Return combined result
-    return { fai: faiText, links };
+    return { answer, links };
 
   } catch (err) {
     console.error("❌ FAI fetch error:", err.message);
