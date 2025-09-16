@@ -6,13 +6,6 @@ const OPENROUTER_API_KEY = "sk-or-v1-4c55617d5f714f20c9350face4908a33888d66d25be
 
 /**
  * Fetches FAI response and related links for a query.
- * Returns an object:
- * {
- *   answer: "<HTML or structured text for top AI response>",
- *   links: [
- *     { title, url, snippet, favicon }
- *   ]
- * }
  */
 export async function fetchFAI(query) {
   if (!query) throw new Error("No query provided to FAI");
@@ -30,16 +23,21 @@ export async function fetchFAI(query) {
         messages: [
           { role: "system", content: "You are a helpful AI for Fweb search results." },
           { role: "user", content: query }
-        ]
+        ],
+        stream: false
       })
     });
 
     const aiData = await aiResponse.json();
-    const answer =
-      aiData?.choices?.[0]?.message?.content || "No AI response available";
+    console.log("🔎 FAI raw response:", JSON.stringify(aiData, null, 2));
 
-    // ===== 2️⃣ (Placeholder) Links – since OpenRouter doesn’t return search links =====
-    // For now, we return empty links or mock Google links
+    // Safely extract AI message
+    const answer =
+      aiData?.choices?.[0]?.message?.content?.trim() ||
+      aiData?.choices?.[0]?.delta?.content?.trim() || // stream mode
+      "No AI response available";
+
+    // ===== 2️⃣ Links (fallback to Google) =====
     const links = [
       {
         title: "Search more on Google",
