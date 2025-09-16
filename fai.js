@@ -2,7 +2,7 @@
 import fetch from "node-fetch";
 
 // ⚠️ Use your actual OpenRouter API key
-const OPENROUTER_API_KEY = "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";
+const OPENROUTER_API_KEY = "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";
 
 /**
  * Fetches FAI response and related links for a query.
