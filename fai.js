@@ -5,22 +5,25 @@ const openai = new OpenAI({
   apiKey: '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',
   defaultHeaders: {
     'HTTP-Referer': '<YOUR_SITE_URL>', // Optional. Site URL for rankings on openrouter.ai.
-    'X-Title': '<YOUR_SITE_NAME>', // Optional. Site title for rankings on openrouter.ai.
+    'X-Title': '<YOUR_SITE_NAME>',     // Optional. Site title for rankings on openrouter.ai.
   },
 });
 
-async function main() {
+export async function fetchFAI(query) {
   const completion = await openai.chat.completions.create({
     model: 'openai/gpt-4o',
     messages: [
       {
         role: 'user',
-        content: 'What is the meaning of life?',
+        content: query,
       },
     ],
   });
 
-  console.log(completion.choices[0].message);
+  return completion.choices[0].message;
 }
 
-main();
+// 👇 Ensure it runs when you call `node index.js`
+if (import.meta.url === `file://${process.argv[1]}`) {
+  fetchFAI("What is the meaning of life?").then(console.log).catch(console.error);
+}
