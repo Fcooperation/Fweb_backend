@@ -1,44 +1,44 @@
 // fai.js
 import fetch from "node-fetch";
 
-// Replace with your OpenRouter API key (the one that worked ✅)
-const OPENROUTER_API_KEY = "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";
+// 🔑 Your OpenRouter API Key
+const OPENROUTER_API_KEY = "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";
 
-/**
- * Fetches AI response + generates related links for Fcards
- * Returns:
- * {
- *   answer: "AI’s response...",
- *   links: [ { title, url, snippet, favicon } ]
- * }
- */
+// 🧠 Fetch FAI response + related links
 export async function fetchFAI(query) {
   if (!query) throw new Error("No query provided to FAI");
 
   try {
-    // ===== 1️⃣ Call OpenRouter =====
-    const aiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    // 1️⃣ Call OpenRouter AI
+    const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`
       },
       body: JSON.stringify({
-        model: "deepseek/deepseek-chat", // the one that worked
+        // If OpenRouter rejects missing model, fallback to DeepSeek
+        model: "deepseek/deepseek-chat",
         messages: [
-          { role: "system", content: "You are a helpful assistant that gives concise answers." },
+          { role: "system", content: "You are FAI, a concise helpful assistant." },
           { role: "user", content: query }
-        ],
-        stream: false
+        ]
       })
     });
 
-    const aiData = await aiResponse.json();
-    console.log("🔍 Raw AI response:", JSON.stringify(aiData));
+    const rawText = await aiRes.text();
+    console.log("🔍 Raw AI response:", rawText);
 
-    const answer = aiData?.choices?.[0]?.message?.content || "No AI response available";
+    let aiData;
+    try {
+      aiData = JSON.parse(rawText);
+    } catch {
+      aiData = {};
+    }
 
-    // ===== 2️⃣ Generate Fcards links =====
+    const answer = aiData?.choices?.[0]?.message?.content?.trim() || "No AI response available";
+
+    // 2️⃣ Build fallback links (Google as source)
     const links = [
       {
         title: "Search more on Google",
