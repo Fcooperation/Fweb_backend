@@ -4,7 +4,7 @@ import { handleSearch } from "./fcrawler.js";
 import { login } from "./faccount.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
-
+import { fetchFAI } from "./fai.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
