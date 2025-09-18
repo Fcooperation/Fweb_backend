@@ -1,7 +1,7 @@
 // fai.js
 import fetch from "node-fetch";
 
-const HF_API_KEY = process.env.HF_API_KEY; // now taken from Render env
+const HF_API_KEY = process.env.HF_API_KEY; // use env from Render
 const MODEL = "meta-llama/Llama-3-8B-Instruct";
 
 export async function fetchFAI(query) {
