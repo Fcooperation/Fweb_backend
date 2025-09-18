@@ -1,26 +1,46 @@
-import OpenAI from 'openai';
+// fai.js
+import fetch from "node-fetch";
 
-const openai = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: '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',
-  defaultHeaders: {
-    'HTTP-Referer': '<YOUR_SITE_URL>', // Optional. Site URL for rankings on openrouter.ai.
-    'X-Title': '<YOUR_SITE_NAME>', // Optional. Site title for rankings on openrouter.ai.
-  },
-});
+const HF_API_KEY = process.env.HF_API_KEY; // now taken from Render env
+const MODEL = "meta-llama/Llama-3-8B-Instruct";
 
-async function main() {
-  const completion = await openai.chat.completions.create({
-    model: 'openai/gpt-4o',
-    messages: [
-      {
-        role: 'user',
-        content: 'What is the meaning of life?',
-      },
-    ],
+export async function fetchFAI(query) {
+  const response = await fetch(`https://api-inference.huggingface.co/models/${MODEL}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${HF_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ inputs: query }),
   });
 
-  console.log(completion.choices[0].message);
-}
+  if (!response.ok) {
+    throw new Error(`HF API error ${response.status}: ${await response.text()}`);
+  }
 
-main();
+  const result = await response.json();
+  const answer =
+    result[0]?.generated_text ||
+    result.generated_text ||
+    JSON.stringify(result);
+
+  const searchLinks = [
+    {
+      title: `Search results for ${query}`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+      favicon: "https://www.google.com/favicon.ico",
+    },
+    {
+      title: `Wikipedia - ${query}`,
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`,
+      favicon: "https://en.wikipedia.org/static/favicon/wikipedia.ico",
+    },
+    {
+      title: `News on ${query}`,
+      url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
+      favicon: "https://news.google.com/favicon.ico",
+    },
+  ];
+
+  return { answer, links: searchLinks };
+}
