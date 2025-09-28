@@ -1,8 +1,8 @@
 // fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";         // 🔹 Import TLDs
-import { sourceCategories } from "./sites.js";  // 🔹 Import sites
+import { TLDs } from "./tlds.js";              // 🔹 Import TLDs
+import { sourceCategories } from "./sites.js"; // 🔹 Import sites
 
 // Pick categories
 function pickCategories(query) {
@@ -81,24 +81,29 @@ async function crawlSources(query, categories) {
   return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 }
 
-// 🔹 Unified search
+// 🔹 Unified search with priority
 export async function handleNormalSearch(query) {
   const categories = pickCategories(query);
 
-  // Run TLD + Sources simultaneously
+  // Run both in parallel but prioritize TLD results
   const [officialCards, sourceCards] = await Promise.all([
     tryOfficialDomains(query),
     crawlSources(query, categories),
   ]);
 
-  const cards = [...officialCards, ...sourceCards];
+  if (officialCards.length > 0) {
+    return officialCards; // ✅ TLD found → stop here
+  }
 
-  return cards.length > 0
-    ? cards
-    : [{
-        title: "No Results",
-        url: null,
-        snippet: "No fcards could be generated for this query.",
-        type: "fcards-empty",
-      }];
+  if (sourceCards.length > 0) {
+    return sourceCards; // ✅ Sources found if no TLD
+  }
+
+  // Fallback
+  return [{
+    title: "No Results",
+    url: null,
+    snippet: "No fcards could be generated for this query.",
+    type: "fcards-empty",
+  }];
 }
