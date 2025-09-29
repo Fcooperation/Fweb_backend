@@ -67,7 +67,30 @@ async function fetchFcardsFromSources(query, sources) {
 }
 
 // --------------------
-// TLD fcards
+// TLD fcards (multi-word with first-word priority)
+// --------------------
+async function tryMultiWordTLDs(query) {
+  const words = query.trim().split(/\s+/);
+  let results = [];
+
+  if (words.length === 1) {
+    results = await tryOfficialDomains(words[0]);
+  } else {
+    // First word fcards
+    const firstWordFcards = await tryOfficialDomains(words[0]);
+
+    // Combined words fcards
+    const combinedWord = normalizeForDomain(words.join(""));
+    const combinedFcards = await tryOfficialDomains(combinedWord);
+
+    results = [...firstWordFcards, ...combinedFcards];
+  }
+
+  return results;
+}
+
+// --------------------
+// Single-word or multi-word TLD fetch
 // --------------------
 async function tryOfficialDomains(baseQuery) {
   const domainQuery = normalizeForDomain(baseQuery);
@@ -97,26 +120,26 @@ async function tryOfficialDomains(baseQuery) {
 // --------------------
 export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
+  const strippedQuery = stripDefinitionWords(query);
 
   // --------------------
-  // Prepare all fetches
+  // Prepare fetches
   // --------------------
   const wikiQuery = normalizeForWikipedia(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
 
-  // Run everything in parallel
-  const [knowledgeFcards, tldFcards] = await Promise.all([
+  const fetches = [
     definitionQuery ? fetchFcardsFromSources(wikiQuery, knowledgeSources) : Promise.resolve([]),
-    tryOfficialDomains(stripDefinitionWords(query))
-  ]);
+    tryMultiWordTLDs(strippedQuery)
+  ];
+
+  // Run everything in parallel
+  const [knowledgeFcards, tldFcards] = await Promise.all(fetches);
 
   // --------------------
   // Combine results
   // --------------------
-  const results = [
-    ...knowledgeFcards,
-    ...tldFcards
-  ];
+  const results = [...knowledgeFcards, ...tldFcards];
 
   // --------------------
   // Fallback if nothing found
