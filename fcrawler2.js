@@ -1,19 +1,18 @@
-// fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";
+import { TLDs } from "./TLDs.js";
 import { sourceCategories } from "./sites.js";
 import { definitionWords } from "./definitionWords.js";
 
 // --------------------
-// Helper: Normalize query
+// Helper: Normalize query for TLDs
 // --------------------
 function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "");
 }
 
 // --------------------
-// Check if query contains definition words
+// Check if query contains definition triggers
 // --------------------
 function isDefinitionQuery(query) {
   const lower = query.toLowerCase();
@@ -21,7 +20,7 @@ function isDefinitionQuery(query) {
 }
 
 // --------------------
-// Strip definition words from query for TLDs
+// Remove definition words for TLD testing
 // --------------------
 function stripDefinitionWords(query) {
   let result = query.toLowerCase();
@@ -35,7 +34,7 @@ function stripDefinitionWords(query) {
 }
 
 // --------------------
-// Knowledge / definition sources (~20 sites)
+// Knowledge / definition sites (~20)
 // --------------------
 const knowledgeSites = [
   "https://en.wikipedia.org",
@@ -64,7 +63,7 @@ const knowledgeSites = [
 // Fetch knowledge fcards
 // --------------------
 async function handleKnowledgeSources(query) {
-  const promises = knowledgeSites.map(async (site) => {
+  const promises = knowledgeSites.map(async site => {
     try {
       const url = `${site}/wiki/${encodeURIComponent(query)}`;
       const response = await axios.get(url, {
@@ -113,7 +112,7 @@ async function tryOfficialDomains(baseQuery) {
 }
 
 // --------------------
-// Category source fcards
+// Category sources fcards
 // --------------------
 async function crawlSources(query, categories) {
   const selectedSources = categories.flatMap(cat => sourceCategories[cat] || []);
@@ -140,13 +139,15 @@ async function crawlSources(query, categories) {
 }
 
 // --------------------
-// Generate Fcards (Definition + TLD + Combined)
+// Generate Fcards
 // --------------------
 async function generateFcards(query) {
   let results = [];
 
-  // Step 1: Knowledge sources (definition triggers)
-  if (isDefinitionQuery(query)) {
+  const definitionQuery = isDefinitionQuery(query);
+
+  // Step 1: Knowledge sources first if definition query
+  if (definitionQuery) {
     const knowledgeFcards = await handleKnowledgeSources(query);
     results.push(...knowledgeFcards);
   }
@@ -166,7 +167,7 @@ async function generateFcards(query) {
     results.push(...firstWordFcards, ...combinedFcards);
   }
 
-  // Step 3: Fallback to category sources if nothing
+  // Step 3: Fallback category sources
   if (results.length === 0) {
     const categories = pickCategories(query);
     const sourceFcards = await crawlSources(query, categories);
@@ -191,4 +192,15 @@ async function generateFcards(query) {
 // --------------------
 export async function handleNormalSearch(query) {
   return await generateFcards(query);
+}
+
+// --------------------
+// Category picker (unchanged)
+// --------------------
+function pickCategories(query) {
+  const q = query.toLowerCase();
+  if (q.includes("software") || q.includes("programming")) return ["tech"];
+  if (q.includes("health") || q.includes("science")) return ["science"];
+  if (q.includes("school") || q.includes("education")) return ["education"];
+  return ["general"];
 }
