@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./TLDs.js";
+import { TLDs } from "./tlds.js";
 import { sourceCategories } from "./sites.js";
 import { definitionWords } from "./definitionWords.js";
 
