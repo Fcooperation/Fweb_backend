@@ -8,16 +8,17 @@ import { definitionWords } from "./definitionWords.js";
 // Helpers
 // --------------------
 function normalizeForDomain(query) {
-  return query.replace(/[^a-zA-Z0-9]/g, "");
+  // Keep spaces for readability but remove special characters
+  return query.replace(/[^a-zA-Z0-9 ]/g, "");
 }
 
-// Normalize query for Wikipedia titles (capitalize words, replace spaces)
+// Wikipedia titles: capitalize words but keep spaces
 function normalizeForWikipedia(query) {
   const stripped = stripDefinitionWords(query);
   return stripped
     .split(/\s+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join("_");
+    .join(" "); // Keep spaces instead of "_"
 }
 
 function isDefinitionQuery(query) {
@@ -53,7 +54,10 @@ async function fetchFcardsFromSources(query, sources) {
       if (!snippet) return null;
 
       const title = $("title").first().text().trim() || url;
-      let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
+      let favicon =
+        $('link[rel="icon"]').attr("href") ||
+        $('link[rel="shortcut icon"]').attr("href") ||
+        "/favicon.ico";
       if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
 
       return { title, url, favicon, snippet, type: "fcards" };
@@ -71,22 +75,21 @@ async function fetchFcardsFromSources(query, sources) {
 // --------------------
 async function tryMultiWordTLDs(query) {
   const words = query.trim().split(/\s+/);
-  let results = [];
+  const promises = [];
 
   if (words.length === 1) {
-    results = await tryOfficialDomains(words[0]);
+    promises.push(tryOfficialDomains(words[0]));
   } else {
-    // First word fcards
-    const firstWordFcards = await tryOfficialDomains(words[0]);
-
-    // Combined words fcards
+    // First word
+    promises.push(tryOfficialDomains(words[0]));
+    // Combined words
     const combinedWord = normalizeForDomain(words.join(""));
-    const combinedFcards = await tryOfficialDomains(combinedWord);
-
-    results = [...firstWordFcards, ...combinedFcards];
+    promises.push(tryOfficialDomains(combinedWord));
   }
 
-  return results;
+  // Run all TLD checks simultaneously
+  const resultsArr = await Promise.all(promises);
+  return resultsArr.flat();
 }
 
 // --------------------
@@ -103,7 +106,9 @@ async function tryOfficialDomains(baseQuery) {
       });
       const $ = cheerio.load(response.data);
       const title = $("title").first().text().trim() || url;
-      const snippet = $("p").first().text().trim().substring(0, 200) || `Official site for ${baseQuery}`;
+      const snippet =
+        $("p").first().text().trim().substring(0, 200) ||
+        `Official site for ${baseQuery}`;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
       return { title, url, favicon, snippet, type: "fcards" };
     } catch {
@@ -122,9 +127,6 @@ export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
   const strippedQuery = stripDefinitionWords(query);
 
-  // --------------------
-  // Prepare fetches
-  // --------------------
   const wikiQuery = normalizeForWikipedia(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
 
@@ -136,14 +138,8 @@ export async function handleNormalSearch(query) {
   // Run everything in parallel
   const [knowledgeFcards, tldFcards] = await Promise.all(fetches);
 
-  // --------------------
-  // Combine results
-  // --------------------
   const results = [...knowledgeFcards, ...tldFcards];
 
-  // --------------------
-  // Fallback if nothing found
-  // --------------------
   if (results.length === 0) {
     return [{
       title: "No Results",
