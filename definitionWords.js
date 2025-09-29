@@ -4,6 +4,8 @@ export const definitionWords = [
   "definition of",
   "what is",
   "what's",
+  "what's a",
+  "what is a",
   "how to",
   "explain",
   "meaning of",
