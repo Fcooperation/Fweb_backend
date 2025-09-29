@@ -1,6 +1,8 @@
 // definitionWords.js
+
 export const definitionWords = [
   "define",
+  "define a",
   "definition of",
   "what is",
   "what's",
