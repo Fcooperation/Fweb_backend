@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";
+import { TLDs } from "./tlds.js";                 // lowercase filename
 import { sourceCategories } from "./sites.js";
 import { definitionWords } from "./definitionWords.js";
 
@@ -28,39 +28,17 @@ function stripDefinitionWords(query) {
 }
 
 // --------------------
-// Knowledge / definition sites (~20)
-// --------------------
-const knowledgeSites = [
-  "https://en.wikipedia.org",
-  "https://www.britannica.com",
-  "https://www.encyclopedia.com",
-  "https://www.howstuffworks.com",
-  "https://www.investopedia.com",
-  "https://www.dictionary.com",
-  "https://www.merriam-webster.com",
-  "https://www.thoughtco.com",
-  "https://www.sciencedirect.com",
-  "https://plato.stanford.edu",
-  "https://www.khanacademy.org",
-  "https://www.quora.com",
-  "https://simple.wikipedia.org",
-  "https://www.worldatlas.com",
-  "https://www.healthline.com",
-  "https://www.webmd.com",
-  "https://kids.britannica.com",
-  "https://www.nationalgeographic.com",
-  "https://www.techopedia.com",
-  "https://dictionary.cambridge.org"
-];
-
-// --------------------
-// Fetch knowledge fcards
+// Knowledge/definition fcards via sites.js
 // --------------------
 async function handleKnowledgeSources(query) {
-  const term = stripDefinitionWords(query); // extract main term
-  const promises = knowledgeSites.map(async site => {
+  const term = stripDefinitionWords(query);
+
+  // Use all categories for knowledge searches
+  const allSources = Object.values(sourceCategories).flat();
+  
+  const promises = allSources.map(async buildUrl => {
+    const url = buildUrl(term);
     try {
-      const url = `${site}/wiki/${encodeURIComponent(term)}`;
       const response = await axios.get(url, {
         headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
         timeout: 4000
@@ -68,8 +46,9 @@ async function handleKnowledgeSources(query) {
       const $ = cheerio.load(response.data);
       const snippet = $("p").first().text().trim().substring(0, 200);
       if (!snippet) return null;
-      const title = $("title").first().text().trim() || site;
-      const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${site}`;
+      const title = $("title").first().text().trim() || url;
+      let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || "/favicon.ico";
+      if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
       return { title, url, favicon, snippet, type: "fcards" };
     } catch {
       return null;
@@ -107,7 +86,7 @@ async function tryOfficialDomains(baseQuery) {
 }
 
 // --------------------
-// Category sources fcards
+// Fallback category sources fcards
 // --------------------
 async function crawlSources(query, categories) {
   const selectedSources = categories.flatMap(cat => sourceCategories[cat] || []);
@@ -141,12 +120,12 @@ async function generateFcards(query) {
 
   if (isDefinitionQuery(query)) {
     // --------------------
-    // Definition query → ONLY knowledge sites
+    // Definition queries → ONLY knowledge sources from sites.js
     // --------------------
     results = await handleKnowledgeSources(query);
   } else {
     // --------------------
-    // Normal query → TLDs + multi-word + fallback sources
+    // Normal queries → TLDs + multi-word + fallback sources
     // --------------------
     const cleanedQuery = stripDefinitionWords(query);
     const words = cleanedQuery.trim().split(/\s+/);
