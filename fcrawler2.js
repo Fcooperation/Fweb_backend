@@ -18,9 +18,28 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "");
 }
 
-// 🔹 Test all TLDs simultaneously
-async function tryOfficialDomains(query) {
-  const domainQuery = normalizeForDomain(query);
+// Special trigger keywords for knowledge sources
+const knowledgeTriggers = ["define", "what is", "how to"];
+const knowledgeSources = ["https://en.wikipedia.org", "https://www.britannica.com"];
+
+// 🔹 Generate fcards for knowledge triggers
+function handleKnowledgeTriggers(query) {
+  const lower = query.toLowerCase();
+  if (knowledgeTriggers.some(trigger => lower.startsWith(trigger))) {
+    return knowledgeSources.map(url => ({
+      title: url,
+      url,
+      snippet: `Knowledge source for "${query}"`,
+      favicon: `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`,
+      type: "fcards"
+    }));
+  }
+  return [];
+}
+
+// 🔹 Test all TLDs for a given base query
+async function tryOfficialDomains(baseQuery) {
+  const domainQuery = normalizeForDomain(baseQuery);
 
   const promises = TLDs.map(async (tld) => {
     const url = `https://${domainQuery}${tld}`;
@@ -34,7 +53,7 @@ async function tryOfficialDomains(query) {
       const title = $("title").first().text().trim() || url;
       const snippet =
         $("p").first().text().trim().substring(0, 200) ||
-        `Official website for ${query}`;
+        `Official website for ${baseQuery}`;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
 
       return { title, url, favicon, snippet, type: "fcards" };
@@ -81,29 +100,47 @@ async function crawlSources(query, categories) {
   return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 }
 
-// 🔹 Unified search with priority
+// 🔹 Generate fcards based on query rules
+async function generateFcards(query) {
+  // Handle special knowledge triggers first
+  const knowledgeFcards = handleKnowledgeTriggers(query);
+  if (knowledgeFcards.length > 0) return knowledgeFcards;
+
+  const words = query.trim().split(/\s+/);
+  let results = [];
+
+  if (words.length === 1) {
+    // Single word → test all TLDs
+    results = await tryOfficialDomains(words[0]);
+  } else {
+    // Multi-word → first word TLDs first
+    const firstWordFcards = await tryOfficialDomains(words[0]);
+    const combinedWord = normalizeForDomain(words.join(""));
+    const combinedFcards = await tryOfficialDomains(combinedWord);
+    results = [...firstWordFcards, ...combinedFcards];
+  }
+
+  // If no TLD results, try sources
+  if (results.length === 0) {
+    const categories = pickCategories(query);
+    const sourceFcards = await crawlSources(query, categories);
+    results = sourceFcards;
+  }
+
+  // Fallback if nothing found
+  if (results.length === 0) {
+    results = [{
+      title: "No Results",
+      url: null,
+      snippet: "No fcards could be generated for this query.",
+      type: "fcards-empty",
+    }];
+  }
+
+  return results;
+}
+
+// 🔹 Unified search entry point
 export async function handleNormalSearch(query) {
-  const categories = pickCategories(query);
-
-  // Run both in parallel but prioritize TLD results
-  const [officialCards, sourceCards] = await Promise.all([
-    tryOfficialDomains(query),
-    crawlSources(query, categories),
-  ]);
-
-  if (officialCards.length > 0) {
-    return officialCards; // ✅ TLD found → stop here
-  }
-
-  if (sourceCards.length > 0) {
-    return sourceCards; // ✅ Sources found if no TLD
-  }
-
-  // Fallback
-  return [{
-    title: "No Results",
-    url: null,
-    snippet: "No fcards could be generated for this query.",
-    type: "fcards-empty",
-  }];
+  return await generateFcards(query);
 }
