@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";
+import { TLDs } from "./tld.js";
 import { sourceCategories } from "./sites.js";
 import { definitionWords } from "./definitionWords.js";
 
@@ -67,7 +67,7 @@ async function handleKnowledgeSources(query) {
       });
       const $ = cheerio.load(response.data);
       const snippet = $("p").first().text().trim().substring(0, 200);
-      if (!snippet) return null; // skip if no content
+      if (!snippet) return null;
       const title = $("title").first().text().trim() || site;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${site}`;
       return { title, url, favicon, snippet, type: "fcards" };
@@ -139,43 +139,38 @@ async function crawlSources(query, categories) {
 async function generateFcards(query) {
   let results = [];
 
-  const definitionQuery = isDefinitionQuery(query);
-
-  // -------------------- 
-  // 1️⃣ Knowledge sources first
-  // --------------------
-  if (definitionQuery) {
-    const knowledgeFcards = await handleKnowledgeSources(query);
-    results.push(...knowledgeFcards);
-  }
-
-  // --------------------
-  // 2️⃣ TLDs
-  // --------------------
-  const cleanedQuery = stripDefinitionWords(query);
-  const words = cleanedQuery.trim().split(/\s+/);
-
-  if (words.length === 1) {
-    const tldFcards = await tryOfficialDomains(words[0]);
-    results.push(...tldFcards);
+  if (isDefinitionQuery(query)) {
+    // --------------------
+    // Definition query → ONLY knowledge sites
+    // --------------------
+    results = await handleKnowledgeSources(query);
   } else {
-    const firstWordFcards = await tryOfficialDomains(words[0]);
-    const combinedWord = normalizeForDomain(words.join(""));
-    const combinedFcards = await tryOfficialDomains(combinedWord);
-    results.push(...firstWordFcards, ...combinedFcards);
+    // --------------------
+    // Normal query → TLDs + multi-word + fallback sources
+    // --------------------
+    const cleanedQuery = stripDefinitionWords(query);
+    const words = cleanedQuery.trim().split(/\s+/);
+
+    if (words.length === 1) {
+      const tldFcards = await tryOfficialDomains(words[0]);
+      results.push(...tldFcards);
+    } else {
+      const firstWordFcards = await tryOfficialDomains(words[0]);
+      const combinedWord = normalizeForDomain(words.join(""));
+      const combinedFcards = await tryOfficialDomains(combinedWord);
+      results.push(...firstWordFcards, ...combinedFcards);
+    }
+
+    // Fallback category sources
+    if (results.length === 0) {
+      const categories = pickCategories(query);
+      const sourceFcards = await crawlSources(query, categories);
+      results.push(...sourceFcards);
+    }
   }
 
   // --------------------
-  // 3️⃣ Fallback category sources
-  // --------------------
-  if (results.length === 0) {
-    const categories = pickCategories(query);
-    const sourceFcards = await crawlSources(query, categories);
-    results.push(...sourceFcards);
-  }
-
-  // --------------------
-  // 4️⃣ Fallback empty
+  // Fallback empty
   // --------------------
   if (results.length === 0) {
     results.push({
