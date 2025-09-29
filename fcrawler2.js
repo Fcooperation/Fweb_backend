@@ -1,27 +1,21 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";
+import { TLDs } from "./TLDs.js";
 import { sourceCategories } from "./sites.js";
 import { definitionWords } from "./definitionWords.js";
 
 // --------------------
-// Helper: Normalize query for TLDs
+// Helpers
 // --------------------
 function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "");
 }
 
-// --------------------
-// Check if query contains definition triggers
-// --------------------
 function isDefinitionQuery(query) {
   const lower = query.toLowerCase();
   return definitionWords.some(trigger => lower.startsWith(trigger));
 }
 
-// --------------------
-// Remove definition words for TLD testing
-// --------------------
 function stripDefinitionWords(query) {
   let result = query.toLowerCase();
   for (const trigger of definitionWords) {
@@ -63,16 +57,17 @@ const knowledgeSites = [
 // Fetch knowledge fcards
 // --------------------
 async function handleKnowledgeSources(query) {
+  const term = stripDefinitionWords(query); // extract main term
   const promises = knowledgeSites.map(async site => {
     try {
-      const url = `${site}/wiki/${encodeURIComponent(query)}`;
+      const url = `${site}/wiki/${encodeURIComponent(term)}`;
       const response = await axios.get(url, {
         headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
         timeout: 4000
       });
       const $ = cheerio.load(response.data);
       const snippet = $("p").first().text().trim().substring(0, 200);
-      if (!snippet) return null;
+      if (!snippet) return null; // skip if no content
       const title = $("title").first().text().trim() || site;
       const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${site}`;
       return { title, url, favicon, snippet, type: "fcards" };
@@ -146,13 +141,17 @@ async function generateFcards(query) {
 
   const definitionQuery = isDefinitionQuery(query);
 
-  // Step 1: Knowledge sources first if definition query
+  // -------------------- 
+  // 1️⃣ Knowledge sources first
+  // --------------------
   if (definitionQuery) {
     const knowledgeFcards = await handleKnowledgeSources(query);
     results.push(...knowledgeFcards);
   }
 
-  // Step 2: TLDs
+  // --------------------
+  // 2️⃣ TLDs
+  // --------------------
   const cleanedQuery = stripDefinitionWords(query);
   const words = cleanedQuery.trim().split(/\s+/);
 
@@ -160,21 +159,24 @@ async function generateFcards(query) {
     const tldFcards = await tryOfficialDomains(words[0]);
     results.push(...tldFcards);
   } else {
-    // Multi-word: first word then combined
     const firstWordFcards = await tryOfficialDomains(words[0]);
     const combinedWord = normalizeForDomain(words.join(""));
     const combinedFcards = await tryOfficialDomains(combinedWord);
     results.push(...firstWordFcards, ...combinedFcards);
   }
 
-  // Step 3: Fallback category sources
+  // --------------------
+  // 3️⃣ Fallback category sources
+  // --------------------
   if (results.length === 0) {
     const categories = pickCategories(query);
     const sourceFcards = await crawlSources(query, categories);
     results.push(...sourceFcards);
   }
 
-  // Step 4: Fallback empty
+  // --------------------
+  // 4️⃣ Fallback empty
+  // --------------------
   if (results.length === 0) {
     results.push({
       title: "No Results",
@@ -195,7 +197,7 @@ export async function handleNormalSearch(query) {
 }
 
 // --------------------
-// Category picker (unchanged)
+// Category picker
 // --------------------
 function pickCategories(query) {
   const q = query.toLowerCase();
