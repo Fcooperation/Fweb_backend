@@ -5,6 +5,7 @@ import { login } from "./faccount.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
+import { runFTrainer } from "./ftrainer.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -120,6 +121,20 @@ app.get("/fai", async (req, res) => {
   } catch (err) {
     console.error("❌ FAI error:", err.message);
     res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+// ------------------------------
+// Training route
+// ------------------------------
+app.post("/train", async (req, res) => {
+  console.log("⚡ Training request received:", req.body);
+
+  try {
+    const result = await runFTrainer(req.body); // call ftrainer
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error("❌ Training error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 // ------------------------------
