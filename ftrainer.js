@@ -1,27 +1,24 @@
 // ftrainer.js
 import axios from "axios";
-import FormData from "form-data"; // ensure this is installed
+import FormData from "form-data"; // important in Node.js
 
-export async function runFTrainer(datasetFile, params = {}) {
+export async function runFTrainer(payload) {
   try {
     const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train";
 
-    // Build multipart form-data payload
-    const formData = new FormData();
-    if (datasetFile) {
-      // datasetFile can be fs.createReadStream("path/to/file.csv") in Node
-      formData.append("dataset", datasetFile);
-    }
-    formData.append("parameters", JSON.stringify(params));
-    formData.append("gpu", params.gpu || "false");
-    formData.append("storage", params.storage || "drive");
+    let dataToSend, headers;
 
-    // Send to Colab backend
-    const res = await axios.post(colabUrl, formData, {
-      headers: formData.getHeaders(),
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      timeout: 1000 * 60 * 10 // allow 10 mins for training
+    if (payload instanceof FormData) {
+      dataToSend = payload;
+      headers = payload.getHeaders(); // <-- tells axios it's multipart/form-data
+    } else {
+      dataToSend = payload;
+      headers = { "Content-Type": "application/json" };
+    }
+
+    const res = await axios.post(colabUrl, dataToSend, {
+      headers,
+      timeout: 1000 * 60 * 10, // 10 min
     });
 
     const data = res.data;
