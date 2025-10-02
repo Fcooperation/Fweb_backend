@@ -4,7 +4,7 @@ import axios from "axios";
 export async function runFTrainer(payload) {
   try {
     // Your Colab ngrok endpoint (this should run training + save model + return results)
-    const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/";
+    const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train";
 
     // Send training request
     const res = await axios.post(colabUrl, payload, {
