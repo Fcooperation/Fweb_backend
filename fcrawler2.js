@@ -11,19 +11,6 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9 ]/g, "");
 }
 
-function normalizeForWikipedia(query) {
-  const stripped = stripDefinitionWords(query);
-  return stripped
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function isDefinitionQuery(query) {
-  const lower = query.toLowerCase();
-  return definitionWords.some(trigger => lower.startsWith(trigger));
-}
-
 function stripDefinitionWords(query) {
   let result = query.toLowerCase();
   for (const trigger of definitionWords) {
@@ -35,8 +22,20 @@ function stripDefinitionWords(query) {
   return result || query;
 }
 
+function isDefinitionQuery(query) {
+  return definitionWords.some(trigger => query.toLowerCase().startsWith(trigger));
+}
+
+function normalizeForWikipedia(query) {
+  const stripped = stripDefinitionWords(query);
+  return stripped
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 // --------------------
-// Fetch fcard from URL
+// Fetch fcard from a single URL
 // --------------------
 async function fetchFcard(url) {
   try {
@@ -71,7 +70,7 @@ function generateTLDUrls(query) {
 }
 
 // --------------------
-// Merge, score & highlight fcards
+// Merge, score, highlight, deduplicate
 // --------------------
 function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
   const seen = new Map();
@@ -114,25 +113,25 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
 export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
   const wikiQuery = normalizeForWikipedia(query);
-  const fullQuery = query;
+  const strippedQuery = stripDefinitionWords(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
 
   // --------------------
-  // Build all URLs for parallel fetch
+  // Build all URLs
   // --------------------
   const allUrls = [];
 
   // TLDs: full query
-  generateTLDUrls(fullQuery).forEach(url => allUrls.push(url));
+  generateTLDUrls(query).forEach(url => allUrls.push(url));
 
   // TLDs: first word if multi-word
-  const words = fullQuery.trim().split(/\s+/);
+  const words = query.trim().split(/\s+/);
   if (words.length > 1) generateTLDUrls(words[0]).forEach(url => allUrls.push(url));
 
-  // Sites.js sources: full query (important for definitions)
-  knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(fullQuery)));
+  // Knowledge sources: always include full query
+  knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(query)));
 
-  // Knowledge sources: wikiQuery if definitionQuery
+  // If definition query: also include wikiQuery in knowledge sources
   if (definitionQuery) knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(wikiQuery)));
 
   // --------------------
@@ -143,7 +142,7 @@ export async function handleNormalSearch(query) {
   let results = resultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 
   // --------------------
-  // Fallback for non-def queries: try wiki/definition sources if empty
+  // Fallback for non-def queries
   // --------------------
   if (results.length === 0 && !definitionQuery) {
     const defUrls = knowledgeSources.map(buildUrl => buildUrl(wikiQuery));
