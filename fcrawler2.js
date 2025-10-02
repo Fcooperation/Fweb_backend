@@ -88,8 +88,11 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
       seen.get(fcard.url).snippet += " " + highlightedSnippet;
     } else {
       let score = 1;
-      if (knowledgeSources.some(src => fcard.url.includes(src(wikiQuery).replace(/https?:\/\//, "")))) score = 3;
-      else if (TLDs.some(tld => fcard.url.endsWith(tld))) score = 2;
+      if (fcard.url.includes("wikipedia.org")) score = 5;
+      else if (fcard.url.includes("collinsdictionary.com")) score = 4;
+      else if (fcard.url.includes("britannica.com")) score = 3;
+      else if (knowledgeSources.some(src => fcard.url.includes(src(userQuery).replace(/https?:\/\//, "")))) score = 2;
+      else if (TLDs.some(tld => fcard.url.endsWith(tld))) score = 1;
 
       seen.set(fcard.url, { ...fcard, snippet: highlightedSnippet, score });
     }
@@ -101,46 +104,67 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
 }
 
 // --------------------
+// Helper to build Wikipedia URL
+// --------------------
+function buildWikipediaUrl(query) {
+  const normalized = query
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("_");
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(normalized)}`;
+}
+
+// --------------------
+// Helper to build Collins Dictionary URL
+// --------------------
+function buildCollinsUrl(query) {
+  const normalized = normalizeForDomain(query).replace(/ /g, "-");
+  return `https://www.collinsdictionary.com/dictionary/english/${encodeURIComponent(normalized)}`;
+}
+
+// --------------------
+// Helper to build Britannica URL
+// --------------------
+function buildBritannicaUrl(query) {
+  const normalized = query.split(/\s+/).join("_");
+  return `https://www.britannica.com/search?query=${encodeURIComponent(normalized)}`;
+}
+
+// --------------------
 // Unified fcard generation
 // --------------------
 export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
-  const wikiQuery = stripDefinitionWords(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
   const fullQuery = query;
+  const wikiQuery = stripDefinitionWords(query);
 
   let fetchPromises = [];
 
   if (definitionQuery) {
-    // Definition query order: Wikipedia → Collins → Britannica → other sites
-    const prioritizedSources = [];
-
-    // Wikipedia first
-    prioritizedSources.push(buildWikipediaUrl(wikiQuery));
-
-    // Collins & Britannica if available in sourceCategories
-    const collins = sourceCategories.collins ? sourceCategories.collins.map(fn => fn(fullQuery)) : [];
-    const britannica = sourceCategories.britannica ? sourceCategories.britannica.map(fn => fn(fullQuery)) : [];
-    const otherSites = knowledgeSources.map(fn => fn(fullQuery));
-
-    const allSites = [...prioritizedSources, ...collins, ...britannica, ...otherSites];
-    fetchPromises = allSites.map(url => fetchFcard(url, 4000)); // timeout 4s
+    // Definition query: prioritize Wikipedia → Collins → Britannica → other sites.js
+    const priorityUrls = [
+      buildWikipediaUrl(wikiQuery),
+      buildCollinsUrl(wikiQuery),
+      buildBritannicaUrl(wikiQuery),
+      ...knowledgeSources.map(fn => fn(fullQuery))
+    ];
+    fetchPromises = priorityUrls.map(url => fetchFcard(url, 4000));
   } else {
-    // Non-definition: fetch TLDs first
+    // Non-definition: TLDs first
     let tldUrls = generateTLDUrls(fullQuery);
     if (fullQuery.split(" ").length > 1) tldUrls = [...tldUrls, ...generateTLDUrls(fullQuery.split(" ")[0])];
-
     fetchPromises = tldUrls.map(url => fetchFcard(url, 4000));
   }
 
   // --------------------
-  // Fetch in parallel
+  // Fetch all URLs in parallel
   // --------------------
   let resultsArr = await Promise.allSettled(fetchPromises);
   let results = resultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 
   // --------------------
-  // Fallback: non-definition → fetch sites.js if TLDs empty
+  // Fallback for non-def queries → sites.js
   // --------------------
   if (!definitionQuery && results.length === 0) {
     const siteUrls = knowledgeSources.map(fn => fn(fullQuery));
@@ -164,15 +188,4 @@ export async function handleNormalSearch(query) {
   }
 
   return finalFcards;
-}
-
-// --------------------
-// Helper to build Wikipedia URL
-// --------------------
-function buildWikipediaUrl(query) {
-  const normalized = query
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join("_");
-  return `https://en.wikipedia.org/wiki/${encodeURIComponent(normalized)}`;
 }
