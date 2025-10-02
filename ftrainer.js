@@ -4,7 +4,7 @@ import axios from "axios";
 export async function runFTrainer(payload) {
   try {
     // Example: call your Colab ngrok/endpoint
-    const colabUrl = "https://YOUR-COLAB-NGROK-URL/run"; 
+    const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/"; 
     const res = await axios.post(colabUrl, payload, {
       headers: { "Content-Type": "application/json" }
     });
