@@ -16,18 +16,6 @@ function isDefinitionQuery(query) {
   return definitionWords.some(trigger => lower.startsWith(trigger));
 }
 
-// Keep full query for Wikipedia; we don't strip def words here
-function stripDefinitionWords(query) {
-  let result = query.toLowerCase();
-  for (const trigger of definitionWords) {
-    if (result.startsWith(trigger)) {
-      result = result.replace(trigger, "").trim();
-      break;
-    }
-  }
-  return result || query;
-}
-
 // --------------------
 // Fetch fcard from URL
 // --------------------
@@ -39,9 +27,7 @@ async function fetchFcard(url, timeout = 5000) {
     });
 
     const $ = cheerio.load(response.data);
-    const snippet = $("p").first().text().trim().substring(0, 300);
-    if (!snippet) return null;
-
+    const snippet = $("p").first().text().trim().substring(0, 300) || "No snippet available";
     const title = $("title").first().text().trim() || url;
     let favicon =
       $('link[rel="icon"]').attr("href") ||
@@ -53,6 +39,35 @@ async function fetchFcard(url, timeout = 5000) {
   } catch {
     return null;
   }
+}
+
+// --------------------
+// Wikipedia URL (full query)
+// --------------------
+function buildWikipediaUrlFullQuery(query) {
+  const capitalized = query.charAt(0).toUpperCase() + query.slice(1);
+  const wikiPath = capitalized.replace(/ /g, "_");
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiPath)}`;
+}
+
+// --------------------
+// Collins Dictionary URL (direct → search fallback)
+// --------------------
+function buildCollinsUrls(query) {
+  const normalized = normalizeForDomain(query).replace(/ /g, "-");
+  const direct = `https://www.collinsdictionary.com/dictionary/english/${encodeURIComponent(normalized)}`;
+  const search = `https://www.collinsdictionary.com/search/?q=${encodeURIComponent(query)}`;
+  return [direct, search];
+}
+
+// --------------------
+// Britannica URL (direct → search fallback)
+// --------------------
+function buildBritannicaUrls(query) {
+  const normalized = query.split(/\s+/).join("_");
+  const direct = `https://www.britannica.com/topic/${encodeURIComponent(normalized)}`;
+  const search = `https://www.britannica.com/search?query=${encodeURIComponent(query)}`;
+  return [direct, search];
 }
 
 // --------------------
@@ -105,31 +120,6 @@ function mergeAndScoreFcards(fcards, knowledgeSources, userQuery) {
 }
 
 // --------------------
-// Wikipedia URL (full query, keep def words)
-// --------------------
-function buildWikipediaUrlFullQuery(query) {
-  const capitalized = query.charAt(0).toUpperCase() + query.slice(1);
-  const wikiPath = capitalized.replace(/ /g, "_");
-  return `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiPath)}`;
-}
-
-// --------------------
-// Collins Dictionary URL
-// --------------------
-function buildCollinsUrl(query) {
-  const normalized = normalizeForDomain(query).replace(/ /g, "-");
-  return `https://www.collinsdictionary.com/dictionary/english/${encodeURIComponent(normalized)}`;
-}
-
-// --------------------
-// Britannica URL
-// --------------------
-function buildBritannicaUrl(query) {
-  const normalized = query.split(/\s+/).join("_");
-  return `https://www.britannica.com/search?query=${encodeURIComponent(normalized)}`;
-}
-
-// --------------------
 // Unified fcard generation
 // --------------------
 export async function handleNormalSearch(query) {
@@ -143,8 +133,8 @@ export async function handleNormalSearch(query) {
     // Definition query: Wikipedia → Collins → Britannica → other sites.js
     const priorityUrls = [
       buildWikipediaUrlFullQuery(fullQuery),
-      buildCollinsUrl(fullQuery),
-      buildBritannicaUrl(fullQuery),
+      ...buildCollinsUrls(fullQuery),
+      ...buildBritannicaUrls(fullQuery),
       ...knowledgeSources.map(fn => fn(fullQuery))
     ];
     fetchPromises = priorityUrls.map(url => fetchFcard(url, 4000));
