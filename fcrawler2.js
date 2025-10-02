@@ -11,6 +11,11 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9 ]/g, "");
 }
 
+function isDefinitionQuery(query) {
+  const lower = query.toLowerCase();
+  return definitionWords.some(trigger => lower.startsWith(trigger));
+}
+
 function stripDefinitionWords(query) {
   let result = query.toLowerCase();
   for (const trigger of definitionWords) {
@@ -22,20 +27,8 @@ function stripDefinitionWords(query) {
   return result || query;
 }
 
-function isDefinitionQuery(query) {
-  return definitionWords.some(trigger => query.toLowerCase().startsWith(trigger));
-}
-
-function normalizeForWikipedia(query) {
-  const stripped = stripDefinitionWords(query);
-  return stripped
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 // --------------------
-// Fetch fcard from a single URL
+// Fetch fcard from URL
 // --------------------
 async function fetchFcard(url) {
   try {
@@ -70,7 +63,7 @@ function generateTLDUrls(query) {
 }
 
 // --------------------
-// Merge, score, highlight, deduplicate
+// Merge, score & highlight fcards
 // --------------------
 function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
   const seen = new Map();
@@ -112,44 +105,41 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
 // --------------------
 export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
-  const wikiQuery = normalizeForWikipedia(query);
-  const strippedQuery = stripDefinitionWords(query);
+  const wikiQuery = stripDefinitionWords(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
 
   // --------------------
-  // Build all URLs
+  // Prepare URLs
   // --------------------
-  const allUrls = [];
+  let tldUrls = generateTLDUrls(query);
+  if (query.split(" ").length > 1) tldUrls = [...tldUrls, ...generateTLDUrls(query.split(" ")[0])];
 
-  // TLDs: full query
-  generateTLDUrls(query).forEach(url => allUrls.push(url));
-
-  // TLDs: first word if multi-word
-  const words = query.trim().split(/\s+/);
-  if (words.length > 1) generateTLDUrls(words[0]).forEach(url => allUrls.push(url));
-
-  // Knowledge sources: always include full query
-  knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(query)));
-
-  // If definition query: also include wikiQuery in knowledge sources
-  if (definitionQuery) knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(wikiQuery)));
+  const siteUrls = knowledgeSources.map(buildUrl => buildUrl(query));
 
   // --------------------
-  // Fetch all URLs in parallel
+  // Decide fetch order based on definition query
   // --------------------
-  const fetchPromises = allUrls.map(url => fetchFcard(url));
+  let fetchPromises = [];
+
+  if (definitionQuery) {
+    // Fetch sites.js sources in parallel
+    fetchPromises = siteUrls.map(url => fetchFcard(url));
+  } else {
+    // Fetch TLDs first + sites.js in parallel as fallback
+    fetchPromises = tldUrls.map(url => fetchFcard(url));
+  }
+
   let resultsArr = await Promise.allSettled(fetchPromises);
   let results = resultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 
   // --------------------
-  // Fallback for non-def queries
+  // Fallback for non-definition: TLD empty → fetch sites.js
   // --------------------
-  if (results.length === 0 && !definitionQuery) {
-    const defUrls = knowledgeSources.map(buildUrl => buildUrl(wikiQuery));
-    const defFetchPromises = defUrls.map(url => fetchFcard(url));
-    const defResultsArr = await Promise.allSettled(defFetchPromises);
-    const defResults = defResultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
-    results = defResults;
+  if (!definitionQuery && results.length === 0) {
+    const fallbackPromises = siteUrls.map(url => fetchFcard(url));
+    const fallbackArr = await Promise.allSettled(fallbackPromises);
+    const fallbackResults = fallbackArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+    results = fallbackResults;
   }
 
   // --------------------
