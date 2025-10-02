@@ -16,6 +16,7 @@ function isDefinitionQuery(query) {
   return definitionWords.some(trigger => lower.startsWith(trigger));
 }
 
+// Keep full query for Wikipedia; we don't strip def words here
 function stripDefinitionWords(query) {
   let result = query.toLowerCase();
   for (const trigger of definitionWords) {
@@ -65,7 +66,7 @@ function generateTLDUrls(query) {
 // --------------------
 // Merge, score & highlight fcards
 // --------------------
-function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
+function mergeAndScoreFcards(fcards, knowledgeSources, userQuery) {
   const seen = new Map();
   const queryWords = userQuery
     .trim()
@@ -104,18 +105,16 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
 }
 
 // --------------------
-// Helper to build Wikipedia URL
+// Wikipedia URL (full query, keep def words)
 // --------------------
-function buildWikipediaUrl(query) {
-  const normalized = query
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join("_");
-  return `https://en.wikipedia.org/wiki/${encodeURIComponent(normalized)}`;
+function buildWikipediaUrlFullQuery(query) {
+  const capitalized = query.charAt(0).toUpperCase() + query.slice(1);
+  const wikiPath = capitalized.replace(/ /g, "_");
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiPath)}`;
 }
 
 // --------------------
-// Helper to build Collins Dictionary URL
+// Collins Dictionary URL
 // --------------------
 function buildCollinsUrl(query) {
   const normalized = normalizeForDomain(query).replace(/ /g, "-");
@@ -123,7 +122,7 @@ function buildCollinsUrl(query) {
 }
 
 // --------------------
-// Helper to build Britannica URL
+// Britannica URL
 // --------------------
 function buildBritannicaUrl(query) {
   const normalized = query.split(/\s+/).join("_");
@@ -137,16 +136,15 @@ export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
   const fullQuery = query;
-  const wikiQuery = stripDefinitionWords(query);
 
   let fetchPromises = [];
 
   if (definitionQuery) {
-    // Definition query: prioritize Wikipedia → Collins → Britannica → other sites.js
+    // Definition query: Wikipedia → Collins → Britannica → other sites.js
     const priorityUrls = [
-      buildWikipediaUrl(wikiQuery),
-      buildCollinsUrl(wikiQuery),
-      buildBritannicaUrl(wikiQuery),
+      buildWikipediaUrlFullQuery(fullQuery),
+      buildCollinsUrl(fullQuery),
+      buildBritannicaUrl(fullQuery),
       ...knowledgeSources.map(fn => fn(fullQuery))
     ];
     fetchPromises = priorityUrls.map(url => fetchFcard(url, 4000));
@@ -176,7 +174,7 @@ export async function handleNormalSearch(query) {
   // --------------------
   // Merge, deduplicate, score & highlight
   // --------------------
-  const finalFcards = mergeAndScoreFcards(results, wikiQuery, knowledgeSources, query);
+  const finalFcards = mergeAndScoreFcards(results, knowledgeSources, query);
 
   if (finalFcards.length === 0) {
     return [{
