@@ -30,11 +30,11 @@ function stripDefinitionWords(query) {
 // --------------------
 // Fetch fcard from URL
 // --------------------
-async function fetchFcard(url) {
+async function fetchFcard(url, timeout = 5000) {
   try {
     const response = await axios.get(url, {
       headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
-      timeout: 5000
+      timeout
     });
 
     const $ = cheerio.load(response.data);
@@ -107,37 +107,44 @@ export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
   const wikiQuery = stripDefinitionWords(query);
   const knowledgeSources = Object.values(sourceCategories).flat();
+  const fullQuery = query;
 
-  // --------------------
-  // Prepare URLs
-  // --------------------
-  let tldUrls = generateTLDUrls(query);
-  if (query.split(" ").length > 1) tldUrls = [...tldUrls, ...generateTLDUrls(query.split(" ")[0])];
-
-  const siteUrls = knowledgeSources.map(buildUrl => buildUrl(query));
-
-  // --------------------
-  // Decide fetch order based on definition query
-  // --------------------
   let fetchPromises = [];
 
   if (definitionQuery) {
-    // Fetch sites.js sources in parallel
-    fetchPromises = siteUrls.map(url => fetchFcard(url));
+    // Definition query order: Wikipedia → Collins → Britannica → other sites
+    const prioritizedSources = [];
+
+    // Wikipedia first
+    prioritizedSources.push(buildWikipediaUrl(wikiQuery));
+
+    // Collins & Britannica if available in sourceCategories
+    const collins = sourceCategories.collins ? sourceCategories.collins.map(fn => fn(fullQuery)) : [];
+    const britannica = sourceCategories.britannica ? sourceCategories.britannica.map(fn => fn(fullQuery)) : [];
+    const otherSites = knowledgeSources.map(fn => fn(fullQuery));
+
+    const allSites = [...prioritizedSources, ...collins, ...britannica, ...otherSites];
+    fetchPromises = allSites.map(url => fetchFcard(url, 4000)); // timeout 4s
   } else {
-    // Fetch TLDs first + sites.js in parallel as fallback
-    fetchPromises = tldUrls.map(url => fetchFcard(url));
+    // Non-definition: fetch TLDs first
+    let tldUrls = generateTLDUrls(fullQuery);
+    if (fullQuery.split(" ").length > 1) tldUrls = [...tldUrls, ...generateTLDUrls(fullQuery.split(" ")[0])];
+
+    fetchPromises = tldUrls.map(url => fetchFcard(url, 4000));
   }
 
+  // --------------------
+  // Fetch in parallel
+  // --------------------
   let resultsArr = await Promise.allSettled(fetchPromises);
   let results = resultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
 
   // --------------------
-  // Fallback for non-definition: TLD empty → fetch sites.js
+  // Fallback: non-definition → fetch sites.js if TLDs empty
   // --------------------
   if (!definitionQuery && results.length === 0) {
-    const fallbackPromises = siteUrls.map(url => fetchFcard(url));
-    const fallbackArr = await Promise.allSettled(fallbackPromises);
+    const siteUrls = knowledgeSources.map(fn => fn(fullQuery));
+    const fallbackArr = await Promise.allSettled(siteUrls.map(url => fetchFcard(url, 5000)));
     const fallbackResults = fallbackArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
     results = fallbackResults;
   }
@@ -157,4 +164,15 @@ export async function handleNormalSearch(query) {
   }
 
   return finalFcards;
+}
+
+// --------------------
+// Helper to build Wikipedia URL
+// --------------------
+function buildWikipediaUrl(query) {
+  const normalized = query
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("_");
+  return `https://en.wikipedia.org/wiki/${encodeURIComponent(normalized)}`;
 }
