@@ -93,10 +93,8 @@ function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
   fcards.forEach(fcard => {
     const highlightedSnippet = highlightSnippet(fcard.snippet);
     if (seen.has(fcard.url)) {
-      // Merge snippets
       seen.get(fcard.url).snippet += " " + highlightedSnippet;
     } else {
-      // Assign score
       let score = 1;
       if (knowledgeSources.some(src => fcard.url.includes(src(wikiQuery).replace(/https?:\/\//, "")))) score = 3;
       else if (TLDs.some(tld => fcard.url.endsWith(tld))) score = 2;
@@ -131,7 +129,7 @@ export async function handleNormalSearch(query) {
   const words = fullQuery.trim().split(/\s+/);
   if (words.length > 1) generateTLDUrls(words[0]).forEach(url => allUrls.push(url));
 
-  // Sites.js sources: full query
+  // Sites.js sources: full query (important for definitions)
   knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(fullQuery)));
 
   // Knowledge sources: wikiQuery if definitionQuery
