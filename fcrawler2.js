@@ -8,17 +8,15 @@ import { definitionWords } from "./definitionWords.js";
 // Helpers
 // --------------------
 function normalizeForDomain(query) {
-  // Keep spaces for readability but remove special characters
   return query.replace(/[^a-zA-Z0-9 ]/g, "");
 }
 
-// Wikipedia titles: capitalize words but keep spaces
 function normalizeForWikipedia(query) {
   const stripped = stripDefinitionWords(query);
   return stripped
     .split(/\s+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" "); // Keep spaces instead of "_"
+    .join(" ");
 }
 
 function isDefinitionQuery(query) {
@@ -38,86 +36,78 @@ function stripDefinitionWords(query) {
 }
 
 // --------------------
-// Fetch fcards from a list of sources
+// Fetch fcard from URL
 // --------------------
-async function fetchFcardsFromSources(query, sources) {
-  const promises = sources.map(async buildUrl => {
-    const url = buildUrl(query);
-    try {
-      const response = await axios.get(url, {
-        headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
-        timeout: 5000
-      });
+async function fetchFcard(url) {
+  try {
+    const response = await axios.get(url, {
+      headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
+      timeout: 5000
+    });
 
-      const $ = cheerio.load(response.data);
-      const snippet = $("p").first().text().trim().substring(0, 200);
-      if (!snippet) return null;
+    const $ = cheerio.load(response.data);
+    const snippet = $("p").first().text().trim().substring(0, 300);
+    if (!snippet) return null;
 
-      const title = $("title").first().text().trim() || url;
-      let favicon =
-        $('link[rel="icon"]').attr("href") ||
-        $('link[rel="shortcut icon"]').attr("href") ||
-        "/favicon.ico";
-      if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
+    const title = $("title").first().text().trim() || url;
+    let favicon =
+      $('link[rel="icon"]').attr("href") ||
+      $('link[rel="shortcut icon"]').attr("href") ||
+      "/favicon.ico";
+    if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
 
-      return { title, url, favicon, snippet, type: "fcards" };
-    } catch {
-      return null;
-    }
-  });
-
-  const results = await Promise.allSettled(promises);
-  return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
-}
-
-// --------------------
-// TLD fcards (multi-word with first-word priority)
-// --------------------
-async function tryMultiWordTLDs(query) {
-  const words = query.trim().split(/\s+/);
-  const promises = [];
-
-  if (words.length === 1) {
-    promises.push(tryOfficialDomains(words[0]));
-  } else {
-    // First word
-    promises.push(tryOfficialDomains(words[0]));
-    // Combined words
-    const combinedWord = normalizeForDomain(words.join(""));
-    promises.push(tryOfficialDomains(combinedWord));
+    return { title, url, favicon, snippet, type: "fcards" };
+  } catch {
+    return null;
   }
-
-  // Run all TLD checks simultaneously
-  const resultsArr = await Promise.all(promises);
-  return resultsArr.flat();
 }
 
 // --------------------
-// Single-word or multi-word TLD fetch
+// Generate TLD URLs
 // --------------------
-async function tryOfficialDomains(baseQuery) {
-  const domainQuery = normalizeForDomain(baseQuery);
-  const promises = TLDs.map(async tld => {
-    const url = `https://${domainQuery}${tld}`;
-    try {
-      const response = await axios.get(url, {
-        headers: { "User-Agent": "FwebFcards/1.0 (+https://fweb.africa)" },
-        timeout: 4000
-      });
-      const $ = cheerio.load(response.data);
-      const title = $("title").first().text().trim() || url;
-      const snippet =
-        $("p").first().text().trim().substring(0, 200) ||
-        `Official site for ${baseQuery}`;
-      const favicon = `https://www.google.com/s2/favicons?sz=64&domain_url=${url}`;
-      return { title, url, favicon, snippet, type: "fcards" };
-    } catch {
-      return null;
+function generateTLDUrls(query) {
+  const domainQuery = normalizeForDomain(query);
+  return TLDs.map(tld => `https://${domainQuery}${tld}`);
+}
+
+// --------------------
+// Merge, score & highlight fcards
+// --------------------
+function mergeAndScoreFcards(fcards, wikiQuery, knowledgeSources, userQuery) {
+  const seen = new Map();
+  const queryWords = userQuery
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w.toLowerCase());
+
+  const highlightSnippet = snippet => {
+    let highlighted = snippet;
+    queryWords.forEach(word => {
+      const regex = new RegExp(`(${word})`, "gi");
+      highlighted = highlighted.replace(regex, '<mark>$1</mark>');
+    });
+    return highlighted;
+  };
+
+  fcards.forEach(fcard => {
+    const highlightedSnippet = highlightSnippet(fcard.snippet);
+    if (seen.has(fcard.url)) {
+      // Merge snippets
+      seen.get(fcard.url).snippet += " " + highlightedSnippet;
+    } else {
+      // Assign score
+      let score = 1;
+      if (knowledgeSources.some(src => fcard.url.includes(src(wikiQuery).replace(/https?:\/\//, "")))) score = 3;
+      else if (TLDs.some(tld => fcard.url.endsWith(tld))) score = 2;
+
+      seen.set(fcard.url, { ...fcard, snippet: highlightedSnippet, score });
     }
   });
 
-  const results = await Promise.allSettled(promises);
-  return results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+  return Array.from(seen.values()).sort(
+    (a, b) => b.score - a.score || b.snippet.length - a.snippet.length
+  );
 }
 
 // --------------------
@@ -125,22 +115,52 @@ async function tryOfficialDomains(baseQuery) {
 // --------------------
 export async function handleNormalSearch(query) {
   const definitionQuery = isDefinitionQuery(query);
-  const strippedQuery = stripDefinitionWords(query);
-
   const wikiQuery = normalizeForWikipedia(query);
+  const fullQuery = query;
   const knowledgeSources = Object.values(sourceCategories).flat();
 
-  const fetches = [
-    definitionQuery ? fetchFcardsFromSources(wikiQuery, knowledgeSources) : Promise.resolve([]),
-    tryMultiWordTLDs(strippedQuery)
-  ];
+  // --------------------
+  // Build all URLs for parallel fetch
+  // --------------------
+  const allUrls = [];
 
-  // Run everything in parallel
-  const [knowledgeFcards, tldFcards] = await Promise.all(fetches);
+  // TLDs: full query
+  generateTLDUrls(fullQuery).forEach(url => allUrls.push(url));
 
-  const results = [...knowledgeFcards, ...tldFcards];
+  // TLDs: first word if multi-word
+  const words = fullQuery.trim().split(/\s+/);
+  if (words.length > 1) generateTLDUrls(words[0]).forEach(url => allUrls.push(url));
 
-  if (results.length === 0) {
+  // Sites.js sources: full query
+  knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(fullQuery)));
+
+  // Knowledge sources: wikiQuery if definitionQuery
+  if (definitionQuery) knowledgeSources.forEach(buildUrl => allUrls.push(buildUrl(wikiQuery)));
+
+  // --------------------
+  // Fetch all URLs in parallel
+  // --------------------
+  const fetchPromises = allUrls.map(url => fetchFcard(url));
+  let resultsArr = await Promise.allSettled(fetchPromises);
+  let results = resultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+
+  // --------------------
+  // Fallback for non-def queries: try wiki/definition sources if empty
+  // --------------------
+  if (results.length === 0 && !definitionQuery) {
+    const defUrls = knowledgeSources.map(buildUrl => buildUrl(wikiQuery));
+    const defFetchPromises = defUrls.map(url => fetchFcard(url));
+    const defResultsArr = await Promise.allSettled(defFetchPromises);
+    const defResults = defResultsArr.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
+    results = defResults;
+  }
+
+  // --------------------
+  // Merge, deduplicate, score & highlight
+  // --------------------
+  const finalFcards = mergeAndScoreFcards(results, wikiQuery, knowledgeSources, query);
+
+  if (finalFcards.length === 0) {
     return [{
       title: "No Results",
       url: null,
@@ -149,5 +169,5 @@ export async function handleNormalSearch(query) {
     }];
   }
 
-  return results;
+  return finalFcards;
 }
