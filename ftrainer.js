@@ -1,30 +1,23 @@
 // ftrainer.js
 import axios from "axios";
-import FormData from "form-data"; // important in Node.js
 
 export async function runFTrainer(payload) {
   try {
     const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train";
 
-    let dataToSend, headers;
+    // Always send JSON
+    const headers = { "Content-Type": "application/json" };
 
-    if (payload instanceof FormData) {
-      dataToSend = payload;
-      headers = payload.getHeaders(); // <-- tells axios it's multipart/form-data
-    } else {
-      dataToSend = payload;
-      headers = { "Content-Type": "application/json" };
-    }
-
-    const res = await axios.post(colabUrl, dataToSend, {
+    const res = await axios.post(colabUrl, payload, {
       headers,
-      timeout: 1000 * 60 * 10, // 10 min
+      timeout: 1000 * 60 * 30, // 30 min timeout for large LLM training
     });
 
     const data = res.data;
 
     return {
-      success: true,
+      success: data.success ?? false,
+      message: data.message || "No message received",
       logs: data.logs || "No logs received",
       metrics: data.metrics || {},
       model_url: data.model_url || null,
@@ -34,7 +27,7 @@ export async function runFTrainer(payload) {
     return {
       success: false,
       error: "Failed to reach Colab",
-      details: err.message,
+      details: err.response?.data || err.message,
     };
   }
 }
