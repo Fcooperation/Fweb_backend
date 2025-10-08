@@ -4,13 +4,11 @@ export async function runFTrainer(payload) {
   try {
     const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train";
 
-    // Auto-normalize if user sends q/a instead of instruction/response
-    const normalized = {
-      data: (payload.data || []).map(pair => ({
-        instruction: pair.q || pair.instruction,
-        response: pair.a || pair.response
-      }))
-    };
+    // Convert frontend format to Colab format: array of {prompt, response}
+    const normalized = payload.data.map(pair => ({
+      prompt: pair.prompt || pair.instruction || "",
+      response: pair.response || pair.a || ""
+    }));
 
     const res = await axios.post(colabUrl, normalized, {
       headers: { "Content-Type": "application/json" },
