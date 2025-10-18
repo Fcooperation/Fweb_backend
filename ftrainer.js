@@ -1,17 +1,17 @@
 // ftrainer.js
 import axios from "axios";
 
-export async function runFTrainer({ columns, rawJson, file }) {
+export async function runFTrainer({ columns = [], rawJson = "", file = null, trainCycles = 1 }) {
   try {
     const renderUrl = "https://fweb-backend.onrender.com/train";
 
-    // Normalize columns input
-    let data = columns.map(pair => ({
+    // Normalize columns input safely
+    let data = (columns || []).map(pair => ({
       prompt: pair.prompt || "",
       response: pair.response || ""
     }));
 
-    // Parse raw JSON input
+    // Parse raw JSON input safely
     if (rawJson) {
       try {
         const parsed = JSON.parse(rawJson);
@@ -34,28 +34,45 @@ export async function runFTrainer({ columns, rawJson, file }) {
       }
     }
 
-    if (!data.length) return { success: false, error: "No valid training data" };
-
-    // Send training request to Render
-    const res = await axios.post(renderUrl, { data }, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 1000 * 60 * 5, // 5 min timeout for longer training
-    });
-
-    const result = res.data;
-
-    // Include training logs if available
-    if (result.training_logs) {
-      console.log("📄 Training Logs:");
-      result.training_logs.forEach(line => console.log(line));
+    if (!data.length) {
+      return { success: false, error: "No valid training data provided." };
     }
 
-    // Include download URL if present
-    if (result.download_url) {
-      console.log("⬇️ Model checkpoint available at:", result.download_url);
+    console.log(`🚀 Starting ${trainCycles} training cycle(s)...`);
+
+    let finalResult = null;
+
+    for (let round = 1; round <= trainCycles; round++) {
+      console.log(`🔁 Training round ${round}/${trainCycles}...`);
+
+      const res = await axios.post(renderUrl, { data }, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 1000 * 60 * 5, // 5 min timeout
+      });
+
+      const result = res.data;
+      finalResult = result;
+
+      // Log epoch outputs if present
+      if (result.training_logs && result.training_logs.length) {
+        console.log("📄 Training Logs:");
+        result.training_logs.forEach(line => console.log(line));
+      }
+
+      if (result.download_url) {
+        console.log("⬇️ Model checkpoint available at:", result.download_url);
+      }
+
+      if (result.success) {
+        console.log(`✅ Training round ${round} complete.`);
+      } else {
+        console.error(`❌ Training round ${round} failed: ${result.error || "Unknown error"}`);
+        break;
+      }
     }
 
-    return result;
+    console.log("🏁 All training cycles complete.");
+    return finalResult;
 
   } catch (err) {
     console.error("❌ Error contacting Render backend:", err.message);
