@@ -1,21 +1,17 @@
-// render-backend.js
+// ftrainer.js
 import axios from "axios";
 
-export default async function handler(req, res) {
+export async function runFTrainer({ columns = [], rawJson = "", file = null, trainCycles = 1 }) {
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ success: false, error: "Method not allowed" });
-    }
+    const renderUrl = "https://fweb-backend.onrender.com/train";
 
-    const { columns = [], rawJson = "", fileData = null, trainCycles = 1 } = req.body;
-
-    // 1️⃣ Normalize frontend data
+    // Normalize columns input safely
     let data = (columns || []).map(pair => ({
       prompt: pair.prompt || "",
       response: pair.response || ""
     }));
 
-    // 2️⃣ Parse raw JSON input if present
+    // Parse raw JSON input safely
     if (rawJson) {
       try {
         const parsed = JSON.parse(rawJson);
@@ -26,45 +22,60 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3️⃣ Parse uploaded file data if present
-    if (fileData) {
+    // Parse uploaded file if present
+    if (file) {
+      const text = await file.text();
       try {
-        const parsed = JSON.parse(fileData);
+        const parsed = JSON.parse(text);
         if (Array.isArray(parsed)) data = data.concat(parsed);
         else if (parsed.prompt && parsed.response) data.push(parsed);
       } catch (err) {
-        console.warn("⚠️ Could not parse uploaded file data:", err.message);
+        console.warn("⚠️ Could not parse uploaded file:", err.message);
       }
     }
 
     if (!data.length) {
-      return res.status(400).json({ success: false, error: "No valid training data provided." });
+      return { success: false, error: "No valid training data provided." };
     }
 
-    console.log(`🚀 Forwarding ${trainCycles} training cycle(s) to Colab...`);
+    console.log(`🚀 Starting ${trainCycles} training cycle(s)...`);
 
-    // 4️⃣ Forward payload to Colab
-    const colabUrl = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train";
-    const colabRes = await axios.post(colabUrl, { data, trainCycles }, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 5 * 60 * 1000, // 5 minutes
-    });
+    let finalResult = null;
 
-    console.log("✅ Response from Colab received.");
-    if (colabRes.data.training_logs && colabRes.data.training_logs.length) {
-      console.log("📄 Training logs from Colab:");
-      colabRes.data.training_logs.forEach(line => console.log(line));
+    for (let round = 1; round <= trainCycles; round++) {
+      console.log(`🔁 Training round ${round}/${trainCycles}...`);
+
+      const res = await axios.post(renderUrl, { data }, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 1000 * 60 * 5, // 5 min timeout
+      });
+
+      const result = res.data;
+      finalResult = result;
+
+      // Log epoch outputs if present
+      if (result.training_logs && result.training_logs.length) {
+        console.log("📄 Training Logs:");
+        result.training_logs.forEach(line => console.log(line));
+      }
+
+      if (result.download_url) {
+        console.log("⬇️ Model checkpoint available at:", result.download_url);
+      }
+
+      if (result.success) {
+        console.log(`✅ Training round ${round} complete.`);
+      } else {
+        console.error(`❌ Training round ${round} failed: ${result.error || "Unknown error"}`);
+        break;
+      }
     }
 
-    // 5️⃣ Return Colab response back to frontend
-    res.status(200).json({
-      success: true,
-      message: "Data forwarded to Colab successfully.",
-      colabResponse: colabRes.data
-    });
+    console.log("🏁 All training cycles complete.");
+    return finalResult;
 
   } catch (err) {
-    console.error("❌ Error forwarding to Colab:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ Error contacting Render backend:", err.message);
+    return { success: false, error: "Failed to reach Render backend", details: err.message };
   }
 }
