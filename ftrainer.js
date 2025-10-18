@@ -1,17 +1,25 @@
 // ftrainer.js
 import axios from "axios";
 
+/**
+ * Run FTrainer
+ * @param {Object} options
+ * @param {Array} options.columns - Array of {prompt, response} from frontend columns
+ * @param {string} options.rawJson - Raw JSON input from textarea
+ * @param {File|null} options.file - Uploaded JSON file
+ * @param {number} options.trainCycles - Number of training cycles
+ */
 export async function runFTrainer({ columns = [], rawJson = "", file = null, trainCycles = 1 }) {
   try {
-    const renderUrl = "https://fweb-backend.onrender.com/train";
+    const renderUrl = "https://fweb-backend.onrender.com/train"; // Render backend
 
-    // Normalize columns input safely
+    // 1️⃣ Normalize columns input
     let data = (columns || []).map(pair => ({
       prompt: pair.prompt || "",
       response: pair.response || ""
     }));
 
-    // Parse raw JSON input safely
+    // 2️⃣ Parse raw JSON
     if (rawJson) {
       try {
         const parsed = JSON.parse(rawJson);
@@ -22,7 +30,7 @@ export async function runFTrainer({ columns = [], rawJson = "", file = null, tra
       }
     }
 
-    // Parse uploaded file if present
+    // 3️⃣ Parse uploaded file
     if (file) {
       const text = await file.text();
       try {
@@ -34,38 +42,37 @@ export async function runFTrainer({ columns = [], rawJson = "", file = null, tra
       }
     }
 
-    if (!data.length) {
-      return { success: false, error: "No valid training data provided." };
-    }
+    if (!data.length) return { success: false, error: "No valid training data provided." };
 
     console.log(`🚀 Starting ${trainCycles} training cycle(s)...`);
 
     let finalResult = null;
 
+    // 4️⃣ Loop through training cycles
     for (let round = 1; round <= trainCycles; round++) {
       console.log(`🔁 Training round ${round}/${trainCycles}...`);
 
-      const res = await axios.post(renderUrl, { data }, {
-        headers: { "Content-Type": "application/json" },
-        timeout: 1000 * 60 * 5, // 5 min timeout
-      });
+      // POST to Render backend → Render forwards to Colab
+      const res = await axios.post(
+        renderUrl,
+        { data }, // send all data
+        { headers: { "Content-Type": "application/json" }, timeout: 1000 * 60 * 5 } // 5 min
+      );
 
       const result = res.data;
       finalResult = result;
 
-      // Log epoch outputs if present
+      // 5️⃣ Display epoch logs if present
       if (result.training_logs && result.training_logs.length) {
         console.log("📄 Training Logs:");
         result.training_logs.forEach(line => console.log(line));
       }
 
-      if (result.download_url) {
-        console.log("⬇️ Model checkpoint available at:", result.download_url);
-      }
+      // 6️⃣ Show download link if available
+      if (result.download_url) console.log("⬇️ Model checkpoint available at:", result.download_url);
 
-      if (result.success) {
-        console.log(`✅ Training round ${round} complete.`);
-      } else {
+      if (result.success) console.log(`✅ Training round ${round} complete.`);
+      else {
         console.error(`❌ Training round ${round} failed: ${result.error || "Unknown error"}`);
         break;
       }
