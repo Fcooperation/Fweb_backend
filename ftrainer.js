@@ -1,30 +1,19 @@
-import express from "express";
 import fetch from "node-fetch";
-import cors from "cors";
-
-const app = express();
-app.use(cors());
-app.use(express.json());
 
 // ------------------------------
 // Config
 // ------------------------------
 const COLAB_URL = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
 
-// ------------------------------
-// SSE training endpoint
-// ------------------------------
-app.post("/train", async (req, res) => {
-  const data = req.body;
-  if (!data) return res.status(400).json({ error: "No data provided" });
-
-  // set headers for SSE
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.flushHeaders();
+/**
+ * runFTrainer
+ * @param {Object|Array} data - JSON object or array of {prompt, response} pairs
+ * @param {function} onLog - callback function to receive live logs
+ */
+export async function runFTrainer(data, onLog = (msg) => {}) {
+  if (!data) throw new Error("No training data provided");
 
   try {
-    // send POST request to Colab SSE endpoint
     const colabRes = await fetch(`${COLAB_URL}/train_stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,28 +31,18 @@ app.post("/train", async (req, res) => {
       // Colab SSE sends each message as "data: ..."
       chunk.split("\n\n").forEach(line => {
         if (line.startsWith("data:")) {
-          res.write(line + "\n\n");
+          const msg = line.replace("data: ", "").trim();
+          onLog(msg); // send each log back via callback
         }
       });
     }
 
-    res.end();
+    // When training completes, return download URL
+    const downloadUrl = `${COLAB_URL}/download_checkpoint`;
+    return { success: true, downloadUrl };
+
   } catch (err) {
     console.error("Error connecting to Colab SSE:", err);
-    res.write(`data: ERROR: ${err.message}\n\n`);
-    res.end();
+    return { success: false, error: err.message };
   }
-});
-
-// ------------------------------
-// Download trained model
-// ------------------------------
-app.get("/download_checkpoint", (req, res) => {
-  res.redirect(`${COLAB_URL}/download_checkpoint`);
-});
-
-// ------------------------------
-// Start backend server
-// ------------------------------
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ FTrainer backend running on port ${PORT}`));
+}
