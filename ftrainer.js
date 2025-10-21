@@ -1,81 +1,69 @@
-// ftrainer.js
-import axios from "axios";
+import express from "express";
+import fetch from "node-fetch";
+import cors from "cors";
 
-export async function runFTrainer({ columns = [], rawJson = "", file = null, trainCycles = 1 }) {
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// ------------------------------
+// Config
+// ------------------------------
+const COLAB_URL = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
+
+// ------------------------------
+// SSE training endpoint
+// ------------------------------
+app.post("/train", async (req, res) => {
+  const data = req.body;
+  if (!data) return res.status(400).json({ error: "No data provided" });
+
+  // set headers for SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.flushHeaders();
+
   try {
-    const renderUrl = "https://fweb-backend.onrender.com/train";
+    // send POST request to Colab SSE endpoint
+    const colabRes = await fetch(`${COLAB_URL}/train_stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
 
-    // Normalize columns input safely
-    let data = (columns || []).map(pair => ({
-      prompt: pair.prompt || "",
-      response: pair.response || ""
-    }));
+    const reader = colabRes.body.getReader();
+    const decoder = new TextDecoder("utf-8");
 
-    // Parse raw JSON input safely
-    if (rawJson) {
-      try {
-        const parsed = JSON.parse(rawJson);
-        if (Array.isArray(parsed)) data = data.concat(parsed);
-        else if (parsed.prompt && parsed.response) data.push(parsed);
-      } catch (err) {
-        console.warn("⚠️ Invalid raw JSON, skipping:", err.message);
-      }
-    }
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // Parse uploaded file if present
-    if (file) {
-      const text = await file.text();
-      try {
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) data = data.concat(parsed);
-        else if (parsed.prompt && parsed.response) data.push(parsed);
-      } catch (err) {
-        console.warn("⚠️ Could not parse uploaded file:", err.message);
-      }
-    }
-
-    if (!data.length) {
-      return { success: false, error: "No valid training data provided." };
-    }
-
-    console.log(`🚀 Starting ${trainCycles} training cycle(s)...`);
-
-    let finalResult = null;
-
-    for (let round = 1; round <= trainCycles; round++) {
-      console.log(`🔁 Training round ${round}/${trainCycles}...`);
-
-      const res = await axios.post(renderUrl, { data }, {
-        headers: { "Content-Type": "application/json" },
-        timeout: 1000 * 60 * 5, // 5 min timeout
+      const chunk = decoder.decode(value);
+      // Colab SSE sends each message as "data: ..."
+      chunk.split("\n\n").forEach(line => {
+        if (line.startsWith("data:")) {
+          res.write(line + "\n\n");
+        }
       });
-
-      const result = res.data;
-      finalResult = result;
-
-      // Log epoch outputs if present
-      if (result.training_logs && result.training_logs.length) {
-        console.log("📄 Training Logs:");
-        result.training_logs.forEach(line => console.log(line));
-      }
-
-      if (result.download_url) {
-        console.log("⬇️ Model checkpoint available at:", result.download_url);
-      }
-
-      if (result.success) {
-        console.log(`✅ Training round ${round} complete.`);
-      } else {
-        console.error(`❌ Training round ${round} failed: ${result.error || "Unknown error"}`);
-        break;
-      }
     }
 
-    console.log("🏁 All training cycles complete.");
-    return finalResult;
-
+    res.end();
   } catch (err) {
-    console.error("❌ Error contacting Render backend:", err.message);
-    return { success: false, error: "Failed to reach Render backend", details: err.message };
+    console.error("Error connecting to Colab SSE:", err);
+    res.write(`data: ERROR: ${err.message}\n\n`);
+    res.end();
   }
-}
+});
+
+// ------------------------------
+// Download trained model
+// ------------------------------
+app.get("/download_checkpoint", (req, res) => {
+  res.redirect(`${COLAB_URL}/download_checkpoint`);
+});
+
+// ------------------------------
+// Start backend server
+// ------------------------------
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ FTrainer backend running on port ${PORT}`));
