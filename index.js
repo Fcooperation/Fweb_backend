@@ -137,6 +137,39 @@ app.post("/train", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+import multer from "multer";
+const upload = multer({ storage: multer.memoryStorage() }); // in-memory upload
+
+// ------------------------------
+// Pretrain route
+// ------------------------------
+app.post("/pretrain", upload.single("model_file"), async (req, res) => {
+  console.log("⚡ Pretraining request received");
+
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: "No model file uploaded" });
+  }
+
+  // Optional: training cycles from formData
+  const cycles = parseInt(req.body.cycles) || 1;
+
+  try {
+    // Call runFTrainer with 'pretrain' mode
+    const result = await runFTrainer({
+      mode: "pretrain",        // signal to ftrainer.js this is a pretrain
+      modelBuffer: req.file.buffer,
+      filename: req.file.originalname,
+      cycles
+    });
+
+    res.json({ success: true, result });
+    console.log(`✅ Pretraining started for ${req.file.originalname}`);
+  } catch (err) {
+    console.error("❌ Pretraining error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // ------------------------------
 // Start Server
 // ------------------------------
