@@ -1,33 +1,27 @@
 import fetch from "node-fetch";
 
-/**
- * runFTrainer
- * Handles training and generation requests
- * @param {Object} payload - JSON payload to send to your Flask backend
- *                         Must include `mode` ("train" or "generate")
- */
 export async function runFTrainer(payload) {
-  // Base URL of your Flask + ngrok backend
+  // NGROK base for Colab
   const NGROK_BASE = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
 
   // Decide endpoint based on mode
   let endpoint = "/train";
-  if (payload.mode === "generate") endpoint = "/generate";
+  if (payload.mode === "pretrain") endpoint = "/pretrain";
 
   try {
     const res = await fetch(`${NGROK_BASE}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload)
     });
 
     const data = await res.json();
 
-    // Return the response from Flask
+    // return whatever Colab responds
     return data;
 
   } catch (err) {
-    console.error("❌ Error sending to backend:", err.message);
-    throw new Error("Failed to communicate with backend");
+    console.error("❌ Error sending to Colab:", err.message);
+    throw new Error("Failed to communicate with Colab");
   }
 }
