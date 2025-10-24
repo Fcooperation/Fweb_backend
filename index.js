@@ -171,6 +171,29 @@ app.post("/pretrain", upload.single("model_file"), async (req, res) => {
   }
 });
 // ------------------------------
+// Logs route
+// ------------------------------
+app.post("/logs", async (req, res) => {
+  const { round, totalRounds, modelSize, entries, logs: logData } = req.body;
+
+  if (!logData) return res.status(400).json({ success: false, error: "No logs provided" });
+
+  try {
+    console.log(`📝 Logs received for round ${round || "-"} (${totalRounds || "-"})`);
+    console.log(`Model Size: ${modelSize || "unknown"}, Entries: ${entries || 0}`);
+    console.log("------ LOG START ------");
+    console.log(logData);
+    console.log("------- LOG END -------");
+
+    // Optional: You could also save to a file here if needed
+
+    res.json({ success: true, message: "Logs recorded" });
+  } catch (err) {
+    console.error("❌ Logs error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// ------------------------------
 // Start Server
 // ------------------------------
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
