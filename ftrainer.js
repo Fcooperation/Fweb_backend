@@ -1,55 +1,27 @@
 import fetch from "node-fetch";
 
-/**
- * runFTrainer - sends training data to Colab ngrok backend and streams live logs
- * @param {Array|Object} data - JSON data with {prompt, response} pairs
- * @param {Function} onLog - callback for live logs (receives string)
- * @returns {Promise<Object>} - resolves when training finishes
- */
-export async function runFTrainer(data, onLog = (msg) => {}) {
-  if (!data) throw new Error("No training data provided");
+export async function runFTrainer(payload) {
+  // NGROK base for Colab
+  const NGROK_BASE = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
+
+  // Decide endpoint based on mode
+  let endpoint = "/train";
+  if (payload.mode === "pretrain") endpoint = "/pretrain";
 
   try {
-    const colabRes = await fetch(
-      "https://mindy-sinistrous-fortuitously.ngrok-free.dev/train_stream",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      }
-    );
-
-    if (!colabRes.ok) {
-      throw new Error(`Colab server returned status ${colabRes.status}`);
-    }
-
-    // Node.js streaming
-    colabRes.body.on("data", (chunk) => {
-      const text = chunk.toString("utf-8");
-      text.split("\n\n").forEach(line => {
-        if (line.startsWith("data:")) {
-          const msg = line.replace("data: ", "").trim();
-          onLog(msg);
-        }
-      });
+    const res = await fetch(`${NGROK_BASE}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    return new Promise((resolve, reject) => {
-      colabRes.body.on("end", () => {
-        // Training finished
-        resolve({
-          success: true,
-          downloadUrl: "https://mindy-sinistrous-fortuitously.ngrok-free.dev/download_checkpoint"
-        });
-      });
+    const data = await res.json();
 
-      colabRes.body.on("error", (err) => {
-        reject({ success: false, error: err.message });
-      });
-    });
+    // return whatever Colab responds
+    return data;
 
   } catch (err) {
-    console.error("❌ Error connecting to Colab SSE:", err);
-    return { success: false, error: err.message };
+    console.error("❌ Error sending to Colab:", err.message);
+    throw new Error("Failed to communicate with Colab");
   }
 }
