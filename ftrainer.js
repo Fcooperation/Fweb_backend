@@ -5,22 +5,18 @@ import FormData from "form-data";
 const NGROK_BASE = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
 
 export async function runFTrainer(filePath) {
-  const endpoint = "/pretrain";
-
-  // Read .pt file
-  const fileBuffer = fs.readFileSync(filePath);
-
   const form = new FormData();
-  form.append("file", fileBuffer, "model.pt");
-  form.append("mode", "pretrain");
+  form.append("file", fs.createReadStream(filePath));
+  form.append("mode", "pretrain"); // optional if you need mode info
 
   try {
-    const res = await fetch(`${NGROK_BASE}${endpoint}`, {
+    const res = await fetch(`${NGROK_BASE}/pretrain`, {
       method: "POST",
       body: form
     });
 
     const data = await res.json();
+    console.log("Response from server:", data);
     return data;
 
   } catch (err) {
@@ -28,6 +24,3 @@ export async function runFTrainer(filePath) {
     throw new Error("Failed to communicate with Colab");
   }
 }
-
-// Usage example
-// await runFTrainer("./path/to/model.pt");
