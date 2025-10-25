@@ -139,11 +139,19 @@ export async function handleNormalSearch(query) {
     ];
     fetchPromises = priorityUrls.map(url => fetchFcard(url, 4000));
   } else {
-    // Non-definition: TLDs first
-    let tldUrls = generateTLDUrls(fullQuery);
-    if (fullQuery.split(" ").length > 1) tldUrls = [...tldUrls, ...generateTLDUrls(fullQuery.split(" ")[0])];
-    fetchPromises = tldUrls.map(url => fetchFcard(url, 4000));
-  }
+  // Non-definition: fetch both TLDs and knowledgeSources simultaneously
+  const tldUrls = [
+    ...generateTLDUrls(fullQuery),
+    ...(fullQuery.split(" ").length > 1 ? generateTLDUrls(fullQuery.split(" ")[0]) : [])
+  ];
+  const siteUrls = knowledgeSources.map(fn => fn(fullQuery));
+
+  // Merge both sets
+  const combinedUrls = [...tldUrls, ...siteUrls];
+
+  // Fetch all together for speed
+  fetchPromises = combinedUrls.map(url => fetchFcard(url, 4000));
+}
 
   // --------------------
   // Fetch all URLs in parallel
