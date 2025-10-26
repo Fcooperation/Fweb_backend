@@ -6,7 +6,7 @@ export async function runFTrainer(data) {
     console.log("📤 Forwarding training data to Colab...");
 
     // Replace with your live ngrok URL
-    const COLAB_URL = "https://YOUR_NGROK_ID.ngrok.io/train";
+    const COLAB_URL = "https://mindy-sinistrous-fortuitously.ngrok-free.dev/";
 
     const response = await axios.post(COLAB_URL, data, {
       headers: { "Content-Type": "application/json" },
