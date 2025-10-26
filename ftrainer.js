@@ -1,45 +1,22 @@
-import fetch from "node-fetch";
+// ftrainer.js
+import axios from "axios";
 
-const NGROK_BASE = "https://mindy-sinistrous-fortuitously.ngrok-free.dev";
-
-// Main function to run training
-export async function runFTrainer(payload) {
-  // Determine endpoint
-  let endpoint = "/train";
-  if (payload.mode === "pretrain") endpoint = "/pretrain";
-
+export async function runFTrainer(data) {
   try {
-    // Send dataset to Colab
-    const res = await fetch(`${NGROK_BASE}${endpoint}`, {
-      method: "POST",
+    console.log("📤 Forwarding training data to Colab...");
+
+    // Replace with your live ngrok URL
+    const COLAB_URL = "https://YOUR_NGROK_ID.ngrok.io/train";
+
+    const response = await axios.post(COLAB_URL, data, {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      timeout: 60000, // 1 min timeout for small tests
     });
 
-    const data = await res.json();
-
-    // --- Send logs separately to Colab ---
-    if (payload.logs) {
-      try {
-        await fetch(`${NGROK_BASE}/logs`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            round: payload.round,
-            totalRounds: payload.totalRounds,
-            modelSize: payload.modelSize,
-            entries: payload.data?.length || 0,
-            logs: payload.logs
-          })
-        });
-      } catch (logErr) {
-        console.error("❌ Failed to send logs to Colab:", logErr.message);
-      }
-    }
-
-    return data;
+    console.log("📥 Response received from Colab:", response.data);
+    return response.data;
   } catch (err) {
     console.error("❌ Error sending to Colab:", err.message);
-    throw new Error("Failed to communicate with Colab");
+    throw new Error(`Colab request failed: ${err.message}`);
   }
 }
