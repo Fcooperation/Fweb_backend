@@ -1,3 +1,4 @@
+// fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { TLDs } from "./tlds.js";
@@ -38,20 +39,23 @@ function generateTLDUrls(query) {
 // --------------------
 // Main function
 // --------------------
-export async function handleTLDSearch(query) {
+export async function handleNormalSearch(query) {
   const urls = generateTLDUrls(query);
   const fetchPromises = urls.map(url => fetchFcard(url, 4000));
 
   const results = await Promise.all(fetchPromises);
+
+  // Ensure we always return at least one result
+  if (results.length === 0) {
+    return [
+      {
+        title: "No Results",
+        url: null,
+        favicon: null,
+        snippet: "No fcards could be generated for this query."
+      }
+    ];
+  }
+
   return results;
 }
-
-// --------------------
-// Example usage
-// --------------------
-// (Uncomment to test standalone)
-// (async () => {
-//   const query = "example";
-//   const results = await handleTLDSearch(query);
-//   console.log(results);
-// })();
