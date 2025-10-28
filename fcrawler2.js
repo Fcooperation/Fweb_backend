@@ -65,45 +65,64 @@ function makeUrl(domain, tld) {
   return `https://${domain}${tld}`;
 }
 
-async function fetchUrlsInParallel(urls) {
-  const promises = urls.map(u => fetchFcard(u));
-  const resultsArr = await Promise.all(promises);
-  return resultsArr.filter(r => r);
-}
-
 // --------------------
-// Core Search Logic
+// Simultaneous parallel crawling with streaming
 // --------------------
-export async function handleNormalSearch(query) {
+export async function handleNormalSearch(query, onResult) {
   if (!query || !query.trim()) {
-    return [
-      { title: "Invalid Query", url: null, snippet: "Your query must contain text." }
-    ];
+    const errRes = { title: "Invalid Query", url: null, snippet: "Your query must contain text." };
+    if (onResult) onResult(errRes);
+    return [errRes];
   }
 
   const normalized = normalizeForDomain(query);
   const tldUrls = TOP_TLDS.map(tld => makeUrl(normalized, tld));
-
-  // Definition/info site URLs
   const defUrls = DEF_SITES.map(site => site + encodeURIComponent(query.trim()));
 
-  // Run both parallel
-  const [tldResults, defResults] = await Promise.all([
-    fetchUrlsInParallel(tldUrls),
-    fetchUrlsInParallel(defUrls)
-  ]);
+  const allUrls = [
+    ...tldUrls.map(u => ({ url: u, source: "tld" })),
+    ...defUrls.map(u => ({ url: u, source: "def" }))
+  ];
 
+  const seenHostnames = new Set();
+  const seenTitles = new Set();
   const finalResults = [];
 
-  // Add TLD fcards first
-  for (const r of tldResults) finalResults.push(r);
-  // Then add definition/info site fcards
-  for (const r of defResults) finalResults.push(r);
+  // Launch all fetches simultaneously
+  await Promise.all(
+    allUrls.map(async ({ url, source }) => {
+      const result = await fetchFcard(url);
+      if (!result) return;
+
+      try {
+        const hostname = new URL(result.url).hostname;
+        const titleKey = result.title.toLowerCase();
+
+        // Avoid duplicates (same hostname/title)
+        if (seenHostnames.has(hostname) || seenTitles.has(titleKey)) return;
+        seenHostnames.add(hostname);
+        seenTitles.add(titleKey);
+
+        // Keep source order priority (tld first)
+        if (source === "tld") {
+          finalResults.unshift(result);
+        } else {
+          finalResults.push(result);
+        }
+
+        // Stream result if callback is provided
+        if (onResult) onResult(result);
+
+      } catch {
+        // ignore malformed URL
+      }
+    })
+  );
 
   if (finalResults.length === 0) {
-    return [
-      { title: "No Results", url: null, snippet: `No fcards found for "${query}".` }
-    ];
+    const noRes = { title: "No Results", url: null, snippet: `No fcards found for "${query}".` };
+    if (onResult) onResult(noRes);
+    return [noRes];
   }
 
   return finalResults;
