@@ -10,17 +10,21 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fetch full fcard info
-async function fetchFcard(url, timeout = 5000) {
+// Fetch fcard for a URL, following redirects
+async function fetchFcard(url, timeout = 7000) {
   try {
     const response = await axios.get(url, {
-      headers: { "User-Agent": "FwebMini/1.0" },
-      timeout
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
+      timeout,
+      maxRedirects: 5
     });
 
     const $ = cheerio.load(response.data);
     const snippet = $("p").first().text().trim().substring(0, 300) || "No snippet available";
-    let title = $("title").first().text().trim() || new URL(url).hostname;
+    const title = $("title").first().text().trim() || new URL(response.request.res.responseUrl).hostname;
 
     let favicon =
       $('link[rel="icon"]').attr("href") ||
@@ -30,24 +34,22 @@ async function fetchFcard(url, timeout = 5000) {
 
     if (favicon && !favicon.startsWith("http")) {
       try {
-        favicon = new URL(favicon, url).href;
+        favicon = new URL(favicon, response.request.res.responseUrl).href;
       } catch {
         favicon = null;
       }
     }
 
-    return { title, url, favicon, snippet };
-  } catch {
-    return null;
+    return { title, url: response.request.res.responseUrl, favicon, snippet };
+  } catch (err) {
+    return null; // skip non-existent or blocked sites
   }
 }
 
-// Generate URLs for a word using top TLDs first
+// Generate all URLs for a word or combined query
 function generateUrlsForWord(word) {
   const normalized = normalizeForDomain(word);
-  const first10 = TLDs.slice(0, 10).map(tld => `https://${normalized}${tld}`);
-  const remaining = TLDs.slice(10).map(tld => `https://${normalized}${tld}`);
-  return [...first10, ...remaining];
+  return TLDs.map(tld => `https://${normalized}${tld}`);
 }
 
 // --------------------
@@ -57,20 +59,20 @@ export async function handleNormalSearch(query) {
   const words = query.trim().split(/\s+/);
   const combined = words.join("");
 
-  // Step 1: combined query first
-  const combinedUrls = generateUrlsForWord(combined);
+  // Combined + single words
+  const allWords = [combined, ...words];
 
-  // Step 2: separate words
-  const singleWordUrls = words.flatMap(word => generateUrlsForWord(word));
+  // Generate all URLs
+  const allUrls = allWords.flatMap(word => generateUrlsForWord(word));
 
-  // Merge all URLs and remove duplicates
-  const allUrls = [...new Set([...combinedUrls, ...singleWordUrls])];
+  // Remove duplicates
+  const uniqueUrls = [...new Set(allUrls)];
 
-  // ---------- Fetch all URLs simultaneously ----------
-  const fetchPromises = allUrls.map(url => fetchFcard(url));
+  // Fetch all URLs simultaneously
+  const fetchPromises = uniqueUrls.map(url => fetchFcard(url));
   const resultsArr = await Promise.all(fetchPromises);
 
-  // Filter out nulls (non-existent domains)
+  // Only keep successful fcards
   const results = resultsArr.filter(r => r);
 
   if (results.length === 0) {
