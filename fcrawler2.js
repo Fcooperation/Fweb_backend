@@ -10,16 +10,6 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fast check if site exists
-async function siteExists(url, timeout = 3000) {
-  try {
-    await axios.head(url, { timeout });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Fetch full fcard info
 async function fetchFcard(url, timeout = 5000) {
   try {
@@ -52,10 +42,12 @@ async function fetchFcard(url, timeout = 5000) {
   }
 }
 
-// Generate URLs for a word or combined query using all TLDs
+// Generate URLs for a word using top TLDs first
 function generateUrlsForWord(word) {
   const normalized = normalizeForDomain(word);
-  return TLDs.map(tld => `https://${normalized}${tld}`);
+  const first10 = TLDs.slice(0, 10).map(tld => `https://${normalized}${tld}`);
+  const remaining = TLDs.slice(10).map(tld => `https://${normalized}${tld}`);
+  return [...first10, ...remaining];
 }
 
 // --------------------
@@ -63,30 +55,23 @@ function generateUrlsForWord(word) {
 // --------------------
 export async function handleNormalSearch(query) {
   const words = query.trim().split(/\s+/);
+  const combined = words.join("");
 
   // Step 1: combined query first
-  const combined = words.join("");
-  let combinedUrls = generateUrlsForWord(combined);
+  const combinedUrls = generateUrlsForWord(combined);
 
   // Step 2: separate words
   const singleWordUrls = words.flatMap(word => generateUrlsForWord(word));
 
-  // Merge all URLs
-  const allUrls = [...combinedUrls, ...singleWordUrls];
+  // Merge all URLs and remove duplicates
+  const allUrls = [...new Set([...combinedUrls, ...singleWordUrls])];
 
-  // Remove duplicates
-  const uniqueUrls = [...new Set(allUrls)];
-
-  // ---------- Test all URLs simultaneously ----------
-  const fetchPromises = uniqueUrls.map(async url => {
-    if (await siteExists(url)) {
-      return fetchFcard(url);
-    }
-    return null;
-  });
-
+  // ---------- Fetch all URLs simultaneously ----------
+  const fetchPromises = allUrls.map(url => fetchFcard(url));
   const resultsArr = await Promise.all(fetchPromises);
-  const results = resultsArr.filter(r => r); // remove nulls
+
+  // Filter out nulls (non-existent domains)
+  const results = resultsArr.filter(r => r);
 
   if (results.length === 0) {
     return [{ title: "No Results", url: null, favicon: null, snippet: "No fcards could be generated." }];
