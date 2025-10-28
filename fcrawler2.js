@@ -1,16 +1,18 @@
 // fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js";
+
+// Top 10 common TLDs
+const COMMON_TLDS = [".com", ".net", ".org", ".io", ".co", ".us", ".info", ".biz", ".online", ".tech"];
 
 // --------------------
 // Helpers
 // --------------------
-function normalizeForDomain(query) {
-  return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+function normalizeForDomain(domain) {
+  return domain.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fetch fcard for a URL, follows redirects
+// Fetch fcard for a URL
 async function fetchFcard(url, timeout = 7000) {
   try {
     const response = await axios.get(url, {
@@ -28,22 +30,23 @@ async function fetchFcard(url, timeout = 7000) {
     const title = $("title").first().text().trim() || new URL(finalUrl).hostname;
 
     return { title, url: finalUrl, snippet };
-  } catch (err) {
+  } catch {
     return null; // skip dead or blocked sites
   }
 }
 
-// Generate all URLs for a query
-function generateUrls(query) {
-  const normalized = normalizeForDomain(query);
-  return TLDs.map(tld => `https://${normalized}${tld}`);
+// Generate URLs for Google + common TLDs
+function generateGoogleUrls() {
+  const google = normalizeForDomain("Google");
+  return COMMON_TLDS.map(tld => `https://${google}${tld}`);
 }
 
 // --------------------
 // Main function
 // --------------------
 export async function handleNormalSearch(query) {
-  const urls = generateUrls(query);
+  // For now we ignore query and always test Google TLDs
+  const urls = generateGoogleUrls();
 
   // Launch all requests simultaneously
   const resultsArr = await Promise.all(urls.map(url => fetchFcard(url)));
