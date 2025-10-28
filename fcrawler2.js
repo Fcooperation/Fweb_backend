@@ -2,7 +2,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { TLDs } from "./tlds.js";
-import { sourceCategories } from "./sites.js";
 
 // --------------------
 // Helpers
@@ -11,7 +10,7 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fast check if site exists (HEAD request)
+// Fast check if site exists
 async function siteExists(url, timeout = 3000) {
   try {
     await axios.head(url, { timeout });
@@ -53,60 +52,45 @@ async function fetchFcard(url, timeout = 5000) {
   }
 }
 
+// Generate URLs for a word or combined query using all TLDs
+function generateUrlsForWord(word) {
+  const normalized = normalizeForDomain(word);
+  return TLDs.map(tld => `https://${normalized}${tld}`);
+}
+
 // --------------------
 // Main function
 // --------------------
 export async function handleNormalSearch(query) {
   const words = query.trim().split(/\s+/);
-  const combined = normalizeForDomain(query);
 
-  const first10TLDs = TLDs.slice(0, 10);
-  const remainingTLDs = TLDs.slice(10);
+  // Step 1: combined query first
+  const combined = words.join("");
+  let combinedUrls = generateUrlsForWord(combined);
 
-  let results = [];
+  // Step 2: separate words
+  const singleWordUrls = words.flatMap(word => generateUrlsForWord(word));
 
-  // ---------- Step 1: combined domain + first 10 TLDs ----------
-  for (const tld of first10TLDs) {
-    const url = `https://${combined}${tld}`;
+  // Merge all URLs
+  const allUrls = [...combinedUrls, ...singleWordUrls];
+
+  // Remove duplicates
+  const uniqueUrls = [...new Set(allUrls)];
+
+  // ---------- Test all URLs simultaneously ----------
+  const fetchPromises = uniqueUrls.map(async url => {
     if (await siteExists(url)) {
-      const fcard = await fetchFcard(url);
-      if (fcard) results.push(fcard);
+      return fetchFcard(url);
     }
-  }
+    return null;
+  });
 
-  // ---------- Step 2: single words using sites.js ----------
-  const sitesFns = Object.values(sourceCategories)
-    .flat()                        // flatten nested arrays
-    .filter(fn => typeof fn === "function"); // keep only functions
+  const resultsArr = await Promise.all(fetchPromises);
+  const results = resultsArr.filter(r => r); // remove nulls
 
-  for (const word of words) {
-    for (const fn of sitesFns) {
-      const url = fn(word);
-      if (url && await siteExists(url)) {
-        const fcard = await fetchFcard(url);
-        if (fcard) results.push(fcard);
-      }
-    }
-  }
-
-  // ---------- Step 3: remaining TLDs for combined domain ----------
-  for (const tld of remainingTLDs) {
-    const url = `https://${combined}${tld}`;
-    if (await siteExists(url)) {
-      const fcard = await fetchFcard(url);
-      if (fcard) results.push(fcard);
-    }
-  }
-
-  // Remove duplicates by URL
-  const seen = new Map();
-  for (const f of results) {
-    if (!seen.has(f.url)) seen.set(f.url, f);
-  }
-
-  if (seen.size === 0) {
+  if (results.length === 0) {
     return [{ title: "No Results", url: null, favicon: null, snippet: "No fcards could be generated." }];
   }
 
-  return Array.from(seen.values());
+  return results;
 }
