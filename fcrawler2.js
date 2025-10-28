@@ -19,14 +19,49 @@ async function fetchFcard(url, timeout = 5000) {
     });
 
     const $ = cheerio.load(response.data);
+
+    // Snippet
     const snippet = $("p").first().text().trim().substring(0, 300) || "No snippet available";
-    const title = $("title").first().text().trim() || url;
-    let favicon = $('link[rel="icon"]').attr("href") || "/favicon.ico";
-    if (favicon && !favicon.startsWith("http")) favicon = new URL(favicon, url).href;
+
+    // Title fallback to domain if missing
+    let title = $("title").first().text().trim();
+    if (!title) {
+      try {
+        title = new URL(url).hostname;
+      } catch {
+        title = url;
+      }
+    }
+
+    // Favicon: try multiple selectors
+    let favicon =
+      $('link[rel="icon"]').attr("href") ||
+      $('link[rel="shortcut icon"]').attr("href") ||
+      $('link[rel="apple-touch-icon"]').attr("href") ||
+      "/favicon.ico";
+
+    if (favicon && !favicon.startsWith("http")) {
+      try {
+        favicon = new URL(favicon, url).href;
+      } catch {
+        favicon = null;
+      }
+    }
 
     return { title, url, favicon, snippet };
-  } catch {
-    return { title: "Failed to fetch", url, favicon: null, snippet: "Could not retrieve content" };
+  } catch (err) {
+    // fallback for failed request
+    try {
+      const domain = new URL(url).hostname;
+      return {
+        title: domain,
+        url,
+        favicon: `/favicon.ico`,
+        snippet: "Could not retrieve content"
+      };
+    } catch {
+      return { title: url, url, favicon: null, snippet: "Could not retrieve content" };
+    }
   }
 }
 
