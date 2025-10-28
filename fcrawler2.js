@@ -1,11 +1,7 @@
 // fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-
-// --------------------
-// 10 Most Common TLDs
-// --------------------
-const COMMON_TLDS = [".com", ".net", ".org", ".io", ".co", ".us", ".info", ".biz", ".online", ".tech"];
+import { TLDs } from "./tlds.js"; // full TLD list (100+)
 
 // --------------------
 // Helpers
@@ -14,17 +10,18 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fetch full fcard info
+// Fetch fcard info
 async function fetchFcard(url, timeout = 7000) {
   try {
     const response = await axios.get(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
       timeout,
-      maxRedirects: 5
+      maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 400, // Only real pages or redirects
     });
 
     const finalUrl = response.request.res.responseUrl || url;
@@ -49,36 +46,47 @@ export async function handleNormalSearch(query) {
       {
         title: "Invalid Query",
         url: null,
-        snippet: "Your query must contain letters or numbers."
-      }
+        snippet: "Your query must contain letters or numbers.",
+      },
     ];
   }
 
-  // Generate URLs for all 10 TLDs
-  const urls = COMMON_TLDS.map(tld => `https://${normalized}${tld}`);
+  // Use all TLDs from tlds.js
+  const selectedTLDs = TLDs;
+
+  // Generate URLs for all TLDs
+  const urls = selectedTLDs.map((tld) => `https://${normalized}${tld}`);
 
   // Fetch all in parallel
-  const resultsArr = await Promise.all(urls.map(url => fetchFcard(url)));
+  const resultsArr = await Promise.all(urls.map((url) => fetchFcard(url)));
 
-  // Filter valid and unique results
-  const seen = new Set();
-  const results = resultsArr
-    .filter(r => r && !seen.has(new URL(r.url).hostname))
-    .map(r => {
-      seen.add(new URL(r.url).hostname);
-      return r;
-    });
+  // Remove duplicates (by hostname + title)
+  const seenDomains = new Set();
+  const seenTitles = new Set();
+  const uniqueResults = [];
+
+  for (const result of resultsArr) {
+    if (
+      result &&
+      !seenDomains.has(new URL(result.url).hostname) &&
+      !seenTitles.has(result.title.toLowerCase())
+    ) {
+      seenDomains.add(new URL(result.url).hostname);
+      seenTitles.add(result.title.toLowerCase());
+      uniqueResults.push(result);
+    }
+  }
 
   // Handle no results
-  if (results.length === 0) {
+  if (uniqueResults.length === 0) {
     return [
       {
         title: "No Results",
         url: null,
-        snippet: "No fcards could be generated for this query."
-      }
+        snippet: "No fcards could be generated for this query.",
+      },
     ];
   }
 
-  return results;
+  return uniqueResults;
 }
