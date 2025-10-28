@@ -1,7 +1,8 @@
+// fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { TLDs } from "./tlds.js";
-import { sourceCategories } from "./sites.js"; // sites.js functions
+import { sourceCategories } from "./sites.js";
 
 // --------------------
 // Helpers
@@ -10,7 +11,7 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fast check if site exists
+// Fast check if site exists (HEAD request)
 async function siteExists(url, timeout = 3000) {
   try {
     await axios.head(url, { timeout });
@@ -37,8 +38,13 @@ async function fetchFcard(url, timeout = 5000) {
       $('link[rel="shortcut icon"]').attr("href") ||
       $('link[rel="apple-touch-icon"]').attr("href") ||
       "/favicon.ico";
+
     if (favicon && !favicon.startsWith("http")) {
-      favicon = new URL(favicon, url).href;
+      try {
+        favicon = new URL(favicon, url).href;
+      } catch {
+        favicon = null;
+      }
     }
 
     return { title, url, favicon, snippet };
@@ -69,8 +75,11 @@ export async function handleNormalSearch(query) {
   }
 
   // ---------- Step 2: single words using sites.js ----------
+  const sitesFns = Object.values(sourceCategories)
+    .flat()                        // flatten nested arrays
+    .filter(fn => typeof fn === "function"); // keep only functions
+
   for (const word of words) {
-    const sitesFns = Object.values(sourceCategories);
     for (const fn of sitesFns) {
       const url = fn(word);
       if (url && await siteExists(url)) {
