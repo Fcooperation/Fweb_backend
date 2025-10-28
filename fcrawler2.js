@@ -1,13 +1,15 @@
 // fcrawler2.js
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js"; // your full list (100+)
+import { TLDs } from "./tlds.js";
+import { definitionWords } from "./definitionWord.js";
+import { sourceCategories } from "./sites.js";
 
 // --------------------
 // Config
 // --------------------
-const TOP_TLD_COUNT = 30;   // first N TLDs to try immediately
-const BATCH_SIZE = 30;      // how many TLD requests to run in parallel for the fallback stage
+const TOP_TLD_COUNT = 30;
+const BATCH_SIZE = 30;
 const REQUEST_TIMEOUT = 7000;
 
 // --------------------
@@ -17,7 +19,6 @@ function normalizeForDomain(query) {
   return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Robust fetch that follows redirects and returns final URL, title, snippet
 async function fetchFcard(url, timeout = REQUEST_TIMEOUT) {
   try {
     const response = await axios.get(url, {
@@ -31,80 +32,82 @@ async function fetchFcard(url, timeout = REQUEST_TIMEOUT) {
       validateStatus: status => status >= 200 && status < 400
     });
 
-    // best-effort final URL
     const finalUrl =
-      (response.request && response.request.res && response.request.res.responseUrl) ||
-      response.config?.url ||
-      url;
+      response.request?.res?.responseUrl || response.config?.url || url;
 
     const $ = cheerio.load(response.data);
     const snippet = $("p").first().text().trim().substring(0, 300) || "No snippet available";
     const title = $("title").first().text().trim() || new URL(finalUrl).hostname;
 
     return { title, url: finalUrl, snippet };
-  } catch (err) {
-    // silent skip on failure (could log err.message for debugging)
+  } catch {
     return null;
   }
 }
 
-// Generate full url string for a domain name + tld (https)
 function makeUrl(domain, tld) {
   return `https://${domain}${tld}`;
 }
 
-// chunk array into batches of size n
 function chunkArray(arr, n) {
   const out = [];
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
   return out;
 }
 
-// Run a list of urls in parallel and return successful fcards
 async function fetchUrlsInParallel(urls) {
-  const promises = urls.map(u => fetchFcard(u));
-  const resultsArr = await Promise.all(promises);
-  return resultsArr.filter(r => r);
+  const results = await Promise.all(urls.map(u => fetchFcard(u)));
+  return results.filter(r => r);
 }
 
 // --------------------
-// Core logic
+// Sites.js generator
+// --------------------
+function generateSiteUrls(query) {
+  const urls = [];
+  for (const key of Object.keys(sourceCategories)) {
+    for (const fn of sourceCategories[key]) {
+      try {
+        const siteUrl = fn(query);
+        if (siteUrl) urls.push(siteUrl);
+      } catch {}
+    }
+  }
+  return urls;
+}
+
+// --------------------
+// Main logic
 // --------------------
 export async function handleNormalSearch(query) {
-  const rawWords = (query || "").trim().split(/\s+/).filter(Boolean);
-  if (!rawWords.length) {
+  const raw = (query || "").trim().toLowerCase();
+  if (!raw) {
     return [
       { title: "Invalid Query", url: null, snippet: "Your query must contain letters or numbers." }
     ];
   }
 
-  // words to test: combined + each individual word
-  const combined = rawWords.join("");
-  const wordsToTest = [combined, ...rawWords];
+  // --- Detect if query starts with a definition word ---
+  const defWord = definitionWords.find(w => raw.startsWith(w.toLowerCase()));
+  let isDef = false;
+  let cleanQuery = raw;
+  if (defWord) {
+    isDef = true;
+    cleanQuery = raw.replace(defWord, "").trim(); // remove the def prefix
+  }
 
-  // normalize domains
-  const normalizedWords = [...new Set(wordsToTest.map(w => normalizeForDomain(w)).filter(Boolean))];
+  const words = cleanQuery.split(/\s+/);
+  const combined = words.join("");
+  const normalizedWords = [...new Set([combined, ...words].map(normalizeForDomain))];
 
-  // get top and remaining TLD lists from tlds.js
+  // --- Get TLD lists ---
   const topTLDs = TLDs.slice(0, TOP_TLD_COUNT);
   const remainingTLDs = TLDs.slice(TOP_TLD_COUNT);
 
-  // 1) Prepare URLs for top TLDs for all words (parallel across all those URLs)
-  const topUrls = [];
-  for (const w of normalizedWords) {
-    for (const tld of topTLDs) topUrls.push(makeUrl(w, tld));
-  }
-
-  // Fetch all top URLs in parallel
-  const topResults = await fetchUrlsInParallel(topUrls);
-
-  // Collect results and track which normalized words already produced at least one result
   const seenHostnames = new Set();
   const seenTitles = new Set();
   const finalResults = [];
-
-  // helper to add unique result
-  function tryAddResult(r) {
+  const tryAdd = (r) => {
     try {
       const hostname = new URL(r.url).hostname;
       const titleKey = (r.title || "").toLowerCase();
@@ -112,49 +115,46 @@ export async function handleNormalSearch(query) {
         seenHostnames.add(hostname);
         seenTitles.add(titleKey);
         finalResults.push(r);
-        return true;
       }
-    } catch {
-      // ignore malformed URL
+    } catch {}
+  };
+
+  // --- Case 1: Definition Query ---
+  if (isDef) {
+    // a) Definition sites (Britannica, Wikipedia, etc.)
+    const defUrls = generateSiteUrls(query); // use full "what is a cat"
+    const defResults = await fetchUrlsInParallel(defUrls);
+    defResults.forEach(tryAdd);
+
+    // b) TLDs on cleaned keyword only ("cat")
+    const tldUrls = [];
+    for (const w of normalizedWords) {
+      for (const tld of topTLDs) tldUrls.push(makeUrl(w, tld));
     }
-    return false;
+    const tldResults = await fetchUrlsInParallel(tldUrls);
+    tldResults.forEach(tryAdd);
   }
 
-  // add topResults in order (top-level)
-  for (const r of topResults) tryAddResult(r);
+  // --- Case 2: Normal Query ---
+  else {
+    // a) TLDs (like render.com etc.)
+    const tldUrls = [];
+    for (const w of normalizedWords) {
+      for (const tld of topTLDs) tldUrls.push(makeUrl(w, tld));
+    }
+    const tldResults = await fetchUrlsInParallel(tldUrls);
+    tldResults.forEach(tryAdd);
 
-  // Determine which normalized words still need fallback testing (no result found for them)
-  const wordsNeedingFallback = [];
-  for (const w of normalizedWords) {
-    // check if any existing finalResults hostname contains the word (best-effort)
-    const matched = Array.from(seenHostnames).some(h => h.includes(w));
-    if (!matched) wordsNeedingFallback.push(w);
+    // b) Sites.js sources (render from TechCrunch, etc.)
+    const siteUrls = generateSiteUrls(query);
+    const siteResults = await fetchUrlsInParallel(siteUrls);
+    siteResults.forEach(tryAdd);
   }
 
-  // 2) If some words have no top-TLD results, test remaining TLDs in batches (across all needed words)
-  if (wordsNeedingFallback.length > 0 && remainingTLDs.length > 0) {
-    // Build all fallback URLs for words needing fallback
-    const fallbackUrls = [];
-    for (const w of wordsNeedingFallback) {
-      for (const tld of remainingTLDs) fallbackUrls.push(makeUrl(w, tld));
-    }
-
-    // Break into batches to avoid blasting too many requests at once
-    const batches = chunkArray(fallbackUrls, BATCH_SIZE);
-
-    for (const batch of batches) {
-      const batchResults = await fetchUrlsInParallel(batch);
-      for (const r of batchResults) tryAddResult(r);
-
-      // Optional: small pause between batches to be gentle (commented out by default)
-      // await new Promise(resolve => setTimeout(resolve, 100)); // 100ms
-    }
-  }
-
-  // Final fallback: if still no results (very unlikely), return No Results
+  // --- Handle empty results ---
   if (finalResults.length === 0) {
     return [
-      { title: "No Results", url: null, snippet: `No fcards found for "${query}" on tested TLDs.` }
+      { title: "No Results", url: null, snippet: `No fcards found for "${query}" on tested sources.` }
     ];
   }
 
