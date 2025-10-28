@@ -2,60 +2,82 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-// Top 10 common TLDs
+// --------------------
+// 10 Most Common TLDs
+// --------------------
 const COMMON_TLDS = [".com", ".net", ".org", ".io", ".co", ".us", ".info", ".biz", ".online", ".tech"];
 
 // --------------------
 // Helpers
 // --------------------
-function normalizeForDomain(domain) {
-  return domain.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+function normalizeForDomain(query) {
+  return query.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }
 
-// Fetch fcard for a URL
+// Fetch full fcard info
 async function fetchFcard(url, timeout = 7000) {
   try {
     const response = await axios.get(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       },
       timeout,
       maxRedirects: 5
     });
 
-    const finalUrl = response.request.res.responseUrl;
+    const finalUrl = response.request.res.responseUrl || url;
     const $ = cheerio.load(response.data);
-    const snippet = $("p").first().text().trim().substring(0, 300) || "No snippet available";
+    const snippet =
+      $("p").first().text().trim().substring(0, 300) || "No snippet available";
     const title = $("title").first().text().trim() || new URL(finalUrl).hostname;
 
     return { title, url: finalUrl, snippet };
   } catch {
-    return null; // skip dead or blocked sites
+    return null;
   }
-}
-
-// Generate URLs for Google + common TLDs
-function generateGoogleUrls() {
-  const google = normalizeForDomain("Google");
-  return COMMON_TLDS.map(tld => `https://${google}${tld}`);
 }
 
 // --------------------
 // Main function
 // --------------------
 export async function handleNormalSearch(query) {
-  // For now we ignore query and always test Google TLDs
-  const urls = generateGoogleUrls();
+  const normalized = normalizeForDomain(query);
+  if (!normalized) {
+    return [
+      {
+        title: "Invalid Query",
+        url: null,
+        snippet: "Your query must contain letters or numbers."
+      }
+    ];
+  }
 
-  // Launch all requests simultaneously
+  // Generate URLs for all 10 TLDs
+  const urls = COMMON_TLDS.map(tld => `https://${normalized}${tld}`);
+
+  // Fetch all in parallel
   const resultsArr = await Promise.all(urls.map(url => fetchFcard(url)));
 
-  // Only keep successful fcards
-  const results = resultsArr.filter(r => r);
+  // Filter valid and unique results
+  const seen = new Set();
+  const results = resultsArr
+    .filter(r => r && !seen.has(new URL(r.url).hostname))
+    .map(r => {
+      seen.add(new URL(r.url).hostname);
+      return r;
+    });
 
+  // Handle no results
   if (results.length === 0) {
-    return [{ title: "No Results", url: null, snippet: "No fcards could be generated." }];
+    return [
+      {
+        title: "No Results",
+        url: null,
+        snippet: "No fcards could be generated for this query."
+      }
+    ];
   }
 
   return results;
