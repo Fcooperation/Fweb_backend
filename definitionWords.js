@@ -1249,13 +1249,24 @@ export const definitionWords = [
 
 
 
-// Helper to remove those words from the query
-export function stripDefWords(query) {
-  let q = query.toLowerCase();
+
+
+// ✅ Check if a query *starts with* one of these phrases exactly
+export function isDefinitionQuery(query) {
+  const lower = query.trim().toLowerCase();
+  return definitionWords.some(word =>
+    new RegExp(`^${word}(\\b|\\s)`).test(lower)
+  );
+}
+
+// ✅ Get the main part of the query (after removing the def phrase)
+export function getDefinitionRoot(query) {
+  const lower = query.trim().toLowerCase();
   for (const word of definitionWords) {
-    if (q.startsWith(word)) {
-      return q.replace(word, "").trim();
+    const regex = new RegExp(`^${word}(\\b|\\s)`);
+    if (regex.test(lower)) {
+      return lower.replace(regex, "").trim();
     }
   }
-  return q;
-  }
+  return lower;
+}
