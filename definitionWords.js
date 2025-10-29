@@ -1246,3 +1246,16 @@ export const definitionWords = [
 "framework"
 
 ];
+
+
+
+// Helper to remove those words from the query
+export function stripDefWords(query) {
+  let q = query.toLowerCase();
+  for (const word of definitionWords) {
+    if (q.startsWith(word)) {
+      return q.replace(word, "").trim();
+    }
+  }
+  return q;
+  }
