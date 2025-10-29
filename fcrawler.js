@@ -47,7 +47,7 @@ export async function handleSearch(query) {
         {
           title: "Site Does Not Exist",
           url,
-          snippet: `❌ The site "${url}" does not exist or refused connection.`,
+          snippet: `https://fweb-omega.vercel.app/sitenotfound.html "${url}"'
           html: null,
           type: "link-error",
         },
