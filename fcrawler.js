@@ -43,11 +43,13 @@ export async function handleSearch(query) {
         ];
       }
     } catch (err) {
+      // 🔹 Send site-not-found link back for frontend redirect
+      const notFoundUrl = "https://fweb-omega.vercel.app/sitenotfound.html";
       return [
         {
           title: "Site Does Not Exist",
-          url,
-          snippet: `https://fweb-omega.vercel.app/sitenotfound.html "${url}"'
+          url: notFoundUrl,
+          snippet: `❌ The site "${url}" does not exist or refused connection.`,
           html: null,
           type: "link-error",
         },
