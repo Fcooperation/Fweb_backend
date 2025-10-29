@@ -1,10 +1,10 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { TLDs } from "./tlds.js"; // full list of TLDs
-import { stripDefWords } from "./definitionWords.js"; // helper we'll add below
+import { TLDs } from "./tlds.js";
+import { definitionWords, getDefinitionRoot } from "./definitionWords.js";
 
 // ------------------------------
-// Helper: fetch a definition site page
+// Fetch from definition site
 // ------------------------------
 async function fetchDefinition(url) {
   try {
@@ -30,7 +30,7 @@ async function fetchDefinition(url) {
 }
 
 // ------------------------------
-// Helper: fetch general site (for TLD test)
+// Fetch normal site (for TLD test)
 // ------------------------------
 async function fetchSite(url) {
   try {
@@ -57,7 +57,7 @@ async function fetchSite(url) {
 }
 
 // ------------------------------
-// Definition sources
+// Definition sites
 // ------------------------------
 const definitionSites = [
   "https://en.wikipedia.org/wiki/",
@@ -73,42 +73,40 @@ const definitionSites = [
 ];
 
 // ------------------------------
-// Main function
+// Core handler
 // ------------------------------
 export async function handleDefinitionSearch(query) {
   console.log("📘 Running definition search for:", query);
 
-  // Extract the core term (remove "define", "what is", etc.)
-  const coreTerm = stripDefWords(query).trim().toLowerCase();
+  // Full phrase for def sites
+  const fullPhrase = query.trim();
 
-  // Construct URLs for definition sources
-  const defUrls = definitionSites.map(base => base + encodeURIComponent(coreTerm));
+  // Extract core term for TLDs (remove def phrase)
+  const coreTerm = getDefinitionRoot(fullPhrase).trim().toLowerCase();
 
-  // Run all definition requests in parallel
+  // 1️⃣ Definition sites
+  const defUrls = definitionSites.map(
+    base => base + encodeURIComponent(fullPhrase)
+  );
+
   const defResults = await Promise.all(defUrls.map(fetchDefinition));
   const validDefResults = defResults.filter(r => r);
 
-  // -------------------------
-  // TLD testing (for core term)
-  // -------------------------
+  // 2️⃣ TLD tests (for only the core word)
   const selectedTLDs = TLDs.slice(0, 10);
   const tldUrls = selectedTLDs.map(tld => `https://${coreTerm}${tld}`);
   const tldResults = await Promise.all(tldUrls.map(fetchSite));
   const validTldResults = tldResults.filter(r => r);
 
-  // Merge both sets
-  const merged = [...validDefResults, ...validTldResults];
-
-  // Handle duplicates
+  // Merge and deduplicate
   const seen = new Set();
-  const uniqueResults = merged.filter(r => {
+  const merged = [...validDefResults, ...validTldResults].filter(r => {
     if (seen.has(r.url)) return false;
     seen.add(r.url);
     return true;
   });
 
-  // If nothing found
-  if (uniqueResults.length === 0) {
+  if (merged.length === 0) {
     return [
       {
         title: "No Results",
@@ -119,5 +117,5 @@ export async function handleDefinitionSearch(query) {
     ];
   }
 
-  return uniqueResults;
+  return merged;
 }
