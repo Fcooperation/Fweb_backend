@@ -6,9 +6,6 @@ import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
 import { runFTrainer } from "./ftrainer.js";
-import { loadChatUserQuery } from "./fchataccount.js";
-import { sendMessageQuery, detectIncomingQuery } from "./fchatmessage.js";
-import { deleteMessageQuery } from "./fchatlogs.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -197,57 +194,6 @@ app.post("/logs", async (req, res) => {
   }
 });
 
-//load loadChatUserQuery
-app.get("/chatuser/:id", async (req, res) => {
-  const chatUserId = req.params.id;
-  try {
-    const user = await loadChatUserQuery(chatUserId); // query Supabase safely
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error("❌ loadChatUser error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-//send messages
-app.post("/sendmessage", async (req, res) => {
-  const { recipientId, messageData } = req.body;
-  if (!recipientId || !messageData) return res.status(400).json({ error: "Missing fields" });
-
-  try {
-    const result = await sendMessageQuery(recipientId, messageData);
-    res.json({ success: true, result });
-  } catch (err) {
-    console.error("❌ sendMessage error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-//receive messages
-app.get("/detectmessages/:id", async (req, res) => {
-  const chatUserId = req.params.id; // current user id in this case
-  try {
-    const messages = await detectIncomingQuery(chatUserId);
-    res.json({ success: true, messages });
-  } catch (err) {
-    console.error("❌ detectIncoming error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-//Fchat Logs
-app.post("/deletemessage", async (req, res) => {
-  const { messageId } = req.body;
-  if (!messageId) return res.status(400).json({ error: "Missing messageId" });
-
-  try {
-    const result = await deleteMessageQuery(messageId);
-    res.json({ success: true, result });
-  } catch (err) {
-    console.error("❌ deleteMessage error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // ------------------------------
 // Start Server
