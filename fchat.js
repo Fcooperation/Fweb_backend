@@ -56,14 +56,7 @@ export async function handleFChat(body) {
         user: data // full row from Supabase, frontend can save to localStorage
       };
     }
-
-    return { message: "Action not supported yet" };
-
-  } catch (err) {
-    console.error("❌ handleFChat error:", err);
-    return { error: "Something went wrong" };
-  }
-  if (action === "signup") {
+    if (action === "signup") {
 const { username, full_name, secret } = body;
 
 // Basic validation
@@ -128,4 +121,11 @@ message: "Account created successfully. You can now login.",
 user: newUser
 };
   }
+
+    return { message: "Action not supported yet" };
+
+  } catch (err) {
+    console.error("❌ handleFChat error:", err);
+    return { error: "Something went wrong" };
+      }        
 }
