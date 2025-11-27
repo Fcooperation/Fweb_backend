@@ -121,6 +121,61 @@ message: "Account created successfully. You can now login.",
 user: newUser
 };
   }
+    // --------------------
+// Forget Password: Step 1 - check email exists
+// --------------------
+if (action === "forgetpassword") {
+  if (!email) return { error: "Email is required" };
+
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !data) return { error: "Email not found" };
+
+  // Don't send password, just acknowledge
+  return { message: "Email exists. Please enter your secret code." };
+}
+
+// --------------------
+// Verify secret code
+// --------------------
+if (action === "verifysecret") {
+  const { secret } = body;
+  if (!email || !secret) return { error: "Email and secret are required" };
+
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !data) return { error: "Account not found" };
+  if (data.secret !== secret) return { error: "Secret code does not match" };
+
+  return { message: "Secret verified" };
+}
+
+// --------------------
+// Change password
+// --------------------
+if (action === "changepassword") {
+  const { new_password } = body;
+  if (!email || !new_password) return { error: "Email and new password required" };
+
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .update({ password_hash: new_password })
+    .eq("email", email)
+    .select()
+    .maybeSingle();
+
+  if (error || !data) return { error: "Failed to update password" };
+
+  return { message: "Password changed successfully" };
+}
 
     return { message: "Action not supported yet" };
 
