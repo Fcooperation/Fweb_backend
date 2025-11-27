@@ -176,10 +176,9 @@ if (action === "changepassword") {
 
   return { message: "Password changed successfully" };
 }
-
-    // --------------------
-// Dashboard / Account actions
-// --------------------
+    // --------------------  
+// Dashboard / Account actions  
+// --------------------  
 if (
   [
     "check_status",
@@ -243,6 +242,7 @@ if (
       success: true,
       message: "Profile picture updated successfully",
       profile_pic: updatedPic.profile_pic,
+      status // always send status
     };
   }
 
@@ -268,7 +268,7 @@ if (
       message: "Account details updated successfully",
       username: updatedDetails.username,
       profile_pic: updatedDetails.profile_pic,
-      status: updatedDetails.status,
+      status: updatedDetails.status, // always send status
     };
   }
 
@@ -284,11 +284,18 @@ if (
   }
 
   if (action === "check_fchat_access") {
-    // Example: only active accounts can access Fchat
-    const canAccess = status === "active";
-    return { fchat: canAccess ? "yes" : "no", status, banned: status === "banned", suspended_until: suspendedUntil };
+    // Active status is required
+    const canAccess = status === "active" && account.fchat?.toLowerCase() === "yes";
+    return {
+      fchat: canAccess ? "yes" : "no",
+      status,
+      banned: status === "banned",
+      suspended_until: suspendedUntil
+    };
   }
-      }
+}
+
+
     return { message: "Action not supported yet" };
 
   } catch (err) {
