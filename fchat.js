@@ -177,6 +177,118 @@ if (action === "changepassword") {
   return { message: "Password changed successfully" };
 }
 
+    // --------------------
+// Dashboard / Account actions
+// --------------------
+if (
+  [
+    "check_status",
+    "update_pic",
+    "update_details",
+    "delete_account",
+    "check_fchat_access"
+  ].includes(action)
+) {
+  // Fetch account
+  const { data: account, error: accError } = await supabase
+    .from("fwebaccount")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (accError || !account) return { error: "Account not found" };
+
+  // --------------------
+  // Check status (banned/suspended)
+  // --------------------
+  let status = account.status || "active";
+  let suspendedUntil = account.suspended_until ? new Date(account.suspended_until) : null;
+  const now = new Date();
+
+  if (status === "suspended" && suspendedUntil && suspendedUntil <= now) {
+    // Reactivate expired suspension
+    await supabase
+      .from("fwebaccount")
+      .update({ status: "active" })
+      .eq("email", email);
+    status = "active";
+  }
+
+  // --------------------
+  // Handle specific actions
+  // --------------------
+  if (action === "check_status") {
+    return {
+      status,
+      suspended_until: suspendedUntil,
+      banned: status === "banned",
+      message: "Account status checked",
+    };
+  }
+
+  if (action === "update_pic") {
+    const { profile_pic } = body;
+    if (!profile_pic) return { error: "No image provided" };
+
+    const { data: updatedPic, error: picError } = await supabase
+      .from("fwebaccount")
+      .update({ profile_pic })
+      .eq("email", email)
+      .select()
+      .maybeSingle();
+
+    if (picError || !updatedPic) return { error: "Failed to update profile picture" };
+
+    return {
+      success: true,
+      message: "Profile picture updated successfully",
+      profile_pic: updatedPic.profile_pic,
+    };
+  }
+
+  if (action === "update_details") {
+    const { username, password_hash } = body;
+    const updates = {};
+    if (username) updates.username = username;
+    if (password_hash) updates.password_hash = password_hash;
+
+    if (Object.keys(updates).length === 0) return { error: "No details to update" };
+
+    const { data: updatedDetails, error: updError } = await supabase
+      .from("fwebaccount")
+      .update(updates)
+      .eq("email", email)
+      .select()
+      .maybeSingle();
+
+    if (updError || !updatedDetails) return { error: "Failed to update details" };
+
+    return {
+      success: true,
+      message: "Account details updated successfully",
+      username: updatedDetails.username,
+      profile_pic: updatedDetails.profile_pic,
+      status: updatedDetails.status,
+    };
+  }
+
+  if (action === "delete_account") {
+    const { error: delError } = await supabase
+      .from("fwebaccount")
+      .delete()
+      .eq("email", email);
+
+    if (delError) return { error: "Failed to delete account" };
+
+    return { success: true, message: "Account deleted successfully" };
+  }
+
+  if (action === "check_fchat_access") {
+    // Example: only active accounts can access Fchat
+    const canAccess = status === "active";
+    return { fchat: canAccess ? "yes" : "no", status, banned: status === "banned", suspended_until: suspendedUntil };
+  }
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
