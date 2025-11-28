@@ -296,44 +296,7 @@ if (
   }
 }
 
-if (action === "get_all_users") {
-// Return all users with required fields for FCHAT add page
-const { data, error } = await supabase
-.from("fwebaccount")
-.select("id, username, profile_pic, fchat, friend_requests, fchat_messages, broadcast");
 
-if (error) return { error: "Failed to fetch users" };
-return { data };
-}
-
-if (action === "send_friend_request") {
-const { target_id, friend_requests, sent_at } = body;
-if (!target_id) return { error: "Target ID required" };
-
-const { data, error } = await supabase
-.from("fwebaccount")
-.update({ friend_requests, sent_at })
-.eq("id", target_id)
-.select()
-.maybeSingle();
-
-if (error || !data) return { error: "Failed to send friend request" };
-return { message: "Friend request sent", data };
-}
-
-// Optional: incremental search backend
-if (action === "search_users") {
-const { query } = body;
-if (!query) return { data: [] };
-
-const { data, error } = await supabase
-.from("fwebaccount")
-.select("id, username, profile_pic, fchat, friend_requests, fchat_messages, broadcast")
-.ilike("username", "%${query}%");
-
-if (error) return { error: "Search failed" };
-return { data };
-                    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
