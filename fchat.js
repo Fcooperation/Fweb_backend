@@ -296,41 +296,6 @@ if (
 }
 
 
-    if (action === "update_details") {
-  const { username, password_hash, dob, bio } = body;
-
-  const updates = {};
-
-  if (username) updates.username = username;
-  if (password_hash) updates.password_hash = password_hash;
-
-  // 🔥 NEW FIELDS
-  if (dob) updates.dob = dob;
-  if (bio) updates.bio = bio;
-
-  if (Object.keys(updates).length === 0)
-    return { error: "No details to update" };
-
-  const { data: updatedDetails, error: updError } = await supabase
-    .from("fwebaccount")
-    .update(updates)
-    .eq("email", email)
-    .select()
-    .maybeSingle();
-
-  if (updError || !updatedDetails)
-    return { error: "Failed to update details" };
-
-  return {
-    success: true,
-    message: "Account details updated successfully",
-    username: updatedDetails.username,
-    profile_pic: updatedDetails.profile_pic,
-    dob: updatedDetails.dob,
-    bio: updatedDetails.bio,
-    status: updatedDetails.status
-  };
-    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
