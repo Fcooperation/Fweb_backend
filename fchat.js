@@ -297,7 +297,26 @@ if (
 }
 
 
+// Get only broadcast users
+if (action === "get_broadcast_users") {
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, fchat, status_text, broadcast")
+    .eq("broadcast", "yes");
 
+  if (error) return { error: "Failed to load broadcast users" };
+  return { data };
+}
+
+// Get ALL users (broadcast + non-broadcast)
+if (action === "get_all_users") {
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, fchat, status_text, broadcast");
+
+  if (error) return { error: "Failed to load all users" };
+  return { data };
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
