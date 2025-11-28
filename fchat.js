@@ -307,7 +307,19 @@ if(error) return { error:"Failed to fetch users" };
 return { data };
 }
 
-  
+  if (action === "search_users") {
+  const { query } = body;
+  if (!query) return { data: [] };
+
+  // Match username (case-insensitive partial) OR id (partial match)
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, fchat, friend_requests, fchat_messages, broadcast")
+    .or(`username.ilike.%${query}%,id.ilike.%${query}%`);
+
+  if (error) return { error: "Search failed" };
+  return { data };
+  }
 
 
 if(action==="send_friend_request"){
