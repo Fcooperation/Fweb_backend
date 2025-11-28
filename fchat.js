@@ -307,17 +307,7 @@ if(error) return { error:"Failed to fetch users" };
 return { data };
 }
 
-if(action==="search_users"){
-const { query } = body;
-if(!query) return { data:[] };
 
-const { data, error } = await supabase
-.from("fwebaccount")
-.select("id, username, profile_pic, fchat, friend_requests, fchat_messages")
-.or("username.ilike.%${query}%,id.eq.${query}");
-if(error) return { error:"Search failed" };
-return { data };
-}
 
 if(action==="send_friend_request"){
 const { target_id, friend_requests, sent_at } = body;
