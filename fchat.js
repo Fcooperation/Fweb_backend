@@ -246,31 +246,7 @@ if (
     };
   }
 
-  if (action === "update_details") {
-    const { username, password_hash } = body;
-    const updates = {};
-    if (username) updates.username = username;
-    if (password_hash) updates.password_hash = password_hash;
-
-    if (Object.keys(updates).length === 0) return { error: "No details to update" };
-
-    const { data: updatedDetails, error: updError } = await supabase
-      .from("fwebaccount")
-      .update(updates)
-      .eq("email", email)
-      .select()
-      .maybeSingle();
-
-    if (updError || !updatedDetails) return { error: "Failed to update details" };
-
-    return {
-      success: true,
-      message: "Account details updated successfully",
-      username: updatedDetails.username,
-      profile_pic: updatedDetails.profile_pic,
-      status: updatedDetails.status, // always send status
-    };
-  }
+ 
 
   if (action === "delete_account") {
     const { error: delError } = await supabase
