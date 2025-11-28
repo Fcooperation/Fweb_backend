@@ -295,7 +295,33 @@ if (
   }
 }
 
+if (action === "update_details") {
+const { username, password_hash, dob, bio, fchat } = body;
+const updates = {};
+if (username) updates.username = username;
+if (password_hash) updates.password_hash = password_hash;
+if (dob) updates.dob = dob;
+if (bio) updates.bio = bio;
+if (fchat) updates.fchat = fchat;
 
+if (Object.keys(updates).length === 0) return { error: "No details to update" };
+
+const { data: updatedDetails, error: updError } = await supabase
+.from("fwebaccount")
+.update(updates)
+.eq("email", email)
+.select()
+.maybeSingle();
+
+if (updError || !updatedDetails) return { error: "Failed to update details" };
+
+return {
+success: true,
+message: "Account details updated successfully",
+...updatedDetails, // include all updated fields
+};
+      }
+    
     return { message: "Action not supported yet" };
 
   } catch (err) {
