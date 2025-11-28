@@ -317,6 +317,69 @@ if (action === "get_all_users") {
   if (error) return { error: "Failed to load all users" };
   return { data };
 }
+    // --------------------
+// Add user / Verify users for FCHAT
+// --------------------
+if (action === "add_user") {
+  const { invite_id, my_id } = body;
+  if (!invite_id || !my_id) return { error: "invite_id or my_id missing" };
+
+  // Fetch the target user
+  const { data: targetUser, error: fetchError } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests")
+    .eq("id", invite_id)
+    .maybeSingle();
+
+  if (fetchError || !targetUser) return { error: "Target user not found" };
+
+  // Initialize friend_requests array if missing
+  let updatedRequests = targetUser.friend_requests || [];
+
+  // Add my_id if not already present
+  if (!updatedRequests.includes(my_id)) {
+    updatedRequests.push(my_id);
+    const { error: updateError } = await supabase
+      .from("fwebaccount")
+      .update({ friend_requests: updatedRequests })
+      .eq("id", invite_id);
+    if (updateError) return { error: "Failed to add friend request" };
+  }
+
+  return { message: "Friend request sent", friend_requests: updatedRequests };
+}
+
+// --------------------
+// Verify users
+// --------------------
+if (action === "verify_users") {
+  const { my_id } = body;
+  if (!my_id) return { error: "my_id missing" };
+
+  // 1) FCHAT: get all user IDs who sent messages to me
+  const { data: fchatMsgs, error: fchatError } = await supabase
+    .from("fwebaccount")
+    .select("id")
+    .contains("fchat_messages", [my_id]); // assuming fchat_messages is an array
+  if (fchatError) return { error: "Failed to verify FCHAT messages" };
+
+  const fchatIds = fchatMsgs?.map(u => u.id) || [];
+
+  // 2) Friend requests: get all accounts where my_id is in their friend_requests
+  const { data: friendReqs, error: reqError } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests");
+  if (reqError) return { error: "Failed to verify friend requests" };
+
+  const friendIds = friendReqs
+    .filter(u => u.friend_requests?.includes(my_id))
+    .map(u => u.id);
+
+  // Combine all verified IDs
+  const verifiedIds = [...new Set([...fchatIds, ...friendIds])];
+
+  return { data: verifiedIds };
+                     }
     return { message: "Action not supported yet" };
 
   } catch (err) {
