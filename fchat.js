@@ -309,7 +309,47 @@ if (action === "get_broadcast_users") {
 }
 
 // Get ALL users (broadcast + non-broadcast)
+if (action === "get_all_users") {
+  const { my_id } = body;
+  if (!my_id) return { error: "my_id missing" };
 
+  // 1️⃣ Get all FCHAT messages sent to me
+  const { data: fchatMsgs } = await supabase
+    .from("fwebaccount")
+    .select("id")
+    .contains("fchat_messages", [my_id]);
+
+  const fchatIds = fchatMsgs?.map(u => u.id) || [];
+
+  // 2️⃣ Get all friend requests where I am included
+  const { data: friendReqs } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests");
+
+  const friendIds = friendReqs
+    .filter(u => u.friend_requests?.includes(my_id))
+    .map(u => u.id);
+
+  // 3️⃣ Fetch all users
+  const { data: allUsers, error } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, fchat, status_text, broadcast");
+
+  if (error) return { error: "Failed to load all users" };
+
+  // 4️⃣ Map users to add verification info
+  const usersWithStatus = allUsers.map(u => {
+    if (fchatIds.includes(u.id)) {
+      return { ...u, status: "verified", fzone: "fchat_messages" };
+    } else if (friendIds.includes(u.id)) {
+      return { ...u, status: "verified", fzone: "friend_request" };
+    } else {
+      return { ...u, status: "unverified", fzone: null };
+    }
+  });
+
+  return { data: usersWithStatus };
+               }
     // --------------------
 // Add user / Verify users for FCHAT
 // --------------------
