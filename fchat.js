@@ -309,7 +309,23 @@ if (action === "get_broadcast_users") {
 }
 
 // Get ALL users (broadcast + non-broadcast)
+if (action === "get_all_users") {
+  try {
+    // Fetch all users with friend_requests and fchat_messages included
+    const { data: allUsers, error } = await supabase
+      .from("fwebaccount")
+      .select("id, username, profile_pic, fchat, status_text, broadcast, friend_requests, fchat_messages");
 
+    if (error) return { error: "Failed to load all users" };
+
+    // Simply return all users
+    return { data: allUsers };
+
+  } catch (err) {
+    console.error("Error fetching all users:", err);
+    return { error: "Something went wrong while fetching users" };
+  }
+  }
     // --------------------
 // Add user / Verify users for FCHAT
 // --------------------
