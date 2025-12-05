@@ -329,7 +329,39 @@ if (action === "get_all_users") {
     // --------------------
 // Add user / Verify users for FCHAT
 // --------------------
+if (action === "add_user") {
+  const { invite_id, my_id } = body;
+  if (!invite_id || !my_id) return { error: "invite_id or my_id missing" };
 
+  // Fetch the target user
+  const { data: targetUser, error: fetchError } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests")
+    .eq("id", invite_id)
+    .maybeSingle();
+
+  if (fetchError || !targetUser) return { error: "Target user not found" };
+
+  // Initialize friend_requests string if missing
+  let updatedRequests = targetUser.friend_requests || ""; // empty string if null
+
+  // Convert to array to check duplicates
+  const requestIds = updatedRequests ? updatedRequests.split(",") : [];
+
+  if (!requestIds.includes(my_id.toString())) {
+    requestIds.push(my_id.toString()); // add new ID
+    updatedRequests = requestIds.join(","); // convert back to comma-separated string
+
+    const { error: updateError } = await supabase
+      .from("fwebaccount")
+      .update({ friend_requests: updatedRequests })
+      .eq("id", invite_id);
+
+    if (updateError) return { error: "Failed to add friend request" };
+  }
+
+  return { message: "Friend request sent", friend_requests: updatedRequests };
+        }
 
 // --------------------
 // Verify users
