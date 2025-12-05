@@ -363,37 +363,7 @@ if (action === "add_user") {
   return { message: "Friend request sent", friend_requests: updatedRequests };
         }
 
-// --------------------
-// Verify users
-// --------------------
-if (action === "verify_users") {
-  const { my_id } = body;
-  if (!my_id) return { error: "my_id missing" };
 
-  // 1) FCHAT: get all user IDs who sent messages to me
-  const { data: fchatMsgs, error: fchatError } = await supabase
-    .from("fwebaccount")
-    .select("id")
-    .contains("fchat_messages", [my_id]); // assuming fchat_messages is an array
-  if (fchatError) return { error: "Failed to verify FCHAT messages" };
-
-  const fchatIds = fchatMsgs?.map(u => u.id) || [];
-
-  // 2) Friend requests: get all accounts where my_id is in their friend_requests
-  const { data: friendReqs, error: reqError } = await supabase
-    .from("fwebaccount")
-    .select("id, friend_requests");
-  if (reqError) return { error: "Failed to verify friend requests" };
-
-  const friendIds = friendReqs
-    .filter(u => u.friend_requests?.includes(my_id))
-    .map(u => u.id);
-
-  // Combine all verified IDs
-  const verifiedIds = [...new Set([...fchatIds, ...friendIds])];
-
-  return { data: verifiedIds };
-                     }
     return { message: "Action not supported yet" };
 
   } catch (err) {
