@@ -386,9 +386,16 @@ if (["get_requesters", "accept", "reject"].includes(action)) {
 
   // --------------------
   if (action === "get_requesters") {
-    // Just return the friend requests as IDs array
-    return { data: requests };
-  }
+  // Fetch all users whose ID is in your friend_requests
+  const { data: requestUsers, error: reqError } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic")
+    .in("id", requests);
+
+  if (reqError) return { error: "Failed to fetch requester info" };
+
+  return { data: requestUsers || [] };
+}
 
   if (!user_id) return { error: "user_id is required for accept/reject" };
 
