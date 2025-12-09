@@ -364,67 +364,84 @@ if (action === "add_user") {
         }
 
     // --------------------
-// FCHAT actions: get_requesters / accept / reject
+// FCHAT FRIEND REQUESTS HANDLER
 // --------------------
 if (["get_requesters", "accept", "reject"].includes(action)) {
-  const { my_id, user_id } = body; // my_id = your id, user_id = requester id (for accept/reject)
-
-  if (!my_id) return { error: "my_id is required" };
-
-  // Fetch your account
-  const { data: me, error: meError } = await supabase
+  const faccount = await supabase
     .from("fwebaccount")
     .select("id, friend_requests, fchat_messages")
-    .eq("id", my_id)
+    .eq("email", email)
     .maybeSingle();
 
-  if (meError || !me) return { error: "Account not found" };
+  if (!faccount.data) return { error: "Account not found" };
+  const myId = faccount.data.id;
 
-  // Convert friend_requests and fchat_messages to arrays
-  const requests = me.friend_requests ? me.friend_requests.split(",").map(id => id.trim()).filter(Boolean) : [];
-  const messages = me.fchat_messages ? me.fchat_messages.split(",").map(id => id.trim()).filter(Boolean) : [];
+  // Convert friend_requests string to array
+  let requests = faccount.data.friend_requests
+    ? faccount.data.friend_requests.split(",").map(s => s.trim()).filter(Boolean)
+    : [];
 
-  // --------------------
+  // -------------------- GET REQUESTERS --------------------
   if (action === "get_requesters") {
-  // Fetch all users whose ID is in your friend_requests
-  const { data: requestUsers, error: reqError } = await supabase
-    .from("fwebaccount")
-    .select("id, username, profile_pic")
-    .in("id", requests);
+    if (requests.length === 0) return { data: [] };
 
-  if (reqError) return { error: "Failed to fetch requester info" };
+    const { data: requestUsers, error: reqErr } = await supabase
+      .from("fwebaccount")
+      .select("id, username, profile_pic")
+      .in("id", requests);
 
-  return { data: requestUsers || [] };
-}
+    if (reqErr) return { error: "Failed to fetch requesters" };
 
-  if (!user_id) return { error: "user_id is required for accept/reject" };
-
-  // Remove the ID from friend_requests
-  const updatedRequests = requests.filter(id => id !== user_id.toString());
-
-  let updatedMessages = [...messages];
-
-  if (action === "accept") {
-    // Add to fchat_messages if not already present
-    if (!updatedMessages.includes(user_id.toString())) {
-      updatedMessages.push(user_id.toString());
-    }
+    return { data: requestUsers || [] };
   }
 
-  // Save the updated columns
-  const { error: updateError } = await supabase
-    .from("fwebaccount")
-    .update({
-      friend_requests: updatedRequests.join(","),
-      fchat_messages: updatedMessages.join(",")
-    })
-    .eq("id", my_id);
+  // -------------------- ACCEPT --------------------
+  if (action === "accept") {
+    const { user_id } = body;
+    if (!user_id) return { error: "user_id required for accept" };
 
-  if (updateError) return { error: "Failed to update FCHAT columns" };
+    // 1️⃣ Add accepted user's ID to my fchat_messages
+    const fchatMessages = faccount.data.fchat_messages
+      ? faccount.data.fchat_messages.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
 
-  return { message: action === "accept" ? "Accepted user" : "Rejected user" };
-    }
+    if (!fchatMessages.includes(user_id.toString())) fchatMessages.push(user_id.toString());
 
+    // 2️⃣ Remove from friend_requests
+    requests = requests.filter(id => id !== user_id.toString());
+
+    // 3️⃣ Update my record
+    const { error: updErr } = await supabase
+      .from("fwebaccount")
+      .update({
+        fchat_messages: fchatMessages.join(","),
+        friend_requests: requests.join(",")
+      })
+      .eq("email", email);
+
+    if (updErr) return { error: "Failed to accept request" };
+
+    return { message: "Accepted successfully", fchat_messages: fchatMessages, friend_requests: requests };
+  }
+
+  // -------------------- REJECT --------------------
+  if (action === "reject") {
+    const { user_id } = body;
+    if (!user_id) return { error: "user_id required for reject" };
+
+    // Remove from friend_requests
+    requests = requests.filter(id => id !== user_id.toString());
+
+    const { error: rejErr } = await supabase
+      .from("fwebaccount")
+      .update({ friend_requests: requests.join(",") })
+      .eq("email", email);
+
+    if (rejErr) return { error: "Failed to reject request" };
+
+    return { message: "Rejected successfully", friend_requests: requests };
+  }
+  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
