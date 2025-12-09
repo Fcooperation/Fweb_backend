@@ -363,6 +363,60 @@ if (action === "add_user") {
   return { message: "Friend request sent", friend_requests: updatedRequests };
         }
 
+    // --------------------
+// FCHAT actions: get_requesters / accept / reject
+// --------------------
+if (["get_requesters", "accept", "reject"].includes(action)) {
+  const { my_id, user_id } = body; // my_id = your id, user_id = requester id (for accept/reject)
+
+  if (!my_id) return { error: "my_id is required" };
+
+  // Fetch your account
+  const { data: me, error: meError } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests, fchat_messages")
+    .eq("id", my_id)
+    .maybeSingle();
+
+  if (meError || !me) return { error: "Account not found" };
+
+  // Convert friend_requests and fchat_messages to arrays
+  const requests = me.friend_requests ? me.friend_requests.split(",").map(id => id.trim()).filter(Boolean) : [];
+  const messages = me.fchat_messages ? me.fchat_messages.split(",").map(id => id.trim()).filter(Boolean) : [];
+
+  // --------------------
+  if (action === "get_requesters") {
+    // Just return the friend requests as IDs array
+    return { data: requests };
+  }
+
+  if (!user_id) return { error: "user_id is required for accept/reject" };
+
+  // Remove the ID from friend_requests
+  const updatedRequests = requests.filter(id => id !== user_id.toString());
+
+  let updatedMessages = [...messages];
+
+  if (action === "accept") {
+    // Add to fchat_messages if not already present
+    if (!updatedMessages.includes(user_id.toString())) {
+      updatedMessages.push(user_id.toString());
+    }
+  }
+
+  // Save the updated columns
+  const { error: updateError } = await supabase
+    .from("fwebaccount")
+    .update({
+      friend_requests: updatedRequests.join(","),
+      fchat_messages: updatedMessages.join(",")
+    })
+    .eq("id", my_id);
+
+  if (updateError) return { error: "Failed to update FCHAT columns" };
+
+  return { message: action === "accept" ? "Accepted user" : "Rejected user" };
+    }
 
     return { message: "Action not supported yet" };
 
