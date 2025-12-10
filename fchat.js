@@ -387,7 +387,7 @@ if (["get_requesters", "accept", "reject"].includes(action)) {
 
     const { data: requestUsers, error: reqErr } = await supabase
       .from("fwebaccount")
-      .select("id, username, profile_pic")
+      .select("id, username, profile_pic, status_text")
       .in("id", requests);
 
     if (reqErr) return { error: "Failed to fetch requesters" };
