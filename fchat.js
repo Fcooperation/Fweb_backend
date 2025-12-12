@@ -442,6 +442,39 @@ if (["get_requesters", "accept", "reject"].includes(action)) {
     return { message: "Rejected successfully", friend_requests: requests };
   }
   }
+// --------------------
+// Get all FCHAT friends/chats
+// --------------------
+if (action === "get_all_fchatters") {
+  if (!email) return { error: "Email required" };
+
+  // 1️⃣ Get the user's fchat_messages
+  const { data: myAccount, error: accErr } = await supabase
+    .from("fwebaccount")
+    .select("fchat_messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (accErr || !myAccount) return { error: "Account not found" };
+
+  const fchatIds = myAccount.fchat_messages
+    ? myAccount.fchat_messages.split(",").map(id => id.trim()).filter(Boolean)
+    : [];
+
+  if (fchatIds.length === 0) return { data: [] }; // no friends
+
+  // 2️⃣ Fetch all the users in fchat_messages
+  const { data: fchatUsers, error: usersErr } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, status_text")
+    .in("id", fchatIds);
+
+  if (usersErr) return { error: "Failed to fetch fchatters" };
+
+  // 3️⃣ Return to frontend
+  return { data: fchatUsers || [] };
+}
+    
     return { message: "Action not supported yet" };
 
   } catch (err) {
