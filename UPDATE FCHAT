@@ -297,7 +297,151 @@ if (
 }
 
 
-    
+// Get only broadcast users
+if (action === "get_broadcast_users") {
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic, fchat, status_text, broadcast")
+    .eq("broadcast", "yes");
+
+  if (error) return { error: "Failed to load broadcast users" };
+  return { data };
+}
+
+// Get ALL users (broadcast + non-broadcast)
+if (action === "get_all_users") {
+  try {
+    // Fetch all users with friend_requests and fchat_messages included
+    const { data: allUsers, error } = await supabase
+      .from("fwebaccount")
+      .select("id, username, profile_pic, fchat, status_text, broadcast, friend_requests, fchat_messages");
+
+    if (error) return { error: "Failed to load all users" };
+
+    // Simply return all users
+    return { data: allUsers };
+
+  } catch (err) {
+    console.error("Error fetching all users:", err);
+    return { error: "Something went wrong while fetching users" };
+  }
+  }
+    // --------------------
+// Add user / Verify users for FCHAT
+// --------------------
+if (action === "add_user") {
+  const { invite_id, my_id } = body;
+  if (!invite_id || !my_id) return { error: "invite_id or my_id missing" };
+
+  // Fetch the target user
+  const { data: targetUser, error: fetchError } = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests")
+    .eq("id", invite_id)
+    .maybeSingle();
+
+  if (fetchError || !targetUser) return { error: "Target user not found" };
+
+  // Initialize friend_requests string if missing
+  let updatedRequests = targetUser.friend_requests || ""; // empty string if null
+
+  // Convert to array to check duplicates
+  const requestIds = updatedRequests ? updatedRequests.split(",") : [];
+
+  if (!requestIds.includes(my_id.toString())) {
+    requestIds.push(my_id.toString()); // add new ID
+    updatedRequests = requestIds.join(","); // convert back to comma-separated string
+
+    const { error: updateError } = await supabase
+      .from("fwebaccount")
+      .update({ friend_requests: updatedRequests })
+      .eq("id", invite_id);
+
+    if (updateError) return { error: "Failed to add friend request" };
+  }
+
+  return { message: "Friend request sent", friend_requests: updatedRequests };
+        }
+
+    // --------------------
+// FCHAT FRIEND REQUESTS HANDLER
+// --------------------
+if (["get_requesters", "accept", "reject"].includes(action)) {
+  const faccount = await supabase
+    .from("fwebaccount")
+    .select("id, friend_requests, fchat_messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!faccount.data) return { error: "Account not found" };
+  const myId = faccount.data.id;
+
+  // Convert friend_requests string to array
+  let requests = faccount.data.friend_requests
+    ? faccount.data.friend_requests.split(",").map(s => s.trim()).filter(Boolean)
+    : [];
+
+  // -------------------- GET REQUESTERS --------------------
+  if (action === "get_requesters") {
+    if (requests.length === 0) return { data: [] };
+
+    const { data: requestUsers, error: reqErr } = await supabase
+      .from("fwebaccount")
+      .select("id, username, profile_pic, status_text")
+      .in("id", requests);
+
+    if (reqErr) return { error: "Failed to fetch requesters" };
+
+    return { data: requestUsers || [] };
+  }
+
+  // -------------------- ACCEPT --------------------
+  if (action === "accept") {
+    const { user_id } = body;
+    if (!user_id) return { error: "user_id required for accept" };
+
+    // 1️⃣ Add accepted user's ID to my fchat_messages
+    const fchatMessages = faccount.data.fchat_messages
+      ? faccount.data.fchat_messages.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
+
+    if (!fchatMessages.includes(user_id.toString())) fchatMessages.push(user_id.toString());
+
+    // 2️⃣ Remove from friend_requests
+    requests = requests.filter(id => id !== user_id.toString());
+
+    // 3️⃣ Update my record
+    const { error: updErr } = await supabase
+      .from("fwebaccount")
+      .update({
+        fchat_messages: fchatMessages.join(","),
+        friend_requests: requests.join(",")
+      })
+      .eq("email", email);
+
+    if (updErr) return { error: "Failed to accept request" };
+
+    return { message: "Accepted successfully", fchat_messages: fchatMessages, friend_requests: requests };
+  }
+
+  // -------------------- REJECT --------------------
+  if (action === "reject") {
+    const { user_id } = body;
+    if (!user_id) return { error: "user_id required for reject" };
+
+    // Remove from friend_requests
+    requests = requests.filter(id => id !== user_id.toString());
+
+    const { error: rejErr } = await supabase
+      .from("fwebaccount")
+      .update({ friend_requests: requests.join(",") })
+      .eq("email", email);
+
+    if (rejErr) return { error: "Failed to reject request" };
+
+    return { message: "Rejected successfully", friend_requests: requests };
+  }
+  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
