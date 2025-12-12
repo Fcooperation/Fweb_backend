@@ -474,7 +474,20 @@ if (action === "get_all_fchatters") {
   // 3️⃣ Return to frontend
   return { data: fchatUsers || [] };
 }
-    
+    // --------------------
+// Verify if account exists
+// --------------------
+if (action === "verify_account") {
+  if (!email) return { error: "Email required" };
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !data) return { exists: false };
+  return { exists: true };
+    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
