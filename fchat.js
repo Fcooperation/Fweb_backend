@@ -488,6 +488,53 @@ if (action === "verify_account") {
   if (error || !data) return { exists: false };
   return { exists: true };
     }
+    // --------------------
+// Handle sending messages
+// --------------------
+if (action === "send_messages") {
+  const { receiver_id, id, sender_id, text, linked, linked_message_id, sent_at } = body;
+  if (!receiver_id || !id || !sender_id || !text) {
+    return { error: "Missing required fields for sending message" };
+  }
+
+  // Fetch current messages from receiver
+  const { data: receiverData, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("id", receiver_id)
+    .maybeSingle();
+
+  if (fetchErr) return { error: "Receiver not found" };
+
+  let messagesArray = [];
+  try {
+    messagesArray = receiverData?.messages ? JSON.parse(receiverData.messages) : [];
+  } catch (e) {
+    messagesArray = []; // fallback if corrupted
+  }
+
+  // Append new message
+  const newMessage = {
+    id,
+    sender_id,
+    text,
+    linked: linked || false,
+    linked_message_id: linked_message_id || null,
+    sent_at,
+    status: "delivered" // backend always marks as delivered
+  };
+  messagesArray.push(newMessage);
+
+  // Update receiver's messages column
+  const { error: updErr } = await supabase
+    .from("fwebaccount")
+    .update({ messages: JSON.stringify(messagesArray) })
+    .eq("id", receiver_id);
+
+  if (updErr) return { error: "Failed to save message" };
+
+  return { success: true, message: "Message sent", newMessage };
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
