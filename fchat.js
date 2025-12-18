@@ -535,14 +535,14 @@ if (action === "send_messages") {
 
   return { success: true, message: "Message sent", newMessage };
       }
-    // --------------------
+// --------------------
 // Delete messages for the logged-in user
 // --------------------
 if (action === "delete_messages") {
   if (!email) return { error: "You must be logged in to delete messages" };
   
-  const { message_ids } = body;
-  if (!message_ids || !Array.isArray(message_ids) || message_ids.length === 0) {
+  const { ids } = body; // renamed from message_ids to ids
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return { error: "No message IDs provided" };
   }
 
@@ -565,7 +565,7 @@ if (action === "delete_messages") {
   // Filter out the messages to delete
   const deletedMessages = [];
   const remainingMessages = messagesArray.filter(msg => {
-    if (message_ids.includes(msg.id)) {
+    if (ids.includes(msg.id)) {
       deletedMessages.push(msg);
       return false; // remove from array
     }
@@ -585,7 +585,7 @@ if (action === "delete_messages") {
     message: "Messages deleted successfully",
     deleted: deletedMessages
   };
-  }
+    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
