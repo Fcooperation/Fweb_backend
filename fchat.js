@@ -614,11 +614,12 @@ if (action === "delete_messages") {
   };
     }
     // --------------------
-// Receive messages for FCHAT
-// --------------------
+// --------------------  
+// Receive messages for FCHAT  
+// --------------------  
 if (action === "receive_messages") {
-  const { chatWithId, email } = body;
-  if (!chatWithId || !email) return { error: "chatWithId and email required" };
+  const { email } = body; // we only need email now
+  if (!email) return { error: "Email required" };
 
   // Fetch current messages of logged-in user
   const { data: userData, error: fetchErr } = await supabase
@@ -636,13 +637,9 @@ if (action === "receive_messages") {
     messagesArray = [];
   }
 
-  // Filter messages sent by chatWithId
-  const receivedMessages = messagesArray.filter(msg => msg.sender_id === chatWithId.toString());
-
-  
-  // Return the messages to frontend
-  return { data: receivedMessages };
-      }
+  // Return all messages as-is
+  return { data: messagesArray };
+    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
