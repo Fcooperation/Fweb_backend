@@ -586,6 +586,45 @@ if (action === "delete_messages") {
     deleted: deletedMessages
   };
     }
+    // --------------------
+// Receive messages for FCHAT
+// --------------------
+if (action === "receive_messages") {
+  const { chatWithId, email } = body;
+  if (!chatWithId || !email) return { error: "chatWithId and email required" };
+
+  // Fetch current messages of logged-in user
+  const { data: userData, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (fetchErr || !userData) return { error: "Account not found" };
+
+  let messagesArray = [];
+  try {
+    messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
+  } catch {
+    messagesArray = [];
+  }
+
+  // Filter messages sent by chatWithId
+  const receivedMessages = messagesArray.filter(msg => msg.sender_id === chatWithId.toString());
+
+  // Remove these messages from user's messages column
+  const remainingMessages = messagesArray.filter(msg => msg.sender_id !== chatWithId.toString());
+
+  const { error: updErr } = await supabase
+    .from("fwebaccount")
+    .update({ messages: JSON.stringify(remainingMessages) })
+    .eq("email", email);
+
+  if (updErr) return { error: "Failed to update messages column" };
+
+  // Return the messages to frontend
+  return { data: receivedMessages };
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
