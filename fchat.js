@@ -395,35 +395,62 @@ if (["get_requesters", "accept", "reject"].includes(action)) {
     return { data: requestUsers || [] };
   }
 
-  // -------------------- ACCEPT --------------------
-  if (action === "accept") {
-    const { user_id } = body;
-    if (!user_id) return { error: "user_id required for accept" };
+// -------------------- ACCEPT --------------------
+if (action === "accept") {
+  const { user_id } = body; // the ID of the requester
+  if (!user_id) return { error: "user_id required for accept" };
 
-    // 1️⃣ Add accepted user's ID to my fchat_messages
-    const fchatMessages = faccount.data.fchat_messages
-      ? faccount.data.fchat_messages.split(",").map(s => s.trim()).filter(Boolean)
+  const myId = faccount.data.id.toString(); // YOUR ID as string
+
+  // 1️⃣ Add accepted user's ID to my fchat_messages
+  const fchatMessages = faccount.data.fchat_messages
+    ? faccount.data.fchat_messages.split(",").map(s => s.trim()).filter(Boolean)
+    : [];
+  if (!fchatMessages.includes(user_id.toString())) fchatMessages.push(user_id.toString());
+
+  // 2️⃣ Remove from friend_requests
+  requests = requests.filter(id => id !== user_id.toString());
+
+  // 3️⃣ Update my record
+  const { error: updErr } = await supabase
+    .from("fwebaccount")
+    .update({
+      fchat_messages: fchatMessages.join(","),
+      friend_requests: requests.join(",")
+    })
+    .eq("email", email);
+  if (updErr) return { error: "Failed to accept request" };
+
+  // 4️⃣ Add MY ID to the other user's fchat_messages
+  const { data: otherUser, error: otherErr } = await supabase
+    .from("fwebaccount")
+    .select("fchat_messages")
+    .eq("id", user_id)
+    .maybeSingle();
+
+  if (otherErr) {
+    console.error("Failed to fetch other user:", otherErr);
+  } else {
+    const otherFchat = otherUser?.fchat_messages
+      ? otherUser.fchat_messages.split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    if (!fchatMessages.includes(user_id.toString())) fchatMessages.push(user_id.toString());
+    if (!otherFchat.includes(myId)) otherFchat.push(myId);
 
-    // 2️⃣ Remove from friend_requests
-    requests = requests.filter(id => id !== user_id.toString());
-
-    // 3️⃣ Update my record
-    const { error: updErr } = await supabase
+    const { error: updateOtherErr } = await supabase
       .from("fwebaccount")
-      .update({
-        fchat_messages: fchatMessages.join(","),
-        friend_requests: requests.join(",")
-      })
-      .eq("email", email);
+      .update({ fchat_messages: otherFchat.join(",") })
+      .eq("id", user_id);
 
-    if (updErr) return { error: "Failed to accept request" };
-
-    return { message: "Accepted successfully", fchat_messages: fchatMessages, friend_requests: requests };
+    if (updateOtherErr) console.error("Failed to add my ID to other user:", updateOtherErr);
   }
 
+  return {
+    message: "Accepted successfully",
+    fchat_messages: fchatMessages,
+    friend_requests: requests
+  };
+}
   // -------------------- REJECT --------------------
   if (action === "reject") {
     const { user_id } = body;
