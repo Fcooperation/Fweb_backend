@@ -535,6 +535,57 @@ if (action === "send_messages") {
 
   return { success: true, message: "Message sent", newMessage };
       }
+    // --------------------
+// Delete messages for the logged-in user
+// --------------------
+if (action === "delete_messages") {
+  if (!email) return { error: "You must be logged in to delete messages" };
+  
+  const { message_ids } = body;
+  if (!message_ids || !Array.isArray(message_ids) || message_ids.length === 0) {
+    return { error: "No message IDs provided" };
+  }
+
+  // Fetch current messages of the logged-in user
+  const { data: userData, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (fetchErr || !userData) return { error: "Account not found" };
+
+  let messagesArray = [];
+  try {
+    messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
+  } catch {
+    messagesArray = [];
+  }
+
+  // Filter out the messages to delete
+  const deletedMessages = [];
+  const remainingMessages = messagesArray.filter(msg => {
+    if (message_ids.includes(msg.id)) {
+      deletedMessages.push(msg);
+      return false; // remove from array
+    }
+    return true;
+  });
+
+  // Update Supabase with remaining messages
+  const { error: updErr } = await supabase
+    .from("fwebaccount")
+    .update({ messages: JSON.stringify(remainingMessages) })
+    .eq("email", email);
+
+  if (updErr) return { error: "Failed to delete messages" };
+
+  return {
+    success: true,
+    message: "Messages deleted successfully",
+    deleted: deletedMessages
+  };
+  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
