@@ -637,6 +637,11 @@ if (action === "receive_messages") {
     messagesArray = [];
   }
 
+  // Only messages where sender_id or receiver_id matches chatWithId
+  const filteredMessages = messagesArray.filter(
+    msg => msg.sender_id === chatWithId || msg.receiver_id === chatWithId
+  );
+
   // Fetch chatWith user info
   const { data: chatWithData, error: chatErr } = await supabase
     .from("fwebaccount")
@@ -646,8 +651,8 @@ if (action === "receive_messages") {
 
   const chatWithInfo = chatWithData || { username: "Unknown", profile_pic: "", status: "" };
 
-  // Return messages along with chatWith info
-  return { data: messagesArray, chatWith: chatWithInfo };
+  // Return filtered messages along with chatWith info
+  return { data: filteredMessages, chatWith: chatWithInfo };
       }
     return { message: "Action not supported yet" };
 
