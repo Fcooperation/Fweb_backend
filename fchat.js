@@ -617,29 +617,38 @@ if (action === "delete_messages") {
 // Receive messages for FCHAT
 // --------------------
 if (action === "receive_messages") {
-const { email } = body; // we only need email now
-if (!email) return { error: "Email required" };
+  const { email, chatWithId } = body;
+  if (!email) return { error: "Email required" };
+  if (!chatWithId) return { error: "chatWithId required" };
 
-// Fetch current messages of logged-in user
-const { data: userData, error: fetchErr } = await supabase
-.from("fwebaccount")
-.select("messages")
-.eq("email", email)
-.maybeSingle();
+  // Fetch current messages of logged-in user
+  const { data: userData, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("email", email)
+    .maybeSingle();
 
-if (fetchErr || !userData) return { error: "Account not found" };
+  if (fetchErr || !userData) return { error: "Account not found" };
 
-let messagesArray = [];
-try {
-messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
-} catch {
-messagesArray = [];
-}
+  let messagesArray = [];
+  try {
+    messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
+  } catch {
+    messagesArray = [];
+  }
 
-// Return all messages as-is
-return { data: messagesArray };
-}
+  // Fetch chatWith user info
+  const { data: chatWithData, error: chatErr } = await supabase
+    .from("fwebaccount")
+    .select("username, profile_pic, status")
+    .eq("id", chatWithId)
+    .maybeSingle();
 
+  const chatWithInfo = chatWithData || { username: "Unknown", profile_pic: "", status: "" };
+
+  // Return messages along with chatWith info
+  return { data: messagesArray, chatWith: chatWithInfo };
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
