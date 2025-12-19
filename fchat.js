@@ -614,32 +614,42 @@ if (action === "delete_messages") {
   };
     }
     // --------------------
-// --------------------  
-// Receive messages for FCHAT  
-// --------------------  
+// Receive messages for FCHAT
+// --------------------
 if (action === "receive_messages") {
-  const { email } = body; // we only need email now
-  if (!email) return { error: "Email required" };
+  const { email, chatWithId } = body;
+  if (!email || !chatWithId)
+    return { error: "Email and chatWithId required" };
 
-  // Fetch current messages of logged-in user
+  // Fetch messages of logged-in user
   const { data: userData, error: fetchErr } = await supabase
     .from("fwebaccount")
     .select("messages")
     .eq("email", email)
     .maybeSingle();
 
-  if (fetchErr || !userData) return { error: "Account not found" };
+  if (fetchErr || !userData)
+    return { error: "Account not found" };
 
   let messagesArray = [];
   try {
-    messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
+    messagesArray = userData.messages
+      ? JSON.parse(userData.messages)
+      : [];
   } catch {
     messagesArray = [];
   }
 
-  // Return all messages as-is
-  return { data: messagesArray };
-    }
+  const chatId = String(chatWithId);
+
+  // ✅ Filter messages for THIS chat only
+  const chatMessages = messagesArray.filter(msg =>
+    String(msg.sender_id) === chatId ||
+    String(msg.receiver_id) === chatId
+  );
+
+  return { data: chatMessages };
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
