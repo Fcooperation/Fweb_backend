@@ -563,47 +563,67 @@ if (action === "send_messages") {
   return { success: true, message: "Message sent", newMessage };
       }
 // --------------------
-// Delete messages for the logged-in user
+// Delete messages for a specific user (by ID)
 // --------------------
 if (action === "delete_messages") {
-  if (!email) return { error: "You must be logged in to delete messages" };
-  
-  const { ids } = body; // renamed from message_ids to ids
+  if (!email) return { error: "You must be logged in" };
+
+  const { ids, user_id } = body;
+
+  if (!user_id) {
+    return { error: "User ID is required" };
+  }
+
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return { error: "No message IDs provided" };
   }
 
-  // Fetch current messages of the logged-in user
-  const { data: userData, error: fetchErr } = await supabase
+  // 1️⃣ Confirm logged-in account exists (AUTH CHECK)
+  const { data: authUser, error: authErr } = await supabase
     .from("fwebaccount")
-    .select("messages")
+    .select("id")
     .eq("email", email)
     .maybeSingle();
 
-  if (fetchErr || !userData) return { error: "Account not found" };
+  if (authErr || !authUser) {
+    return { error: "Unauthorized account" };
+  }
+
+  // 2️⃣ Fetch messages of the TARGET user (by ID)
+  const { data: targetUser, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("id", user_id)
+    .maybeSingle();
+
+  if (fetchErr || !targetUser) {
+    return { error: "Target account not found" };
+  }
 
   let messagesArray = [];
   try {
-    messagesArray = userData.messages ? JSON.parse(userData.messages) : [];
+    messagesArray = targetUser.messages
+      ? JSON.parse(targetUser.messages)
+      : [];
   } catch {
     messagesArray = [];
   }
 
-  // Filter out the messages to delete
+  // 3️⃣ Delete selected messages
   const deletedMessages = [];
   const remainingMessages = messagesArray.filter(msg => {
     if (ids.includes(msg.id)) {
       deletedMessages.push(msg);
-      return false; // remove from array
+      return false;
     }
     return true;
   });
 
-  // Update Supabase with remaining messages
+  // 4️⃣ Update TARGET user's messages
   const { error: updErr } = await supabase
     .from("fwebaccount")
     .update({ messages: JSON.stringify(remainingMessages) })
-    .eq("email", email);
+    .eq("id", user_id);
 
   if (updErr) return { error: "Failed to delete messages" };
 
@@ -612,7 +632,7 @@ if (action === "delete_messages") {
     message: "Messages deleted successfully",
     deleted: deletedMessages
   };
-    }
+          }
     // --------------------
 // Receive messages for FCHAT
 // --------------------
