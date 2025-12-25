@@ -675,45 +675,45 @@ if (action === "receive_messages") {
   return { data: filteredMessages, chatWith: chatWithInfo };
       }
     // --------------------
-// Mark messages as received
+// Mark messages as received (READ RECEIPT)
 // --------------------
 if (action === "received_messages") {
-  const { email, chatWithId, ids } = body;
+  const { ids, email, chatWithId } = body;
 
-  if (!email || !chatWithId || !Array.isArray(ids) || ids.length === 0) {
+  if (!email || !chatWithId || !Array.isArray(ids)) {
     return { error: "Invalid received_messages payload" };
   }
 
-  // Get user account
-  const { data: userData, error: userErr } = await supabase
+  // 1️⃣ Get chatWith user's current received_messages
+  const { data: targetUser, error: fetchErr } = await supabase
     .from("fwebaccount")
     .select("received_messages")
-    .eq("email", email)
+    .eq("id", chatWithId)
     .maybeSingle();
 
-  if (userErr || !userData) {
-    return { error: "Account not found" };
+  if (fetchErr || !targetUser) {
+    return { error: "Target user not found" };
   }
 
-  // Convert stored messages to array
-  let stored = userData.received_messages
-    ? userData.received_messages.split(",").map(id => id.trim()).filter(Boolean)
+  // 2️⃣ Convert existing received_messages → array
+  let existing = targetUser.received_messages
+    ? targetUser.received_messages.split(",").map(id => id.trim())
     : [];
 
-  // Add only new IDs
+  // 3️⃣ Merge without duplicates
   ids.forEach(id => {
-    if (!stored.includes(String(id))) {
-      stored.push(String(id));
+    if (!existing.includes(String(id))) {
+      existing.push(String(id));
     }
   });
 
-  // Save back to DB
+  // 4️⃣ Save back to Supabase
   const { error: updateErr } = await supabase
     .from("fwebaccount")
     .update({
-      received_messages: stored.join(",")
+      received_messages: existing.join(",")
     })
-    .eq("email", email);
+    .eq("id", chatWithId);
 
   if (updateErr) {
     return { error: "Failed to update received messages" };
@@ -723,7 +723,7 @@ if (action === "received_messages") {
     success: true,
     received_ids: ids
   };
-}
+  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
