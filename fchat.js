@@ -724,6 +724,59 @@ if (action === "received_messages") {
     received_ids: ids
   };
   }
+    // --------------------
+// Get received messages (SEEN system)
+// --------------------
+if (action === "get_received_messages") {
+  const { email, chatWithId } = body;
+
+  if (!email || !chatWithId)
+    return { error: "Missing email or chatWithId" };
+
+  // Get user
+  const { data: user, error } = await supabase
+    .from("fwebaccount")
+    .select("received_messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !user) return { ids: [] };
+
+  if (!user.received_messages)
+    return { ids: [] };
+
+  // Convert string → array
+  const messageIds = user.received_messages
+    .split(",")
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  if (messageIds.length === 0)
+    return { ids: [] };
+
+  // Now filter only messages belonging to chatWithId
+  const { data: chatMessages } = await supabase
+    .from("fwebaccount")
+    .select("messages")
+    .eq("id", chatWithId)
+    .maybeSingle();
+
+  if (!chatMessages?.messages) return { ids: [] };
+
+  let parsed = [];
+  try {
+    parsed = JSON.parse(chatMessages.messages);
+  } catch {
+    return { ids: [] };
+  }
+
+  // Get only messages sent by chatWithId that exist in received_messages
+  const matchedIds = parsed
+    .filter(m => messageIds.includes(String(m.id)))
+    .map(m => m.id);
+
+  return { ids: matchedIds };
+    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
