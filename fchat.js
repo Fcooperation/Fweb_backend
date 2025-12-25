@@ -674,6 +674,56 @@ if (action === "receive_messages") {
   // Return filtered messages along with chatWith info
   return { data: filteredMessages, chatWith: chatWithInfo };
       }
+    // --------------------
+// Mark messages as received
+// --------------------
+if (action === "received_messages") {
+  const { email, chatWithId, ids } = body;
+
+  if (!email || !chatWithId || !Array.isArray(ids) || ids.length === 0) {
+    return { error: "Invalid received_messages payload" };
+  }
+
+  // Get user account
+  const { data: userData, error: userErr } = await supabase
+    .from("fwebaccount")
+    .select("received_messages")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (userErr || !userData) {
+    return { error: "Account not found" };
+  }
+
+  // Convert stored messages to array
+  let stored = userData.received_messages
+    ? userData.received_messages.split(",").map(id => id.trim()).filter(Boolean)
+    : [];
+
+  // Add only new IDs
+  ids.forEach(id => {
+    if (!stored.includes(String(id))) {
+      stored.push(String(id));
+    }
+  });
+
+  // Save back to DB
+  const { error: updateErr } = await supabase
+    .from("fwebaccount")
+    .update({
+      received_messages: stored.join(",")
+    })
+    .eq("email", email);
+
+  if (updateErr) {
+    return { error: "Failed to update received messages" };
+  }
+
+  return {
+    success: true,
+    received_ids: ids
+  };
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
