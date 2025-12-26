@@ -746,7 +746,7 @@ if (action === "get_received_messages") {
     return { ids: [] };
 
   // Convert string → array
-  const messageIds = user.received_messages
+  let messageIds = user.received_messages
     .split(",")
     .map(id => id.trim())
     .filter(Boolean);
@@ -775,8 +775,16 @@ if (action === "get_received_messages") {
     .filter(m => messageIds.includes(String(m.id)))
     .map(m => m.id);
 
+  // Remove the matched IDs from the received_messages column
+  messageIds = messageIds.filter(id => !matchedIds.includes(id));
+
+  await supabase
+    .from("fwebaccount")
+    .update({ received_messages: messageIds.join(",") || null })
+    .eq("email", email);
+
   return { ids: matchedIds };
-    }
+                                                  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
