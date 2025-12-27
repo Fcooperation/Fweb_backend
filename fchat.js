@@ -662,6 +662,17 @@ if (action === "receive_messages") {
     msg => msg.sender_id === chatWithId || msg.receiver_id === chatWithId
   );
 
+  // Remove these messages from user's messages array
+  const remainingMessages = messagesArray.filter(
+    msg => msg.sender_id !== chatWithId && msg.receiver_id !== chatWithId
+  );
+
+  // Update the database to remove the delivered messages
+  await supabase
+    .from("fwebaccount")
+    .update({ messages: JSON.stringify(remainingMessages) })
+    .eq("email", email);
+
   // Fetch chatWith user info
   const { data: chatWithData, error: chatErr } = await supabase
     .from("fwebaccount")
@@ -673,7 +684,7 @@ if (action === "receive_messages") {
 
   // Return filtered messages along with chatWith info
   return { data: filteredMessages, chatWith: chatWithInfo };
-      }
+                      }
     // --------------------
 // Mark messages as received (READ RECEIPT)
 // --------------------
