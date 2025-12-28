@@ -796,6 +796,7 @@ if (action === "get_received_messages") {
     .eq("email", email);
 
   return { ids: matchedIds };
+}
   
          
     return { message: "Action not supported yet" };
