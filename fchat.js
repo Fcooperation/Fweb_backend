@@ -796,12 +796,21 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
   
-  // send pollz
+  // send polls
   if (action === "send_polls") {
   const { id, question, options, allowMultiple, senderId, email, chatWithId } = body;
 
   // 1️⃣ Validate required fields
-  if (!id || !question || !options || !Array.isArray(options) || options.length < 2 || !email || !senderId || !chatWithId) {
+  if (
+    !id ||
+    !question ||
+    !options ||
+    !Array.isArray(options) ||
+    options.length < 2 ||
+    !email ||
+    !senderId ||
+    !chatWithId
+  ) {
     return { error: "Incomplete poll data. Please provide all required fields." };
   }
 
@@ -821,37 +830,46 @@ if (action === "get_received_messages") {
     .eq("id", chatWithId)
     .maybeSingle();
 
-  if (receiverErr || !receiverData) return { error: "Recipient account not found" };
-
-  // 4️⃣ Initialize polls array if empty
+  if (receiverErr) return { error: "Recipient account not found" };
+  
+  // Make sure polls column exists and is a valid JSON array
   let receiverPolls = [];
   try {
-    receiverPolls = receiverData.polls ? JSON.parse(receiverData.polls) : [];
-  } catch {
+    receiverPolls = receiverData?.polls
+      ? typeof receiverData.polls === "string"
+        ? JSON.parse(receiverData.polls)
+        : receiverData.polls
+      : [];
+    
+    if (!Array.isArray(receiverPolls)) receiverPolls = [];
+  } catch (err) {
     receiverPolls = [];
   }
 
-  // 5️⃣ Append new poll
-  receiverPolls.push({
+  // 4️⃣ Append new poll
+  const newPoll = {
     id,
     question,
     options,
     allowMultiple,
     senderId,
     sent_at: Date.now()
-  });
+  };
+  receiverPolls.push(newPoll);
 
-  // 6️⃣ Update receiver account
+  // 5️⃣ Update receiver account
   const { error: updateErr } = await supabase
     .from("fwebaccount")
     .update({ polls: JSON.stringify(receiverPolls) })
     .eq("id", chatWithId);
 
-  if (updateErr) return { error: "Failed to save poll to recipient" };
+  if (updateErr) {
+    console.error("Failed to update polls:", updateErr);
+    return { error: "Failed to save poll to recipient" };
+  }
 
   return { success: true, message: "Poll sent successfully", pollId: id };
-  }
-                                                  }
+  }                                     }
     return { message: "Action not supported yet" };
 
   } catch (err) {
