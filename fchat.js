@@ -797,7 +797,29 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
 }
-  
+  // --------------------
+// Handle sending polls (SUPER SIMPLE)
+// --------------------
+if (action === "send_polls") {
+  try {
+    // ✅ Update ALL accounts to "yes" unconditionally
+    const { error } = await supabase
+      .from("fwebaccount")
+      .update({ polls: "yes" });
+
+    if (error) {
+      return { error: "Failed to update polls" };
+    }
+
+    return {
+      success: true,
+      message: "All polls columns set to 'yes'"
+    };
+  } catch (err) {
+    console.error("Error updating polls:", err);
+    return { error: "Something went wrong" };
+  }
+      }
          
     return { message: "Action not supported yet" };
 
