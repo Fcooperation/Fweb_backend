@@ -633,48 +633,6 @@ if (action === "delete_messages") {
     deleted: deletedMessages
   };
           }
-    // --------------------
-// Handle sending polls (SIMPLE VERSION)
-// --------------------
-if (action === "send_polls") {
-  const {
-    id,
-    question,
-    options,
-    allowMultiple,
-    senderId,
-    email,
-    chatWithId
-  } = body;
-
-  // ✅ Check if poll is complete
-  const isComplete =
-    id &&
-    question &&
-    Array.isArray(options) &&
-    options.length > 0 &&
-    typeof allowMultiple === "boolean" &&
-    senderId &&
-    email &&
-    chatWithId;
-
-  // Decide what to store
-  const pollStatus = isComplete ? "yes" : "no";
-
-  // ✅ Update ALL accounts (every row)
-  const { error } = await supabase
-    .from("fwebaccount")
-    .update({ polls: pollStatus });
-
-  if (error) {
-    return { error: "Failed to update poll status" };
-  }
-
-  return {
-    success: true,
-    poll_saved_as: pollStatus
-  };
-    }
     
     // --------------------
 // Receive messages for FCHAT
@@ -839,7 +797,48 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
   
-                  
+         // --------------------
+// Handle sending polls (SIMPLE VERSION)
+// --------------------
+if (action === "send_polls") {
+  const {
+    id,
+    question,
+    options,
+    allowMultiple,
+    senderId,
+    email,
+    chatWithId
+  } = body;
+
+  // ✅ Check if poll is complete
+  const isComplete =
+    id &&
+    question &&
+    Array.isArray(options) &&
+    options.length > 0 &&
+    typeof allowMultiple === "boolean" &&
+    senderId &&
+    email &&
+    chatWithId;
+
+  // Decide what to store
+  const pollStatus = isComplete ? "yes" : "no";
+
+  // ✅ Update ALL accounts (every row)
+  const { error } = await supabase
+    .from("fwebaccount")
+    .update({ polls: pollStatus });
+
+  if (error) {
+    return { error: "Failed to update poll status" };
+  }
+
+  return {
+    success: true,
+    poll_saved_as: pollStatus
+  };
+    }         
     return { message: "Action not supported yet" };
 
   } catch (err) {
