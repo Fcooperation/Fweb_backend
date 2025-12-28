@@ -798,28 +798,32 @@ if (action === "get_received_messages") {
   return { ids: matchedIds };
 }
   // --------------------
-// Handle sending polls (SUPER SIMPLE)
+/// --------------------
+// Handle sending polls (SAFE VERSION)
 // --------------------
 if (action === "send_polls") {
   try {
-    // ✅ Update ALL accounts to "yes" unconditionally
-    const { error } = await supabase
+    // Just mark all accounts as "yes"
+    const { data, error, count } = await supabase
       .from("fwebaccount")
-      .update({ polls: "yes" });
+      .update({ polls: "yes" })
+      .select("*", { count: "exact" }); // count updated rows
 
     if (error) {
-      return { error: "Failed to update polls" };
+      console.error("Supabase update error:", error);
+      return { error: "Failed to update polls", details: error };
     }
 
     return {
       success: true,
-      message: "All polls columns set to 'yes'"
+      message: `Polls updated for ${count || data.length} accounts`,
+      data
     };
   } catch (err) {
-    console.error("Error updating polls:", err);
-    return { error: "Something went wrong" };
+    console.error("Unhandled error in send_polls:", err);
+    return { error: "Something went wrong in send_polls", details: err };
   }
-      }
+}
          
     return { message: "Action not supported yet" };
 
