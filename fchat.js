@@ -797,14 +797,15 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
 }
-  // --------------------  
-// Handle sending polls (like send_messages)  
+  
+   // --------------------  
+// Handle sending polls (direct JSON)  
 // --------------------  
 if (action === "send_polls") {
-  const { receiver_id, id, sender_id, poll, sent_at } = body; // poll is an object with question/options/etc
+  const { receiver_id, id, sender_id, question, options, allowMultiple, sent_at } = body;
 
   // ✅ Check required fields
-  if (!receiver_id || !id || !sender_id || !poll) {
+  if (!receiver_id || !id || !sender_id || !question || !options || typeof allowMultiple !== "boolean") {
     console.log("❌ Missing required fields for poll:", body);
     return { error: "Missing required fields for sending poll" };
   }
@@ -836,7 +837,9 @@ if (action === "send_polls") {
     const newPoll = {
       id,
       sender_id,
-      ...poll,
+      question,
+      options,
+      allowMultiple,
       sent_at
     };
     pollsArray.push(newPoll);
@@ -862,7 +865,7 @@ if (action === "send_polls") {
     console.error("❌ send_polls error:", err);
     return { error: "send_polls failed", details: err.message };
   }
-      }
+            }
     return { message: "Action not supported yet" };
 
   } catch (err) {
