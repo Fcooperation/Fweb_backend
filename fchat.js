@@ -798,78 +798,52 @@ if (action === "get_received_messages") {
   
   // send polls
   if (action === "send_polls") {
-  const { id, question, options, allowMultiple, senderId, email, chatWithId } = body;
+  const { chatWithId, ...pollData } = body;
 
-  // 1️⃣ Validate required fields
-  if (
-    !id ||
-    !question ||
-    !options ||
-    !Array.isArray(options) ||
-    options.length < 2 ||
-    !email ||
-    !senderId ||
-    !chatWithId
-  ) {
-    return { error: "Incomplete poll data. Please provide all required fields." };
+  if (!chatWithId) {
+    return { error: "chatWithId is required" };
   }
 
-  // 2️⃣ Check sender email exists
-  const { data: senderData, error: senderErr } = await supabase
-    .from("fwebaccount")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (senderErr || !senderData) return { error: "Sender account not found" };
-
-  // 3️⃣ Fetch receiver account
-  const { data: receiverData, error: receiverErr } = await supabase
+  // 1️⃣ Get existing polls
+  const { data: user, error: fetchErr } = await supabase
     .from("fwebaccount")
     .select("polls")
     .eq("id", chatWithId)
-    .maybeSingle();
+    .single();
 
-  if (receiverErr) return { error: "Recipient account not found" };
-  
-  // Make sure polls column exists and is a valid JSON array
-  let receiverPolls = [];
-  try {
-    receiverPolls = receiverData?.polls
-      ? typeof receiverData.polls === "string"
-        ? JSON.parse(receiverData.polls)
-        : receiverData.polls
-      : [];
-    
-    if (!Array.isArray(receiverPolls)) receiverPolls = [];
-  } catch (err) {
-    receiverPolls = [];
+  if (fetchErr || !user) {
+    return { error: "User not found" };
   }
 
-  // 4️⃣ Append new poll
-  const newPoll = {
-    id,
-    question,
-    options,
-    allowMultiple,
-    senderId,
-    sent_at: Date.now()
-  };
-  receiverPolls.push(newPoll);
+  // 2️⃣ Ensure polls is always an array
+  let polls = [];
+  try {
+    polls = Array.isArray(user.polls) ? user.polls : [];
+  } catch {
+    polls = [];
+  }
 
-  // 5️⃣ Update receiver account
+  // 3️⃣ Push FULL poll JSON (untouched)
+  polls.push({
+    ...pollData,
+    received_at: Date.now()
+  });
+
+  // 4️⃣ Update database
   const { error: updateErr } = await supabase
     .from("fwebaccount")
-    .update({ polls: JSON.stringify(receiverPolls) })
+    .update({ polls })
     .eq("id", chatWithId);
 
   if (updateErr) {
-    console.error("Failed to update polls:", updateErr);
-    return { error: "Failed to save poll to recipient" };
+    return { error: "Failed to save poll" };
   }
 
-  return { success: true, message: "Poll sent successfully", pollId: id };
-  }                                     }
+  return {
+    success: true,
+    message: "Poll added successfully"
+  };
+}                              }
     return { message: "Action not supported yet" };
 
   } catch (err) {
