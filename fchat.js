@@ -796,54 +796,54 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
   
-  // send polls
-  if (action === "send_polls") {
-  const { chatWithId, ...pollData } = body;
+// --------------------
+// Handle sending polls
+// --------------------
+if (action === "send_polls") {
+  const { receiver_id, id, sender_id, poll, sent_at } = body;
 
-  if (!chatWithId) {
-    return { error: "chatWithId is required" };
+  if (!receiver_id || !id || !sender_id || !poll) {
+    return { error: "Missing required fields for sending poll" };
   }
 
-  // 1️⃣ Get existing polls
-  const { data: user, error: fetchErr } = await supabase
+  // Fetch current polls from receiver
+  const { data: receiverData, error: fetchErr } = await supabase
     .from("fwebaccount")
     .select("polls")
-    .eq("id", chatWithId)
-    .single();
+    .eq("id", receiver_id)
+    .maybeSingle();
 
-  if (fetchErr || !user) {
-    return { error: "User not found" };
-  }
+  if (fetchErr) return { error: "Receiver not found" };
 
-  // 2️⃣ Ensure polls is always an array
-  let polls = [];
+  let pollsArray = [];
   try {
-    polls = Array.isArray(user.polls) ? user.polls : [];
-  } catch {
-    polls = [];
+    pollsArray = receiverData?.polls
+      ? JSON.parse(receiverData.polls)
+      : [];
+  } catch (e) {
+    pollsArray = []; // fallback if corrupted
   }
 
-  // 3️⃣ Push FULL poll JSON (untouched)
-  polls.push({
-    ...pollData,
-    received_at: Date.now()
-  });
-
-  // 4️⃣ Update database
-  const { error: updateErr } = await supabase
-    .from("fwebaccount")
-    .update({ polls })
-    .eq("id", chatWithId);
-
-  if (updateErr) {
-    return { error: "Failed to save poll" };
-  }
-
-  return {
-    success: true,
-    message: "Poll added successfully"
+  // Append new poll
+  const newPoll = {
+    id,
+    sender_id,
+    ...poll, // ← this contains question, options, allowMultiple, etc
+    sent_at
   };
-}                              }
+
+  pollsArray.push(newPoll);
+
+  // Update receiver's polls column
+  const { error: updErr } = await supabase
+    .from("fwebaccount")
+    .update({ polls: JSON.stringify(pollsArray) })
+    .eq("id", receiver_id);
+
+  if (updErr) return { error: "Failed to save poll" };
+
+  return { success: true, message: "Poll sent", newPoll };
+          }                       }
     return { message: "Action not supported yet" };
 
   } catch (err) {
