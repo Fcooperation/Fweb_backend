@@ -798,24 +798,24 @@ if (action === "get_received_messages") {
   return { ids: matchedIds };
 }
   
-   // --------------------  
-// Handle sending polls (direct JSON)  
+         // --------------------  
+// Handle sending polls (strict fields)  
 // --------------------  
 if (action === "send_polls") {
-  const { receiver_id, id, sender_id, question, options, allowMultiple, sent_at } = body;
+  const { id, question, options, allowMultiple, senderId, chatWithId, sent_at } = body;
 
   // ✅ Check required fields
-  if (!receiver_id || !id || !sender_id || !question || !options || typeof allowMultiple !== "boolean") {
+  if (!id || !question || !options || typeof allowMultiple !== "boolean" || !senderId || !chatWithId) {
     console.log("❌ Missing required fields for poll:", body);
     return { error: "Missing required fields for sending poll" };
   }
 
   try {
-    // Fetch current polls from receiver
+    // Fetch current polls from the receiver (chatWithId)
     const { data: receiverData, error: fetchErr } = await supabase
       .from("fwebaccount")
       .select("polls")
-      .eq("id", receiver_id)
+      .eq("id", chatWithId)
       .maybeSingle();
 
     if (fetchErr || !receiverData) {
@@ -836,11 +836,11 @@ if (action === "send_polls") {
     // Append new poll
     const newPoll = {
       id,
-      sender_id,
+      senderId,
       question,
       options,
       allowMultiple,
-      sent_at
+      sent_at: sent_at || new Date().toISOString()
     };
     pollsArray.push(newPoll);
 
@@ -850,7 +850,7 @@ if (action === "send_polls") {
     const { data: updatedData, error: updErr } = await supabase
       .from("fwebaccount")
       .update({ polls: JSON.stringify(pollsArray) })
-      .eq("id", receiver_id);
+      .eq("id", chatWithId);
 
     if (updErr) {
       console.log("❌ Failed to update polls:", updErr);
@@ -865,7 +865,7 @@ if (action === "send_polls") {
     console.error("❌ send_polls error:", err);
     return { error: "send_polls failed", details: err.message };
   }
-            }
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
