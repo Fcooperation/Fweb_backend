@@ -838,7 +838,8 @@ if (action === "send_polls") {
     success: true,
     poll_saved_as: pollStatus
   };
-    }         
+}
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
