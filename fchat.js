@@ -797,51 +797,72 @@ if (action === "get_received_messages") {
 
   return { ids: matchedIds };
 }
-  // --------------------
-// Handle sending polls (SIMPLE VERSION)
-// --------------------
+  // --------------------  
+// Handle sending polls (like send_messages)  
+// --------------------  
 if (action === "send_polls") {
-  const {
-    id,
-    question,
-    options,
-    allowMultiple,
-    senderId,
-    email,
-    chatWithId
-  } = body;
+  const { receiver_id, id, sender_id, poll, sent_at } = body; // poll is an object with question/options/etc
 
-  // ✅ Check if poll is complete
-  const isComplete =
-    id &&
-    question &&
-    Array.isArray(options) &&
-    options.length > 0 &&
-    typeof allowMultiple === "boolean" &&
-    senderId &&
-    email &&
-    chatWithId;
-
-  // Decide what to store
-  const pollStatus = isComplete ? "yes" : "no";
-
-  // ✅ Update ALL accounts safely
-  // We add a dummy WHERE that matches every row
-  const { data, error } = await supabase
-    .from("fwebaccount")
-    .update({ polls: pollStatus })
-    .neq("id", 0); // matches all accounts
-
-  if (error) {
-    return { error: "Failed to update polls", details: error };
+  // ✅ Check required fields
+  if (!receiver_id || !id || !sender_id || !poll) {
+    console.log("❌ Missing required fields for poll:", body);
+    return { error: "Missing required fields for sending poll" };
   }
 
-  return {
-    success: true,
-    poll_saved_as: pollStatus,
-    updated_count: data.length // how many accounts were updated
-  };
-}
+  try {
+    // Fetch current polls from receiver
+    const { data: receiverData, error: fetchErr } = await supabase
+      .from("fwebaccount")
+      .select("polls")
+      .eq("id", receiver_id)
+      .maybeSingle();
+
+    if (fetchErr || !receiverData) {
+      console.log("❌ Receiver not found or fetch error:", fetchErr);
+      return { error: "Receiver not found" };
+    }
+
+    console.log("📌 Current polls:", receiverData.polls);
+
+    let pollsArray = [];
+    try {
+      pollsArray = receiverData.polls ? JSON.parse(receiverData.polls) : [];
+    } catch (e) {
+      console.log("⚠️ Failed to parse polls JSON, resetting:", e);
+      pollsArray = [];
+    }
+
+    // Append new poll
+    const newPoll = {
+      id,
+      sender_id,
+      ...poll,
+      sent_at
+    };
+    pollsArray.push(newPoll);
+
+    console.log("📌 Updated polls array:", pollsArray);
+
+    // Update receiver's polls column
+    const { data: updatedData, error: updErr } = await supabase
+      .from("fwebaccount")
+      .update({ polls: JSON.stringify(pollsArray) })
+      .eq("id", receiver_id);
+
+    if (updErr) {
+      console.log("❌ Failed to update polls:", updErr);
+      return { error: "Failed to save poll", details: updErr };
+    }
+
+    console.log("✅ Poll saved successfully:", updatedData);
+
+    return { success: true, message: "Poll sent", newPoll, updatedData };
+
+  } catch (err) {
+    console.error("❌ send_polls error:", err);
+    return { error: "send_polls failed", details: err.message };
+  }
+      }
     return { message: "Action not supported yet" };
 
   } catch (err) {
