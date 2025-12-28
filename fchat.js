@@ -798,33 +798,50 @@ if (action === "get_received_messages") {
   return { ids: matchedIds };
 }
   // --------------------
-/// --------------------
-// Handle sending polls (SAFE VERSION)
+// Handle sending polls (SIMPLE VERSION)
 // --------------------
 if (action === "send_polls") {
-  try {
-    // Just mark all accounts as "yes"
-    const { data, error, count } = await supabase
-      .from("fwebaccount")
-      .update({ polls: "yes" })
-      .select("*", { count: "exact" }); // count updated rows
+  const {
+    id,
+    question,
+    options,
+    allowMultiple,
+    senderId,
+    email,
+    chatWithId
+  } = body;
 
-    if (error) {
-      console.error("Supabase update error:", error);
-      return { error: "Failed to update polls", details: error };
-    }
+  // ✅ Check if poll is complete
+  const isComplete =
+    id &&
+    question &&
+    Array.isArray(options) &&
+    options.length > 0 &&
+    typeof allowMultiple === "boolean" &&
+    senderId &&
+    email &&
+    chatWithId;
 
-    return {
-      success: true,
-      message: `Polls updated for ${count || data.length} accounts`,
-      data
-    };
-  } catch (err) {
-    console.error("Unhandled error in send_polls:", err);
-    return { error: "Something went wrong in send_polls", details: err };
+  // Decide what to store
+  const pollStatus = isComplete ? "yes" : "no";
+
+  // ✅ Update ALL accounts safely
+  // We add a dummy WHERE that matches every row
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .update({ polls: pollStatus })
+    .neq("id", 0); // matches all accounts
+
+  if (error) {
+    return { error: "Failed to update polls", details: error };
   }
+
+  return {
+    success: true,
+    poll_saved_as: pollStatus,
+    updated_count: data.length // how many accounts were updated
+  };
 }
-         
     return { message: "Action not supported yet" };
 
   } catch (err) {
