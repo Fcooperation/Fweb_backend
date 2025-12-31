@@ -3,55 +3,65 @@ import { createClient } from "@supabase/supabase-js";
 
 // Supabase client
 const supabaseUrl = "https://pwsxezhugsxosbwhkdvf.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2VjZV9yb2xlIiwiaWF0IjoxNzUxOTI4Mzg3LCJleHAiOjIwNjc1MDQzODd9.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
- * Save a chat message to Supabase
+ * Send and save a chat message
  * @param {Object} msg - The message JSON
- * msg should have: sender_id, receiver_id, message, id, linked (optional), linked_message_id (optional), sent_at
+ * Should include: id, sender_id, receiver_id, text, linked (optional), linked_message_id (optional), sent_at
  */
 export async function fchat_send_message(msg) {
   // Validate required fields
-  if (!msg || !msg.sender_id || !msg.receiver_id || !msg.message) {
-    throw new Error("Incomplete message JSON");
+  const { receiver_id, id, sender_id, text, linked, linked_message_id, sent_at } = msg;
+  if (!receiver_id || !id || !sender_id || !text || !sent_at) {
+    throw new Error("Missing required fields for sending message");
   }
 
-  // Fetch existing messages for the receiver
-  const { data: userData, error: fetchError } = await supabase
+  // Fetch current messages from receiver
+  const { data: receiverData, error: fetchErr } = await supabase
     .from("fwebaccount")
     .select("messages")
-    .eq("id", msg.receiver_id)
-    .single();
+    .eq("id", receiver_id)
+    .maybeSingle();
 
-  if (fetchError) {
-    console.error("❌ Error fetching receiver messages:", fetchError);
-    throw fetchError;
+  if (fetchErr) {
+    console.error("❌ Receiver fetch error:", fetchErr);
+    throw fetchErr;
   }
 
-  // Parse existing messages or start a new array
-  let messages = [];
+  // Parse existing messages or fallback
+  let messagesArray = [];
   try {
-    messages = userData?.messages ? JSON.parse(userData.messages) : [];
-  } catch (e) {
-    console.warn("⚠️ Existing messages corrupted, resetting:", e);
-    messages = [];
+    messagesArray = receiverData?.messages ? JSON.parse(receiverData.messages) : [];
+  } catch {
+    messagesArray = [];
   }
 
-  // Append the new message
-  messages.push(msg);
+  // Create new message object
+  const newMessage = {
+    id,
+    sender_id,
+    text,
+    linked: linked || false,
+    linked_message_id: linked_message_id || null,
+    sent_at,
+    status: "delivered" // backend always marks as delivered
+  };
 
-  // Update the receiver's messages column
-  const { error: updateError } = await supabase
+  messagesArray.push(newMessage);
+
+  // Update receiver's messages column
+  const { error: updErr } = await supabase
     .from("fwebaccount")
-    .update({ messages: JSON.stringify(messages) })
-    .eq("id", msg.receiver_id);
+    .update({ messages: JSON.stringify(messagesArray) })
+    .eq("id", receiver_id);
 
-  if (updateError) {
-    console.error("❌ Error saving message to Supabase:", updateError);
-    throw updateError;
+  if (updErr) {
+    console.error("❌ Failed to save message:", updErr);
+    throw updErr;
   }
 
-  console.log("✅ Message saved successfully for receiver:", msg.receiver_id);
-  return { status: "ok", message: "Message saved", msg };
-         }
+  console.log("✅ Message sent successfully:", newMessage);
+  return { success: true, message: "Message sent", newMessage };
+    }
