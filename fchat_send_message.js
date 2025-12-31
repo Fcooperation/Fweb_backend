@@ -8,13 +8,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Send and save a chat message
- * @param {Object} msg - The message JSON
- * Should include: id, sender_id, receiver_id, text, linked (optional), linked_message_id (optional), sent_at
+ * @param {Object} msg - The message JSON from frontend
+ * Should include: id, sender_id, receiver_id, message, linked (optional), linked_message_id (optional), sent_at
  */
 export async function fchat_send_message(msg) {
+  const { receiver_id, id, sender_id, message, linked, linked_message_id, sent_at } = msg;
+
   // Validate required fields
-  const { receiver_id, id, sender_id, text, linked, linked_message_id, sent_at } = msg;
-  if (!receiver_id || !id || !sender_id || !text || !sent_at) {
+  if (!receiver_id || !id || !sender_id || !message || !sent_at) {
     throw new Error("Missing required fields for sending message");
   }
 
@@ -42,13 +43,14 @@ export async function fchat_send_message(msg) {
   const newMessage = {
     id,
     sender_id,
-    text,
-    linked: linked || false,
+    message,
+    linked: linked || "no",
     linked_message_id: linked_message_id || null,
     sent_at,
     status: "delivered" // backend always marks as delivered
   };
 
+  // Append new message
   messagesArray.push(newMessage);
 
   // Update receiver's messages column
@@ -64,4 +66,4 @@ export async function fchat_send_message(msg) {
 
   console.log("✅ Message sent successfully:", newMessage);
   return { success: true, message: "Message sent", newMessage };
-    }
+}
