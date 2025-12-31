@@ -6,7 +6,8 @@ import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
 import { runFTrainer } from "./ftrainer.js";
-import { handleFChat } from "./fchat.js"; // import the main FCHAT handler
+import { handleFChat } from "./fchat.js";
+import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -210,6 +211,17 @@ app.post("/fchat", async (req, res) => {
   } catch (err) {
     console.error("❌ FCHAT error:", err.message);
     res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+
+// FCHAT SEND MESSAGE ROUTE
+app.post("/fchat_send_message", async (req, res) => {
+  try {
+    const result = await fchat_send_message(req.body); // call your imported function
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
