@@ -562,6 +562,25 @@ if (action === "send_messages") {
 
   return { success: true, message: "Message sent", newMessage };
       }
+
+    if (action === "vote_polls") {
+  const { poll_id, sender_id, receiver_id, option_voted } = body;
+
+  // Basic validation
+  if (!poll_id || !sender_id || !receiver_id || !option_voted) {
+    return {
+      error: "Missing required fields for voting poll"
+    };
+  }
+
+  // ✅ For now, we don't store anything
+  // Just acknowledge the vote was received
+
+  return {
+    success: true,
+    message: "Vote received successfully"
+  };
+         }
 // --------------------
 // Delete messages for a specific user (by ID)
 // --------------------
