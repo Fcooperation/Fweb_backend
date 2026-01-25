@@ -720,6 +720,49 @@ if (action === "send_polls") {
     return { error: "send_polls failed", details: err.message };
   }
       }
+    // ================================
+// FCHAT RECEIVER & SYNC ENGINE
+// ================================
+if (action === "get_all_fchatlogs") {
+  const { id, chatwithid } = body; // frontend sends account.id and chatWith.id
+
+  if (!id || !chatwithid) {
+    return { error: "Missing id or chatwithid" };
+  }
+
+  try {
+    // 1️⃣ Fetch the account (receiver) from Supabase
+    const { data: accountData, error: accErr } = await supabase
+      .from("fwebaccount")
+      .select("messages")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (accErr || !accountData) {
+      return { error: "Account not found" };
+    }
+
+    let allMessages = [];
+    try {
+      allMessages = accountData.messages ? JSON.parse(accountData.messages) : [];
+    } catch (e) {
+      allMessages = [];
+    }
+
+    // 2️⃣ Filter messages where chatWith.id is the sender
+    const relevantMessages = allMessages.filter(
+      msg => msg.sender_id === chatwithid || msg.receiver_id === chatwithid
+    );
+
+    // 3️⃣ Return them to frontend
+    return {
+      messages: relevantMessages
+    };
+  } catch (err) {
+    console.error("Error fetching FCHAT logs:", err);
+    return { error: "Failed to fetch chat logs" };
+  }
+  }
     return { message: "Action not supported yet" };
 
   } catch (err) {
