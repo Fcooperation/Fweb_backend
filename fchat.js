@@ -725,14 +725,14 @@ if (action === "send_polls") {
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id, chatwithid } = body; // account.id (me) and chatWith.id (them)
+  const { id, chatwithid } = body; // frontend sends account.id and chatWith.id
 
   if (!id || !chatwithid) {
     return { error: "Missing id or chatwithid" };
   }
 
   try {
-    // 1️⃣ Fetch MY account (the inbox owner)
+    // 1️⃣ Fetch the account (receiver) from Supabase
     const { data: accountData, error: accErr } = await supabase
       .from("fwebaccount")
       .select("messages")
@@ -745,29 +745,25 @@ if (action === "get_all_fchatlogs") {
 
     let allMessages = [];
     try {
-      allMessages = accountData.messages
-        ? JSON.parse(accountData.messages)
-        : [];
+      allMessages = accountData.messages ? JSON.parse(accountData.messages) : [];
     } catch (e) {
       allMessages = [];
     }
 
-    // 2️⃣ ONLY return messages between ME and chatWith
-    const relevantMessages = allMessages.filter(msg =>
-      (msg.sender_id === id && msg.receiver_id === chatwithid) ||
-      (msg.sender_id === chatwithid && msg.receiver_id === id)
+    // 2️⃣ Filter messages where chatWith.id is the sender
+    const relevantMessages = allMessages.filter(
+      msg => msg.sender_id === chatwithid || msg.receiver_id === chatwithid
     );
 
-    // 3️⃣ Send correct conversation back
+    // 3️⃣ Return them to frontend
     return {
       messages: relevantMessages
     };
-
   } catch (err) {
     console.error("Error fetching FCHAT logs:", err);
     return { error: "Failed to fetch chat logs" };
   }
-}
+        }
     return { message: "Action not supported yet" };
 
   } catch (err) {
