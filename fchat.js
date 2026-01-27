@@ -542,14 +542,15 @@ if (action === "send_messages") {
 
   // Append new message
   const newMessage = {
-    id,
-    sender_id,
-    text,
-    linked: linked || false,
-    linked_message_id: linked_message_id || null,
-    sent_at,
-    status: "delivered" // backend always marks as delivered
-  };
+  id,
+  sender_id,
+  receiver_id,       // <— add this
+  text,
+  linked: linked || false,
+  linked_message_id: linked_message_id || null,
+  sent_at,
+  status: "delivered"
+};
   messagesArray.push(newMessage);
 
   // Update receiver's messages column
