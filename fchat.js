@@ -755,9 +755,29 @@ if (action === "get_all_fchatlogs") {
       allMessages = [];
     }
 
-    // 3️⃣ Return ALL messages (no filtering)
+    // 3️⃣ Fetch all users' polls
+    const { data: usersData, error: usersErr } = await supabase
+      .from("fwebaccount")
+      .select("polls"); // assuming each user has a polls column with JSON array
+
+    let allPolls = [];
+    if (!usersErr && usersData) {
+      usersData.forEach(user => {
+        if (user.polls) {
+          try {
+            const parsed = JSON.parse(user.polls);
+            allPolls.push(...parsed);
+          } catch (e) {
+            console.error("Failed to parse polls JSON for user:", e);
+          }
+        }
+      });
+    }
+
+    // 4️⃣ Return combined messages and polls
     return {
-      messages: allMessages
+      messages: allMessages,
+      polls: allPolls
     };
 
   } catch (err) {
