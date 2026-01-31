@@ -653,74 +653,100 @@ if (action === "delete_messages") {
     deleted: deletedMessages
   };
           }
-    // --------------------  
-// Handle sending polls (strict fields)  
-// --------------------  
+    // --------------------
+// Handle sending polls (UPDATED + CONSISTENT)
+// --------------------
 if (action === "send_polls") {
-  const { id, question, options, allowMultiple, senderId, chatWithId, sent_at } = body;
 
-  // ✅ Check required fields
-  if (!id || !question || !options || typeof allowMultiple !== "boolean" || !senderId || !chatWithId) {
+  // ✅ Accept both formats safely
+  const {
+    id,
+    question,
+    options,
+    allowMultiple,
+    sender_id,
+    receiver_id,
+    sent_at
+  } = body;
+
+  // 🚫 Strict validation
+  if (
+    !id ||
+    !question ||
+    !Array.isArray(options) ||
+    typeof allowMultiple !== "boolean" ||
+    !sender_id ||
+    !receiver_id
+  ) {
     console.log("❌ Missing required fields for poll:", body);
     return { error: "Missing required fields for sending poll" };
   }
 
   try {
-    // Fetch current polls from the receiver (chatWithId)
+    // 1️⃣ Fetch receiver account
     const { data: receiverData, error: fetchErr } = await supabase
       .from("fwebaccount")
       .select("polls")
-      .eq("id", chatWithId)
+      .eq("id", receiver_id)
       .maybeSingle();
 
     if (fetchErr || !receiverData) {
-      console.log("❌ Receiver not found or fetch error:", fetchErr);
+      console.log("❌ Receiver not found:", fetchErr);
       return { error: "Receiver not found" };
     }
 
-    console.log("📌 Current polls:", receiverData.polls);
-
+    // 2️⃣ Parse existing polls
     let pollsArray = [];
     try {
-      pollsArray = receiverData.polls ? JSON.parse(receiverData.polls) : [];
+      pollsArray = receiverData.polls
+        ? JSON.parse(receiverData.polls)
+        : [];
     } catch (e) {
-      console.log("⚠️ Failed to parse polls JSON, resetting:", e);
+      console.warn("⚠️ Polls JSON corrupted, resetting");
       pollsArray = [];
     }
 
-    // Append new poll
+    // 3️⃣ Create MESSAGE-SHAPED poll
     const newPoll = {
       id,
-      senderId,
-      question,
-      options,
-      allowMultiple,
-      sent_at: sent_at || new Date().toISOString()
+      sender_id,
+      receiver_id,
+      sent_at: sent_at || new Date().toISOString(),
+      isPoll: true,
+      pollData: {
+        id,
+        question,
+        options,
+        allowMultiple
+      }
     };
+
     pollsArray.push(newPoll);
 
-    console.log("📌 Updated polls array:", pollsArray);
-
-    // Update receiver's polls column
-    const { data: updatedData, error: updErr } = await supabase
+    // 4️⃣ Save back to DB
+    const { error: updErr } = await supabase
       .from("fwebaccount")
       .update({ polls: JSON.stringify(pollsArray) })
-      .eq("id", chatWithId);
+      .eq("id", receiver_id);
 
     if (updErr) {
-      console.log("❌ Failed to update polls:", updErr);
-      return { error: "Failed to save poll", details: updErr };
+      console.error("❌ Failed to update polls:", updErr);
+      return { error: "Failed to save poll" };
     }
 
-    console.log("✅ Poll saved successfully:", updatedData);
+    console.log("✅ Poll saved successfully");
 
-    return { success: true, message: "Poll sent", newPoll, updatedData };
+    return {
+      success: true,
+      message: "Poll sent",
+      poll: newPoll
+    };
 
   } catch (err) {
     console.error("❌ send_polls error:", err);
     return { error: "send_polls failed", details: err.message };
   }
-      }
+}
     
     // ================================
 // FCHAT RECEIVER & SYNC ENGINE
