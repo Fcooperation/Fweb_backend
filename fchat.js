@@ -811,6 +811,79 @@ if (action === "get_all_fchatlogs") {
     return { error: "Failed to fetch chat logs" };
   }
 }
+    // --------------------
+// Handle poll voting (SAVE VOTES)
+// --------------------
+if (action === "send_votes") {
+  const { poll_id, sender_id, receiver_id, options } = body;
+
+  // 🚫 Validation
+  if (
+    !poll_id ||
+    !sender_id ||
+    !receiver_id ||
+    !Array.isArray(options)
+  ) {
+    return { error: "Missing required fields for voting" };
+  }
+
+  // 1️⃣ Fetch receiver polls
+  const { data: receiverData, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("polls")
+    .eq("id", receiver_id)
+    .maybeSingle();
+
+  if (fetchErr || !receiverData) {
+    return { error: "Receiver not found" };
+  }
+
+  // 2️⃣ Parse polls JSON
+  let pollsArray = [];
+  try {
+    pollsArray = receiverData.polls
+      ? JSON.parse(receiverData.polls)
+      : [];
+  } catch {
+    pollsArray = [];
+  }
+
+  // 3️⃣ Find the poll
+  const pollIndex = pollsArray.findIndex(p => p.id === poll_id);
+  if (pollIndex === -1) {
+    return { error: "Poll not found" };
+  }
+
+  const poll = pollsArray[pollIndex];
+
+  // 4️⃣ Init votes store
+  if (!poll.votes) poll.votes = {};
+
+  // 5️⃣ Save / overwrite sender vote
+  poll.votes[sender_id] = options;
+
+  // 6️⃣ Save back
+  pollsArray[pollIndex] = poll;
+
+  const { error: saveErr } = await supabase
+    .from("fwebaccount")
+    .update({
+      polls: JSON.stringify(pollsArray)
+    })
+    .eq("id", receiver_id);
+
+  if (saveErr) {
+    return { error: "Failed to save vote" };
+  }
+
+  return {
+    success: true,
+    message: "Vote saved successfully",
+    poll_id,
+    sender_id,
+    options
+  };
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
