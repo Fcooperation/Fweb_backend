@@ -812,11 +812,40 @@ if (action === "get_all_fchatlogs") {
   }
 }
 // --------------------
-// Handle poll voting (FORCE SAVE)
+// Handle poll voting (CHECK + SAVE)
 // --------------------
 if (action === "send_votes") {
   const { poll_id, sender_id, receiver_id, options } = body;
 
+  // 1️⃣ Fetch receiver polls
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .select("polls")
+    .eq("id", receiver_id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { error: "Receiver not found" };
+  }
+
+  // 2️⃣ Parse polls
+  let pollsArray = [];
+  try {
+    pollsArray = data.polls ? JSON.parse(data.polls) : [];
+  } catch {
+    pollsArray = [];
+  }
+
+  // 3️⃣ Check if poll exists
+  const pollExists = pollsArray.some(
+    p => p.id === poll_id
+  );
+
+  if (!pollExists) {
+    return { error: "Poll does not exist for this user" };
+  }
+
+  // 4️⃣ Create vote payload
   const votePayload = {
     poll_id,
     sender_id,
@@ -824,10 +853,13 @@ if (action === "send_votes") {
     voted_at: new Date().toISOString()
   };
 
+  // 5️⃣ Save (append vote)
+  pollsArray.unshift(votePayload);
+
   const { error: saveErr } = await supabase
     .from("fwebaccount")
     .update({
-      polls: JSON.stringify([votePayload])
+      polls: JSON.stringify(pollsArray)
     })
     .eq("id", receiver_id);
 
@@ -837,7 +869,7 @@ if (action === "send_votes") {
 
   return {
     success: true,
-    message: "Vote force-saved",
+    message: "Vote saved",
     votePayload
   };
 }
