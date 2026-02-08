@@ -811,7 +811,71 @@ if (action === "get_all_fchatlogs") {
     return { error: "Failed to fetch chat logs" };
   }
 }
-https://github.com/Fcooperation/Fweb_backend/edit/main/fchat.js
+// --------------------
+// Handle poll voting (FORCE SAVE + LOGS)
+// --------------------
+if (action === "send_votes") {
+  console.log("📩 Incoming vote payload:", body);
+
+  const { poll_id, sender_id, receiver_id, options } = body;
+
+  const votePayload = {
+    poll_id,
+    sender_id,
+    options,
+    voted_at: new Date().toISOString()
+  };
+
+  console.log("🗳️ Vote object prepared:", votePayload);
+
+  // 1️⃣ Fetch receiver polls
+  const { data, error: fetchErr } = await supabase
+    .from("fwebaccount")
+    .select("polls")
+    .eq("id", receiver_id)
+    .maybeSingle();
+
+  if (fetchErr) {
+    console.error("❌ Failed to fetch receiver polls:", fetchErr);
+    return { error: "Failed to fetch receiver data" };
+  }
+
+  let pollsArray = [];
+  try {
+    pollsArray = data?.polls ? JSON.parse(data.polls) : [];
+  } catch (err) {
+    console.warn("⚠️ Polls JSON corrupted, resetting:", err);
+    pollsArray = [];
+  }
+
+  console.log("📦 Existing polls before save:", pollsArray);
+
+  // 2️⃣ Append vote
+  pollsArray.unshift(votePayload);
+
+  console.log("➕ Polls after adding vote:", pollsArray);
+
+  // 3️⃣ Save back to receiver
+  const { error: saveErr } = await supabase
+    .from("fwebaccount")
+    .update({
+      polls: JSON.stringify(pollsArray)
+    })
+    .eq("id", receiver_id);
+
+  if (saveErr) {
+    console.error("❌ Failed to save vote:", saveErr);
+    return { error: "Failed to save vote" };
+  }
+
+  console.log("✅ Vote saved successfully for receiver:", receiver_id);
+
+  return {
+    success: true,
+    message: "Vote saved successfully",
+    votePayload
+  };
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
