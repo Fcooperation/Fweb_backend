@@ -812,7 +812,7 @@ if (action === "get_all_fchatlogs") {
   }
 }
 // --------------------
-// Handle poll voting (FORCE SAVE + LOGS)
+// Handle poll voting (FORCE SAVE + LOGS + MERGE)
 // --------------------
 if (action === "send_votes") {
   console.log("📩 Incoming vote payload:", body);
@@ -820,7 +820,6 @@ if (action === "send_votes") {
   const { poll_id, sender_id, receiver_id, options } = body;
 
   const votePayload = {
-    poll_id,
     sender_id,
     options,
     voted_at: new Date().toISOString()
@@ -850,10 +849,33 @@ if (action === "send_votes") {
 
   console.log("📦 Existing polls before save:", pollsArray);
 
-  // 2️⃣ Append vote
-  pollsArray.unshift(votePayload);
+  // 2️⃣ Merge vote into existing poll or create new poll
+  let pollExists = false;
+  pollsArray = pollsArray.map(p => {
+    if (p.id === poll_id) {
+      // Ensure votes object exists
+      const votes = p.votes || {};
+      votes[sender_id] = votePayload; // merge or overwrite
+      pollExists = true;
+      return { ...p, votes };
+    }
+    return p;
+  });
 
-  console.log("➕ Polls after adding vote:", pollsArray);
+  // If poll doesn't exist, create a new poll object with this vote
+  if (!pollExists) {
+    pollsArray.push({
+      id: poll_id,
+      pollData: null, // if you have pollData, include it here
+      status: "sent",
+      votes: {
+        [sender_id]: votePayload
+      },
+      sent_at: new Date().toISOString()
+    });
+  }
+
+  console.log("➕ Polls after merging vote:", pollsArray);
 
   // 3️⃣ Save back to receiver
   const { error: saveErr } = await supabase
@@ -868,11 +890,11 @@ if (action === "send_votes") {
     return { error: "Failed to save vote" };
   }
 
-  console.log("✅ Vote saved successfully for receiver:", receiver_id);
+  console.log("✅ Vote merged/saved successfully for receiver:", receiver_id);
 
   return {
     success: true,
-    message: "Vote saved successfully",
+    message: "Vote merged/saved successfully",
     votePayload
   };
 }
