@@ -849,24 +849,28 @@ if (action === "send_votes") {
 
   console.log("📦 Existing polls before save:", pollsArray);
 
-  // 2️⃣ Merge vote into existing poll or create new poll
-  let pollExists = false;
-  pollsArray = pollsArray.map(p => {
-    if (p.id === poll_id) {
-      // Ensure votes object exists
-      const votes = p.votes || {};
-      votes[sender_id] = votePayload; // merge or overwrite
-      pollExists = true;
-      return { ...p, votes };
-    }
-    return p;
-  });
+  // 2️⃣ Find poll with pollData first, fallback to any poll with same id
+  let pollIndex = pollsArray.findIndex(p => p.id === poll_id && p.pollData);
+  if (pollIndex === -1) pollIndex = pollsArray.findIndex(p => p.id === poll_id);
 
-  // If poll doesn't exist, create a new poll object with this vote
-  if (!pollExists) {
+  if (pollIndex !== -1) {
+    // Merge vote into existing poll
+    const existingPoll = pollsArray[pollIndex];
+    const votes = existingPoll.votes || {};
+    votes[sender_id] = votePayload;
+
+    // Ensure pollData is preserved if it exists
+    pollsArray[pollIndex] = {
+      ...existingPoll,
+      votes,
+      status: "sent",
+      sent_at: existingPoll.sent_at || new Date().toISOString()
+    };
+  } else {
+    // No existing poll → create new
     pollsArray.push({
       id: poll_id,
-      pollData: null, // if you have pollData, include it here
+      pollData: null, // If you have pollData, include it
       status: "sent",
       votes: {
         [sender_id]: votePayload
