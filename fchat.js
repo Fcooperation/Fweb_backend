@@ -812,7 +812,7 @@ if (action === "get_all_fchatlogs") {
   }
 }
 // --------------------
-// Handle poll voting (FORCE SAVE + LOGS)
+// Handle poll voting (FORCE SAVE + LOGS + REWRITE)
 // --------------------
 if (action === "send_votes") {
   console.log("📩 Incoming vote payload:", body);
@@ -848,12 +848,16 @@ if (action === "send_votes") {
     pollsArray = [];
   }
 
-  console.log("📦 Existing polls before save:", pollsArray);
+  console.log("📦 Existing polls before rewrite:", pollsArray);
 
-  // 2️⃣ Append vote
+  // 2️⃣ Rewrite vote (delete old, insert new)
+  pollsArray = pollsArray.filter(p =>
+    !(p.poll_id === poll_id && p.sender_id === sender_id)
+  );
+
   pollsArray.unshift(votePayload);
 
-  console.log("➕ Polls after adding vote:", pollsArray);
+  console.log("♻️ Polls after rewrite:", pollsArray);
 
   // 3️⃣ Save back to receiver
   const { error: saveErr } = await supabase
@@ -868,14 +872,14 @@ if (action === "send_votes") {
     return { error: "Failed to save vote" };
   }
 
-  console.log("✅ Vote saved successfully for receiver:", receiver_id);
+  console.log("✅ Vote rewritten successfully for receiver:", receiver_id);
 
   return {
     success: true,
-    message: "Vote saved successfully",
+    message: "Vote rewritten successfully",
     votePayload
   };
-    }
+}
     return { message: "Action not supported yet" };
 
   } catch (err) {
