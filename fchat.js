@@ -732,84 +732,69 @@ if (action === "send_polls") {
   }
 }
     
-    // ================================
+// ================================
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id } = body; // frontend sends ONLY account.id
+const { id } = body; // frontend sends ONLY account.id
 
-  if (!id) {
-    return { error: "Missing id" };
-  }
-
-  try {
-    // 1️⃣ Fetch the account from Supabase
-    const { data: accountData, error: accErr } = await supabase
-      .from("fwebaccount")
-      .select("messages")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (accErr || !accountData) {
-      return { error: "Account not found" };
-    }
-
-    // 2️⃣ Parse messages safely
-    let allMessages = [];
-    try {
-      allMessages = accountData.messages
-        ? JSON.parse(accountData.messages)
-        : [];
-    } catch (e) {
-      console.error("Failed to parse messages JSON:", e);
-      allMessages = [];
-    }
-
-    // 3️⃣ Fetch all users' polls & votes (SEPARATED)
-const { data: usersData, error: usersErr } = await supabase
-  .from("fwebaccount")
-  .select("polls");
-
-let allPolls = [];
-let allVotes = [];
-
-if (!usersErr && usersData) {
-  usersData.forEach(user => {
-    if (!user.polls) return;
-
-    try {
-      const parsed = JSON.parse(user.polls);
-
-      parsed.forEach(item => {
-        // ✅ REAL POLL
-        if (item.pollData && item.id) {
-          allPolls.push(item);
-        }
-
-        // ✅ VOTE OBJECT
-        else if (item.poll_id && item.options && item.voted_at) {
-          allVotes.push(item);
-        }
-      });
-
-    } catch (e) {
-      console.error("Failed to parse polls JSON for user:", e);
-    }
-  });
+if (!id) {
+return { error: "Missing id" };
 }
 
-  // 4️⃣ Return cleanly separated data
-return {
-  messages: allMessages,
-  polls: allPolls,
-  votes: allVotes
+try {
+// 1️⃣ Fetch the account from Supabase
+const { data: accountData, error: accErr } = await supabase
+.from("fwebaccount")
+.select("messages")
+.eq("id", id)
+.maybeSingle();
+
+if (accErr || !accountData) {  
+  return { error: "Account not found" };  
+}  
+
+// 2️⃣ Parse messages safely  
+let allMessages = [];  
+try {  
+  allMessages = accountData.messages  
+    ? JSON.parse(accountData.messages)  
+    : [];  
+} catch (e) {  
+  console.error("Failed to parse messages JSON:", e);  
+  allMessages = [];  
+}  
+
+// 3️⃣ Fetch all users' polls  
+const { data: usersData, error: usersErr } = await supabase  
+  .from("fwebaccount")  
+  .select("polls"); // assuming each user has a polls column with JSON array  
+
+let allPolls = [];  
+if (!usersErr && usersData) {  
+  usersData.forEach(user => {  
+    if (user.polls) {  
+      try {  
+        const parsed = JSON.parse(user.polls);  
+        allPolls.push(...parsed);  
+      } catch (e) {  
+        console.error("Failed to parse polls JSON for user:", e);  
+      }  
+    }  
+  });  
+}  
+
+// 4️⃣ Return combined messages and polls  
+return {  
+  messages: allMessages,  
+  polls: allPolls  
 };
 
-  } catch (err) {
-    console.error("Error fetching FCHAT logs:", err);
-    return { error: "Failed to fetch chat logs" };
-  }
+} catch (err) {
+console.error("Error fetching FCHAT logs:", err);
+return { error: "Failed to fetch chat logs" };
 }
+  }
 // --------------------
 // Handle poll voting (FORCE SAVE + LOGS + REWRITE)
 // --------------------
