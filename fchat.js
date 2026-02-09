@@ -706,41 +706,7 @@ if (action === "send_polls") {
       pollsArray = [];
     }
 
-    // 3️⃣ Fetch all users' polls & votes (SEPARATED)
-const { data: usersData, error: usersErr } = await supabase
-  .from("fwebaccount")
-  .select("polls");
-
-let allPolls = [];
-let allVotes = [];
-
-if (!usersErr && usersData) {
-  usersData.forEach(user => {
-    if (!user.polls) return;
-
-    try {
-      const parsed = JSON.parse(user.polls);
-
-      parsed.forEach(item => {
-        // ✅ REAL POLL
-        if (item.pollData && item.id) {
-          allPolls.push(item);
-        }
-
-        // ✅ VOTE OBJECT
-        else if (item.poll_id && item.options && item.voted_at) {
-          allVotes.push(item);
-        }
-      });
-
-    } catch (e) {
-      console.error("Failed to parse polls JSON for user:", e);
-    }
-  });
-}
-
-    pollsArray.push(newPoll);
-
+   https://github.com/Fcooperation/Fweb_backend/blob/50d8450be5846b7036d3ffa5820617758cee30e6/fchat.js
     // 4️⃣ Save back to DB
     const { error: updErr } = await supabase
       .from("fwebaccount")
