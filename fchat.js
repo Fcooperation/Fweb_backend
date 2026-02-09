@@ -706,7 +706,23 @@ if (action === "send_polls") {
       pollsArray = [];
     }
 
-   https://github.com/Fcooperation/Fweb_backend/blob/50d8450be5846b7036d3ffa5820617758cee30e6/fchat.js
+    // 3️⃣ Create MESSAGE-SHAPED poll
+    const newPoll = {
+      id,
+      sender_id,
+      receiver_id,
+      sent_at: sent_at || new Date().toISOString(),
+      isPoll: true,
+      pollData: {
+        id,
+        question,
+        options,
+        allowMultiple
+      }
+    };
+
+    pollsArray.push(newPoll);
+
     // 4️⃣ Save back to DB
     const { error: updErr } = await supabase
       .from("fwebaccount")
@@ -732,69 +748,69 @@ if (action === "send_polls") {
   }
 }
     
-// ================================
+    // ================================
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-const { id } = body; // frontend sends ONLY account.id
+  const { id } = body; // frontend sends ONLY account.id
 
-if (!id) {
-return { error: "Missing id" };
-}
-
-try {
-// 1️⃣ Fetch the account from Supabase
-const { data: accountData, error: accErr } = await supabase
-.from("fwebaccount")
-.select("messages")
-.eq("id", id)
-.maybeSingle();
-
-if (accErr || !accountData) {  
-  return { error: "Account not found" };  
-}  
-
-// 2️⃣ Parse messages safely  
-let allMessages = [];  
-try {  
-  allMessages = accountData.messages  
-    ? JSON.parse(accountData.messages)  
-    : [];  
-} catch (e) {  
-  console.error("Failed to parse messages JSON:", e);  
-  allMessages = [];  
-}  
-
-// 3️⃣ Fetch all users' polls  
-const { data: usersData, error: usersErr } = await supabase  
-  .from("fwebaccount")  
-  .select("polls"); // assuming each user has a polls column with JSON array  
-
-let allPolls = [];  
-if (!usersErr && usersData) {  
-  usersData.forEach(user => {  
-    if (user.polls) {  
-      try {  
-        const parsed = JSON.parse(user.polls);  
-        allPolls.push(...parsed);  
-      } catch (e) {  
-        console.error("Failed to parse polls JSON for user:", e);  
-      }  
-    }  
-  });  
-}  
-
-// 4️⃣ Return combined messages and polls  
-return {  
-  messages: allMessages,  
-  polls: allPolls  
-};
-
-} catch (err) {
-console.error("Error fetching FCHAT logs:", err);
-return { error: "Failed to fetch chat logs" };
-}
+  if (!id) {
+    return { error: "Missing id" };
   }
+
+  try {
+    // 1️⃣ Fetch the account from Supabase
+    const { data: accountData, error: accErr } = await supabase
+      .from("fwebaccount")
+      .select("messages")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (accErr || !accountData) {
+      return { error: "Account not found" };
+    }
+
+    // 2️⃣ Parse messages safely
+    let allMessages = [];
+    try {
+      allMessages = accountData.messages
+        ? JSON.parse(accountData.messages)
+        : [];
+    } catch (e) {
+      console.error("Failed to parse messages JSON:", e);
+      allMessages = [];
+    }
+
+    // 3️⃣ Fetch all users' polls
+    const { data: usersData, error: usersErr } = await supabase
+      .from("fwebaccount")
+      .select("polls"); // assuming each user has a polls column with JSON array
+
+    let allPolls = [];
+    if (!usersErr && usersData) {
+      usersData.forEach(user => {
+        if (user.polls) {
+          try {
+            const parsed = JSON.parse(user.polls);
+            allPolls.push(...parsed);
+          } catch (e) {
+            console.error("Failed to parse polls JSON for user:", e);
+          }
+        }
+      });
+    }
+
+    // 4️⃣ Return combined messages and polls
+    return {
+      messages: allMessages,
+      polls: allPolls
+    };
+
+  } catch (err) {
+    console.error("Error fetching FCHAT logs:", err);
+    return { error: "Failed to fetch chat logs" };
+  }
+}
 // --------------------
 // Handle poll voting (FORCE SAVE + LOGS + REWRITE)
 // --------------------
