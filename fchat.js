@@ -706,20 +706,38 @@ if (action === "send_polls") {
       pollsArray = [];
     }
 
-    // 3️⃣ Create MESSAGE-SHAPED poll
-    const newPoll = {
-      id,
-      sender_id,
-      receiver_id,
-      sent_at: sent_at || new Date().toISOString(),
-      isPoll: true,
-      pollData: {
-        id,
-        question,
-        options,
-        allowMultiple
-      }
-    };
+    // 3️⃣ Fetch all users' polls & votes (SEPARATED)
+const { data: usersData, error: usersErr } = await supabase
+  .from("fwebaccount")
+  .select("polls");
+
+let allPolls = [];
+let allVotes = [];
+
+if (!usersErr && usersData) {
+  usersData.forEach(user => {
+    if (!user.polls) return;
+
+    try {
+      const parsed = JSON.parse(user.polls);
+
+      parsed.forEach(item => {
+        // ✅ REAL POLL
+        if (item.pollData && item.id) {
+          allPolls.push(item);
+        }
+
+        // ✅ VOTE OBJECT
+        else if (item.poll_id && item.options && item.voted_at) {
+          allVotes.push(item);
+        }
+      });
+
+    } catch (e) {
+      console.error("Failed to parse polls JSON for user:", e);
+    }
+  });
+}
 
     pollsArray.push(newPoll);
 
