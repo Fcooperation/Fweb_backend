@@ -781,30 +781,45 @@ if (action === "get_all_fchatlogs") {
       allMessages = [];
     }
 
-    // 3️⃣ Fetch all users' polls
-    const { data: usersData, error: usersErr } = await supabase
-      .from("fwebaccount")
-      .select("polls"); // assuming each user has a polls column with JSON array
+    // 3️⃣ Fetch all users' polls & votes (SEPARATED)
+const { data: usersData, error: usersErr } = await supabase
+  .from("fwebaccount")
+  .select("polls");
 
-    let allPolls = [];
-    if (!usersErr && usersData) {
-      usersData.forEach(user => {
-        if (user.polls) {
-          try {
-            const parsed = JSON.parse(user.polls);
-            allPolls.push(...parsed);
-          } catch (e) {
-            console.error("Failed to parse polls JSON for user:", e);
-          }
+let allPolls = [];
+let allVotes = [];
+
+if (!usersErr && usersData) {
+  usersData.forEach(user => {
+    if (!user.polls) return;
+
+    try {
+      const parsed = JSON.parse(user.polls);
+
+      parsed.forEach(item => {
+        // ✅ REAL POLL
+        if (item.pollData && item.id) {
+          allPolls.push(item);
+        }
+
+        // ✅ VOTE OBJECT
+        else if (item.poll_id && item.options && item.voted_at) {
+          allVotes.push(item);
         }
       });
-    }
 
-    // 4️⃣ Return combined messages and polls
-    return {
-      messages: allMessages,
-      polls: allPolls
-    };
+    } catch (e) {
+      console.error("Failed to parse polls JSON for user:", e);
+    }
+  });
+}
+// 4️⃣ Return cleanly separated data
+return {
+  messages: allMessages,
+  polls: allPolls,
+  votes: allVotes
+};
+    
 
   } catch (err) {
     console.error("Error fetching FCHAT logs:", err);
