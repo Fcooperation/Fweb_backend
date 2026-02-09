@@ -798,11 +798,12 @@ if (!usersErr && usersData) {
   });
 }
 
-    // 4️⃣ Return combined messages and polls
-    return {
-      messages: allMessages,
-      polls: allPolls
-    };
+  // 4️⃣ Return cleanly separated data
+return {
+  messages: allMessages,
+  polls: allPolls,
+  votes: allVotes
+};
 
   } catch (err) {
     console.error("Error fetching FCHAT logs:", err);
