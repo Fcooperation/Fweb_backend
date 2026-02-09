@@ -812,7 +812,7 @@ if (action === "get_all_fchatlogs") {
   }
 }
 // --------------------
-// Handle poll voting (FORCE SAVE + LOGS + MERGE)
+// Handle poll voting (FORCE SAVE + LOGS)
 // --------------------
 if (action === "send_votes") {
   console.log("📩 Incoming vote payload:", body);
@@ -820,6 +820,7 @@ if (action === "send_votes") {
   const { poll_id, sender_id, receiver_id, options } = body;
 
   const votePayload = {
+    poll_id,
     sender_id,
     options,
     voted_at: new Date().toISOString()
@@ -849,37 +850,10 @@ if (action === "send_votes") {
 
   console.log("📦 Existing polls before save:", pollsArray);
 
-  // 2️⃣ Find poll with pollData first, fallback to any poll with same id
-  let pollIndex = pollsArray.findIndex(p => p.id === poll_id && p.pollData);
-  if (pollIndex === -1) pollIndex = pollsArray.findIndex(p => p.id === poll_id);
+  // 2️⃣ Append vote
+  pollsArray.unshift(votePayload);
 
-  if (pollIndex !== -1) {
-    // Merge vote into existing poll
-    const existingPoll = pollsArray[pollIndex];
-    const votes = existingPoll.votes || {};
-    votes[sender_id] = votePayload;
-
-    // Ensure pollData is preserved if it exists
-    pollsArray[pollIndex] = {
-      ...existingPoll,
-      votes,
-      status: "sent",
-      sent_at: existingPoll.sent_at || new Date().toISOString()
-    };
-  } else {
-    // No existing poll → create new
-    pollsArray.push({
-      id: poll_id,
-      pollData: null, // If you have pollData, include it
-      status: "sent",
-      votes: {
-        [sender_id]: votePayload
-      },
-      sent_at: new Date().toISOString()
-    });
-  }
-
-  console.log("➕ Polls after merging vote:", pollsArray);
+  console.log("➕ Polls after adding vote:", pollsArray);
 
   // 3️⃣ Save back to receiver
   const { error: saveErr } = await supabase
@@ -894,14 +868,14 @@ if (action === "send_votes") {
     return { error: "Failed to save vote" };
   }
 
-  console.log("✅ Vote merged/saved successfully for receiver:", receiver_id);
+  console.log("✅ Vote saved successfully for receiver:", receiver_id);
 
   return {
     success: true,
-    message: "Vote merged/saved successfully",
+    message: "Vote saved successfully",
     votePayload
   };
-}
+    }
     return { message: "Action not supported yet" };
 
   } catch (err) {
