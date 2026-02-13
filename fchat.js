@@ -225,6 +225,33 @@ if (
     };
   }
 
+      if (action === "update_status_text") {
+  const { status_text } = body;
+
+  if (!status_text || typeof status_text !== "string") {
+    return { error: "No status text provided" };
+  }
+
+  // Update status_text for this email
+  const { data: updatedAccount, error: updateError } = await supabase
+    .from("fwebaccount")
+    .update({ status_text })
+    .eq("email", email)
+    .select()
+    .maybeSingle();
+
+  if (updateError || !updatedAccount) {
+    return { error: "Failed to update status text" };
+  }
+
+  return {
+    success: true,
+    message: "Status text updated successfully",
+    status_text: updatedAccount.status_text,
+    status // keep consistency with your other responses
+  };
+    }
+
   if (action === "update_pic") {
     const { profile_pic } = body;
     if (!profile_pic) return { error: "No image provided" };
