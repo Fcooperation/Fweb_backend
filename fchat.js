@@ -252,6 +252,31 @@ if (
   };
     }
 
+  if (action === "update_broadcast") {
+  const { broadcast } = body;
+
+  // broadcast can be "yes" or null
+  const broadcastValue = broadcast === "yes" ? "yes" : null;
+
+  const { data: updatedAccount, error: updateError } = await supabase
+    .from("fwebaccount")
+    .update({ broadcast: broadcastValue })
+    .eq("email", email)
+    .select()
+    .maybeSingle();
+
+  if (updateError || !updatedAccount) {
+    return { error: "Failed to update broadcast status" };
+  }
+
+  return {
+    success: true,
+    message: "Broadcast status updated successfully",
+    broadcast: updatedAccount.broadcast,
+    status // keep sending account status like your other actions
+  };
+  }
+
   if (action === "update_pic") {
     const { profile_pic } = body;
     if (!profile_pic) return { error: "No image provided" };
