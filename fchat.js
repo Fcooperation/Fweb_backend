@@ -635,64 +635,23 @@ if (action === "send_messages") {
   };
          }
 
-    // --------------------
-// React to Messages
-// --------------------
 if (action === "react_to_messages") {
-  const { message_id, sender_id, receiver_id, emoji } = body;
+  const { receiver_id, updated_messages } = body;
 
-  if (!message_id || !sender_id || !receiver_id || !emoji) {
-    return { error: "Missing required fields for reacting" };
+  if (!receiver_id || !updated_messages) {
+    return { error: "Missing required fields" };
   }
 
-  // 1️⃣ Fetch current messages from receiver
-  const { data: receiverData, error: fetchErr } = await supabase
+  const { error } = await supabase
     .from("fwebaccount")
-    .select("messages")
-    .eq("id", receiver_id)
-    .maybeSingle();
-
-  if (fetchErr || !receiverData) return { error: "Receiver not found" };
-
-  let messagesArray = [];
-  try {
-    messagesArray = receiverData?.messages ? JSON.parse(receiverData.messages) : [];
-  } catch (e) {
-    messagesArray = [];
-  }
-
-  // 2️⃣ Find the message to react to
-  const msgIndex = messagesArray.findIndex(m => m.id === message_id);
-
-  if (msgIndex === -1) {
-    return { error: "Message not found" };
-  }
-
-  const msg = messagesArray[msgIndex];
-
-  // 3️⃣ Update reactions array for this message
-  if (!msg.reactions) msg.reactions = []; // initialize if missing
-
-  // Remove existing reaction from the same sender if any
-  msg.reactions = msg.reactions.filter(r => r.sender_id !== sender_id);
-
-  // Add new reaction
-  msg.reactions.push({
-    sender_id,
-    emoji,
-    reacted_at: new Date().toISOString()
-  });
-
-  // 4️⃣ Save back updated messages array
-  const { error: updErr } = await supabase
-    .from("fwebaccount")
-    .update({ messages: JSON.stringify(messagesArray) })
+    .update({ messages: JSON.stringify(updated_messages) })
     .eq("id", receiver_id);
 
-  if (updErr) return { error: "Failed to save reaction" };
+  if (error) return { error: "Failed to save" };
 
-  return { success: true, message: "Reaction saved", message_reacted: msg };
+  return { success: true };
 }
+  
     
 // --------------------
 // Delete messages for a specific user (by ID)
