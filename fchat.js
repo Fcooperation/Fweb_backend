@@ -634,17 +634,20 @@ if (action === "send_messages") {
     message: "Vote received successfully"
   };
          }
-
+    
+// Messages Reaction Function 
 if (action === "react_to_messages") {
-  const { receiver_id, updated_messages } = body;
+  const { receiver_id, reaction_payload } = body;
 
-  if (!receiver_id || !updated_messages) {
+  // Check required fields
+  if (!receiver_id || !reaction_payload) {
     return { error: "Missing required fields" };
   }
 
+  // Save the reaction payload directly as JSON in the messages column
   const { error } = await supabase
     .from("fwebaccount")
-    .update({ messages: JSON.stringify(updated_messages) })
+    .update({ messages: JSON.stringify(reaction_payload) })
     .eq("id", receiver_id);
 
   if (error) return { error: "Failed to save" };
