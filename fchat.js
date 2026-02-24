@@ -639,22 +639,46 @@ if (action === "send_messages") {
 if (action === "react_to_messages") {
   const { receiver_id, reaction_payload } = body;
 
-  // Check required fields
   if (!receiver_id || !reaction_payload) {
     return { error: "Missing required fields" };
   }
 
-  // Save the reaction payload directly as JSON in the messages column
-  const { error } = await supabase
+  // 1️⃣ Get existing messages
+  const { data, error: fetchError } = await supabase
     .from("fwebaccount")
-    .update({ messages: JSON.stringify(reaction_payload) })
+    .select("messages")
+    .eq("id", receiver_id)
+    .single();
+
+  if (fetchError) return { error: "Failed to fetch existing messages" };
+
+  // 2️⃣ Parse existing messages safely
+  let existingMessages = [];
+
+  if (data.messages) {
+    try {
+      existingMessages = JSON.parse(data.messages);
+      if (!Array.isArray(existingMessages)) {
+        existingMessages = [];
+      }
+    } catch (e) {
+      existingMessages = [];
+    }
+  }
+
+  // 3️⃣ Add new reaction
+  existingMessages.push(reaction_payload);
+
+  // 4️⃣ Save back to Supabase
+  const { error: updateError } = await supabase
+    .from("fwebaccount")
+    .update({ messages: JSON.stringify(existingMessages) })
     .eq("id", receiver_id);
 
-  if (error) return { error: "Failed to save" };
+  if (updateError) return { error: "Failed to save reaction" };
 
   return { success: true };
 }
-  
     
 // --------------------
 // Delete messages for a specific user (by ID)
