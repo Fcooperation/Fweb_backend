@@ -879,6 +879,29 @@ if (action === "get_all_fchatlogs") {
       allMessages = [];
     }
 
+    // ===============================
+// Normalize Reactions From Messages Column
+// ===============================
+let allReactions = [];
+
+if (allMessages && Array.isArray(allMessages)) {
+  allMessages.forEach(item => {
+    if (item && item.reaction && item.message_id) {
+      allReactions.push({
+        message_id: item.message_id,
+        reaction: item.reaction,
+        sender_id: item.sender_id,
+        timestamp: item.timestamp || null
+      });
+    }
+  });
+
+  // Remove reactions from message projection
+  allMessages = allMessages.filter(item =>
+    !(item.reaction && item.message_id)
+  );
+}
+
     // 3️⃣ Fetch all users' polls & votes (SEPARATED)
 const { data: usersData, error: usersErr } = await supabase
   .from("fwebaccount")
@@ -915,7 +938,8 @@ if (!usersErr && usersData) {
 return {
   messages: allMessages,
   polls: allPolls,
-  votes: allVotes
+  votes: allVotes,
+  reactions: allReactions
 };
     
 
