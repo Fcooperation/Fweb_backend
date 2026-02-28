@@ -895,56 +895,130 @@ if (allMessages && Array.isArray(allMessages)) {
       });
     }
   });
+if (action === "get_all_fchatlogs") {
+  const { id, chatwithid } = body;
 
-  // Remove reactions from message projection
-  allMessages = allMessages.filter(item =>
-    !(item.reaction && item.message_id)
-  );
-}
+  if (!id || !chatwithid) {
+    return { error: "Missing id or chatwithid" };
+  }
 
-    // 3️⃣ Fetch all users' polls & votes (SEPARATED)
-const { data: usersData, error: usersErr } = await supabase
-  .from("fwebaccount")
-  .select("polls");
+  try {
+    // 1️⃣ Fetch account messages
+    const { data: accountData, error: accErr } = await supabase
+      .from("fwebaccount")
+      .select("messages")
+      .eq("id", id)
+      .maybeSingle();
 
-let allPolls = [];
-let allVotes = [];
-
-if (!usersErr && usersData) {
-  usersData.forEach(user => {
-    if (!user.polls) return;
-
-    try {
-      const parsed = JSON.parse(user.polls);
-
-      parsed.forEach(item => {
-        // ✅ REAL POLL
-        if (item.pollData && item.id) {
-          allPolls.push(item);
-        }
-
-        // ✅ VOTE OBJECT
-        else if (item.poll_id && item.options && item.voted_at) {
-          allVotes.push(item);
-        }
-      });
-
-    } catch (e) {
-      console.error("Failed to parse polls JSON for user:", e);
+    if (accErr || !accountData) {
+      return { error: "Account not found" };
     }
-  });
-}
-// 4️⃣ Return cleanly separated data
-return {
-  messages: allMessages,
-  polls: allPolls,
-  votes: allVotes,
-  reactions: allReactions
-};
-    
+
+    let allMessages = [];
+    try {
+      allMessages = accountData.messages
+        ? JSON.parse(accountData.messages)
+        : [];
+    } catch {
+      allMessages = [];
+    }
+
+    // ===============================
+    // FILTER ONLY THIS CHAT
+    // ===============================
+    let filteredMessages = allMessages.filter(msg =>
+      msg &&
+      (
+        (msg.sender_id === id && msg.receiver_id === chatwithid) ||
+        (msg.sender_id === chatwithid && msg.receiver_id === id)
+      )
+    );
+
+    // ===============================
+    // Extract reactions ONLY for these messages
+    // ===============================
+    let allReactions = [];
+
+    filteredMessages.forEach(item => {
+      if (item.reaction && item.message_id) {
+        allReactions.push({
+          message_id: item.message_id,
+          reaction: item.reaction,
+          sender_id: item.sender_id,
+          timestamp: item.timestamp || null
+        });
+      }
+    });
+
+    // Remove reaction objects from message array
+    filteredMessages = filteredMessages.filter(item =>
+      !(item.reaction && item.message_id)
+    );
+
+    // ===============================
+    // FETCH POLLS FROM ALL USERS
+    // ===============================
+    const { data: usersData } = await supabase
+      .from("fwebaccount")
+      .select("polls");
+
+    let filteredPolls = [];
+    let filteredVotes = [];
+
+    if (usersData) {
+      usersData.forEach(user => {
+        if (!user.polls) return;
+
+        try {
+          const parsed = JSON.parse(user.polls);
+
+          parsed.forEach(item => {
+
+            // ✅ Real Poll
+            if (
+              item.pollData &&
+              item.id &&
+              (
+                (item.sender_id === id && item.receiver_id === chatwithid) ||
+                (item.sender_id === chatwithid && item.receiver_id === id)
+              )
+            ) {
+              filteredPolls.push(item);
+            }
+
+            // ✅ Vote (must belong to filtered polls)
+            else if (
+              item.poll_id &&
+              item.options &&
+              item.voted_at
+            ) {
+              const belongsToChat = filteredPolls.some(
+                p => p.id === item.poll_id
+              );
+
+              if (belongsToChat) {
+                filteredVotes.push(item);
+              }
+            }
+
+          });
+
+        } catch {}
+      });
+    }
+
+    // ===============================
+    // FINAL RETURN
+    // ===============================
+    return {
+      messages: filteredMessages,
+      polls: filteredPolls,
+      votes: filteredVotes,
+      reactions: allReactions
+    };
 
   } catch (err) {
-    console.error("Error fetching FCHAT logs:", err);
+    console.error("Error:", err);
     return { error: "Failed to fetch chat logs" };
   }
 }
