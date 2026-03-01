@@ -850,11 +850,12 @@ if (action === "send_polls") {
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id } = body; // frontend sends ONLY account.id
+  const { id, chatwithid } = body;
 
-  if (!id) {
-    return { error: "Missing id" };
-  }
+if (!id || !chatwithid) {
+  return { error: "Missing id or chatwithid" };
+}
+
 
   try {
     // 1️⃣ Fetch the account from Supabase
@@ -879,36 +880,45 @@ if (action === "get_all_fchatlogs") {
       allMessages = [];
     }
 
-    // ===============================
-// Normalize Reactions From Messages Column
+// ===============================
+// FILTER ONLY THIS CONVERSATION
+// ===============================
+let filteredMessages = allMessages.filter(msg =>
+  msg &&
+  (
+    (msg.sender_id === id && msg.receiver_id === chatwithid) ||
+    (msg.sender_id === chatwithid && msg.receiver_id === id)
+  )
+);
+
+// ===============================
+// Extract reactions ONLY from this conversation
 // ===============================
 let allReactions = [];
 
-if (allMessages && Array.isArray(allMessages)) {
-  allMessages.forEach(item => {
-    if (item && item.reaction && item.message_id) {
-      allReactions.push({
-        message_id: item.message_id,
-        reaction: item.reaction,
-        sender_id: item.sender_id,
-        timestamp: item.timestamp || null
-      });
-    }
-  });
+filteredMessages.forEach(item => {
+  if (item && item.reaction && item.message_id) {
+    allReactions.push({
+      message_id: item.message_id,
+      reaction: item.reaction,
+      sender_id: item.sender_id,
+      timestamp: item.timestamp || null
+    });
+  }
+});
 
-  // Remove reactions from message projection
-  allMessages = allMessages.filter(item =>
-    !(item.reaction && item.message_id)
-  );
-}
+// Remove reaction objects from message projection
+filteredMessages = filteredMessages.filter(item =>
+  !(item.reaction && item.message_id)
+);
 
     // 3️⃣ Fetch all users' polls & votes (SEPARATED)
 const { data: usersData, error: usersErr } = await supabase
   .from("fwebaccount")
   .select("polls");
 
-let allPolls = [];
-let allVotes = [];
+let filteredPolls = [];
+let filteredVotes = [];
 
 if (!usersErr && usersData) {
   usersData.forEach(user => {
@@ -918,27 +928,46 @@ if (!usersErr && usersData) {
       const parsed = JSON.parse(user.polls);
 
       parsed.forEach(item => {
-        // ✅ REAL POLL
-        if (item.pollData && item.id) {
-          allPolls.push(item);
+
+        // ✅ REAL POLL (only this chat)
+        if (
+          item.pollData &&
+          item.id &&
+          (
+            (item.sender_id === id && item.receiver_id === chatwithid) ||
+            (item.sender_id === chatwithid && item.receiver_id === id)
+          )
+        ) {
+          filteredPolls.push(item);
         }
 
-        // ✅ VOTE OBJECT
-        else if (item.poll_id && item.options && item.voted_at) {
-          allVotes.push(item);
+        // ✅ VOTE (only if poll belongs to this chat)
+        else if (
+          item.poll_id &&
+          item.options &&
+          item.voted_at
+        ) {
+          const belongsToChat = filteredPolls.some(
+            p => p.id === item.poll_id
+          );
+
+          if (belongsToChat) {
+            filteredVotes.push(item);
+          }
         }
+
       });
 
     } catch (e) {
-      console.error("Failed to parse polls JSON for user:", e);
+      console.error("Failed to parse polls JSON:", e);
     }
   });
 }
 // 4️⃣ Return cleanly separated data
 return {
-  messages: allMessages,
-  polls: allPolls,
-  votes: allVotes,
+  messages: filteredMessages,
+  polls: filteredPolls,
+  votes: filteredVotes,
   reactions: allReactions
 };
     
