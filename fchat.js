@@ -892,26 +892,30 @@ let filteredMessages = allMessages.filter(msg =>
 );
 
 // ===============================
-// Extract ALL reactions from storage first
+// Extract reactions FIRST (GLOBAL)
 // ===============================
 let allReactions = [];
 
 allMessages.forEach(item => {
-  if (item && item.reaction && item.message_id) {
+  if (!item) return;
+
+  if (item.reaction && item.message_id) {
+
     if (
       (item.sender_id === id && item.receiver_id === chatwithid) ||
       (item.sender_id === chatwithid && item.receiver_id === id)
     ) {
+
       allReactions.push({
         message_id: item.message_id,
         reaction: item.reaction,
         sender_id: item.sender_id,
         timestamp: item.timestamp || null
       });
+
     }
   }
 });
-
 // Remove reaction objects from message projection
 filteredMessages = filteredMessages.filter(item =>
   !(item.reaction && item.message_id)
