@@ -892,18 +892,23 @@ let filteredMessages = allMessages.filter(msg =>
 );
 
 // ===============================
-// Extract reactions ONLY from this conversation
+// Extract ALL reactions from storage first
 // ===============================
 let allReactions = [];
 
-filteredMessages.forEach(item => {
+allMessages.forEach(item => {
   if (item && item.reaction && item.message_id) {
-    allReactions.push({
-      message_id: item.message_id,
-      reaction: item.reaction,
-      sender_id: item.sender_id,
-      timestamp: item.timestamp || null
-    });
+    if (
+      (item.sender_id === id && item.receiver_id === chatwithid) ||
+      (item.sender_id === chatwithid && item.receiver_id === id)
+    ) {
+      allReactions.push({
+        message_id: item.message_id,
+        reaction: item.reaction,
+        sender_id: item.sender_id,
+        timestamp: item.timestamp || null
+      });
+    }
   }
 });
 
