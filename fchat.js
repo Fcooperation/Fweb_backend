@@ -878,6 +878,24 @@ if (action === "get_all_fchatlogs") {
       allMessages = [];
     }
 
+    //Seperate messages from reactions 
+    let allMessagesClean = [];
+let allReactions = [];
+
+allMessages.forEach(item => {
+
+  // Reaction object
+  if (item && item.reaction && item.message_id) {
+    allReactions.push(item);
+  }
+
+  // Normal message
+  else {
+    allMessagesClean.push(item);
+  }
+
+});
+
     // 3️⃣ Fetch all users' polls & votes (SEPARATED)
 const { data: usersData, error: usersErr } = await supabase
   .from("fwebaccount")
@@ -912,7 +930,8 @@ if (!usersErr && usersData) {
 }
 // 4️⃣ Return cleanly separated data
 return {
-  messages: allMessages,
+  messages: allMessagesClean,
+  reactions: allReactions,
   polls: allPolls,
   votes: allVotes
 };
