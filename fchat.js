@@ -952,11 +952,12 @@ if (action === "send_votes") {
   const { poll_id, sender_id, receiver_id, options } = body;
 
   const votePayload = {
-    poll_id,
-    sender_id,
-    options,
-    voted_at: new Date().toISOString()
-  };
+  poll_id,
+  sender_id,
+  receiver_id,
+  options,
+  voted_at: new Date().toISOString()
+};
 
   console.log("🗳️ Vote object prepared:", votePayload);
 
