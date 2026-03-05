@@ -635,13 +635,21 @@ if (action === "send_messages") {
   };
          }
     
-// Messages Reaction Function 
+
+    // Messages Reaction Function
 if (action === "react_to_messages") {
+
   const { receiver_id, reaction_payload } = body;
 
   if (!receiver_id || !reaction_payload) {
     return { error: "Missing required fields" };
   }
+
+  // Add receiver_id into payload storage
+  const newReaction = {
+    ...reaction_payload,
+    receiver_id
+  };
 
   // 1️⃣ Get existing messages
   const { data, error: fetchError } = await supabase
@@ -655,30 +663,50 @@ if (action === "react_to_messages") {
   // 2️⃣ Parse existing messages safely
   let existingMessages = [];
 
-  if (data.messages) {
-    try {
-      existingMessages = JSON.parse(data.messages);
-      if (!Array.isArray(existingMessages)) {
-        existingMessages = [];
-      }
-    } catch (e) {
+  try {
+    existingMessages = data.messages ? JSON.parse(data.messages) : [];
+
+    if (!Array.isArray(existingMessages)) {
       existingMessages = [];
     }
+
+  } catch (e) {
+    existingMessages = [];
   }
 
-  // 3️⃣ Add new reaction
-  existingMessages.push(reaction_payload);
+  // ===============================
+  // ⭐ RE-REACTION OVERWRITE LOGIC
+  // ===============================
+
+  existingMessages = existingMessages.filter(msg => {
+
+    // Keep message if:
+    // NOT same message_id AND NOT same sender_id
+
+    if (!msg || !msg.message_id || !msg.sender_id) return true;
+
+    return !(
+      msg.message_id === newReaction.message_id &&
+      msg.sender_id === newReaction.sender_id
+    );
+
+  });
+
+  // Add new reaction
+  existingMessages.push(newReaction);
 
   // 4️⃣ Save back to Supabase
   const { error: updateError } = await supabase
     .from("fwebaccount")
-    .update({ messages: JSON.stringify(existingMessages) })
+    .update({
+      messages: JSON.stringify(existingMessages)
+    })
     .eq("id", receiver_id);
 
   if (updateError) return { error: "Failed to save reaction" };
 
   return { success: true };
-}
+    }
     
 // --------------------
 // Delete messages for a specific user (by ID)
