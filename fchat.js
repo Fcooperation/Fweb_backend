@@ -845,17 +845,15 @@ if (action === "send_polls") {
     return { error: "send_polls failed", details: err.message };
   }
 }
-    
     // ================================
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id, chatwithid } = body;
+  const { id } = body; // frontend sends ONLY account.id
 
-if (!id || !chatwithid) {
-  return { error: "Missing id or chatwithid" };
-}
-
+  if (!id) {
+    return { error: "Missing id" };
+  }
 
   try {
     // 1️⃣ Fetch the account from Supabase
@@ -880,36 +878,13 @@ if (!id || !chatwithid) {
       allMessages = [];
     }
 
-// ===============================
-// FILTER ONLY THIS CONVERSATION
-// ===============================
-let filteredMessages = allMessages.filter(msg =>
-  msg &&
-  (
-    (msg.sender_id === id && msg.receiver_id === chatwithid) ||
-    (msg.sender_id === chatwithid && msg.receiver_id === id)
-  )
-);
-
-// ===============================
-// RETURN REACTIONS RAW (NO FILTER)
-// ===============================
-let allReactions = [];
-
-allMessages.forEach(item => {
-  if (item && item.reaction && item.message_id) {
-    allReactions.push(item);
-  }
-});
-
-
     // 3️⃣ Fetch all users' polls & votes (SEPARATED)
 const { data: usersData, error: usersErr } = await supabase
   .from("fwebaccount")
   .select("polls");
 
-let filteredPolls = [];
-let filteredVotes = [];
+let allPolls = [];
+let allVotes = [];
 
 if (!usersErr && usersData) {
   usersData.forEach(user => {
@@ -919,47 +894,27 @@ if (!usersErr && usersData) {
       const parsed = JSON.parse(user.polls);
 
       parsed.forEach(item => {
-
-        // ✅ REAL POLL (only this chat)
-        if (
-          item.pollData &&
-          item.id &&
-          (
-            (item.sender_id === id && item.receiver_id === chatwithid) ||
-            (item.sender_id === chatwithid && item.receiver_id === id)
-          )
-        ) {
-          filteredPolls.push(item);
+        // ✅ REAL POLL
+        if (item.pollData && item.id) {
+          allPolls.push(item);
         }
 
-        // ✅ VOTE (only if poll belongs to this chat)
-        else if (
-          item.poll_id &&
-          item.options &&
-          item.voted_at
-        ) {
-          const belongsToChat = filteredPolls.some(
-            p => p.id === item.poll_id
-          );
-
-          if (belongsToChat) {
-            filteredVotes.push(item);
-          }
+        // ✅ VOTE OBJECT
+        else if (item.poll_id && item.options && item.voted_at) {
+          allVotes.push(item);
         }
-
       });
 
     } catch (e) {
-      console.error("Failed to parse polls JSON:", e);
+      console.error("Failed to parse polls JSON for user:", e);
     }
   });
 }
 // 4️⃣ Return cleanly separated data
 return {
-  messages: filteredMessages,
-  polls: filteredPolls,
-  votes: filteredVotes,
-  reactions: allReactions
+  messages: allMessages,
+  polls: allPolls,
+  votes: allVotes
 };
     
 
@@ -968,6 +923,7 @@ return {
     return { error: "Failed to fetch chat logs" };
   }
 }
+    
 // --------------------
 // Handle poll voting (FORCE SAVE + LOGS + REWRITE)
 // --------------------
