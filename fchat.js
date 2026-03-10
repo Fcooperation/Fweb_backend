@@ -942,6 +942,34 @@ allMessages.forEach(item => {
 
 });
 
+    // ================================
+// FETCH CHAT PARTNER STATUS
+// ================================
+let partnerStatus = null;
+
+if (chatwithid) {
+
+  const { data: partnerData, error: partnerErr } = await supabase
+    .from("fwebaccount")
+    .select("logs, last_seen")
+    .eq("id", chatwithid)
+    .maybeSingle();
+
+  if (!partnerErr && partnerData) {
+
+    try {
+      partnerStatus = {
+        logs: partnerData.logs ? JSON.parse(partnerData.logs) : null,
+        last_seen: partnerData.last_seen
+      };
+    } catch (e) {
+      console.error("Failed to parse partner logs:", e);
+    }
+
+  }
+
+        }
+
     // 3️⃣ Fetch all users' polls & votes (SEPARATED)
 const { data: usersData, error: usersErr } = await supabase
   .from("fwebaccount")
@@ -979,7 +1007,8 @@ return {
   messages: allMessagesClean,
   reactions: allReactions,
   polls: allPolls,
-  votes: allVotes
+  votes: allVotes,
+  partner_status: partnerStatus
 };
     
 
