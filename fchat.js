@@ -877,11 +877,29 @@ if (action === "send_polls") {
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id } = body; // frontend sends ONLY account.id
-
+  const { id, chatwithid, typing } = body;
   if (!id) {
     return { error: "Missing id" };
   }
+
+  // ================================
+// UPDATE USER ACTIVITY LOGS
+// ================================
+
+const logsObject = {
+  status: "active",
+  chat: chatwithid || null,
+  typing: typing === "yes",
+  time: new Date().toISOString()
+};
+
+await supabase
+  .from("fwebaccount")
+  .update({
+    logs: JSON.stringify(logsObject),
+    last_seen: new Date().toISOString()
+  })
+  .eq("id", id);
 
   try {
     // 1️⃣ Fetch the account from Supabase
