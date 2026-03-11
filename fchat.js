@@ -884,19 +884,20 @@ if (action === "get_all_fchatlogs") {
 
   // ================================
 // UPDATE USER ACTIVITY LOGS
-// ==============================
+// ================================
+
 const logsObject = {
   status: "active",
   chat: chatwithid || null,
   typing: typing === "yes",
-  time: last_seen || new Date().toISOString() // use frontend last_seen
+  time: new Date().toISOString()
 };
 
 await supabase
   .from("fwebaccount")
   .update({
     logs: JSON.stringify(logsObject),
-    last_seen: last_seen || new Date().toISOString() // use frontend last_seen
+    last_seen: new Date().toISOString()
   })
   .eq("id", id);
 
