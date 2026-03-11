@@ -877,7 +877,7 @@ if (action === "send_polls") {
 // FCHAT RECEIVER & SYNC ENGINE
 // ================================
 if (action === "get_all_fchatlogs") {
-  const { id, chatwithid, typing } = body;
+  const { id, chatwithid, typing, last_seen } = body;
   if (!id) {
     return { error: "Missing id" };
   }
@@ -890,17 +890,16 @@ const logsObject = {
   status: "active",
   chat: chatwithid || null,
   typing: typing === "yes",
-  time: new Date().toISOString()
+  time: last_seen || new Date().toISOString() // use frontend last_seen if available
 };
 
 await supabase
   .from("fwebaccount")
   .update({
     logs: JSON.stringify(logsObject),
-    last_seen: new Date().toISOString()
+    last_seen: last_seen || new Date().toISOString() // save frontend last_seen
   })
   .eq("id", id);
-
   try {
     // 1️⃣ Fetch the account from Supabase
     const { data: accountData, error: accErr } = await supabase
