@@ -1087,6 +1087,63 @@ if (action === "send_votes") {
     votePayload
   };
 }
+    //Received messages logic 
+    if (action === "received_messages") {
+      const { ids, status, sender_id, receiver_id } = body;
+
+      if (!ids || !receiver_id) {
+        return { error: "Missing required fields for received_messages" };
+      }
+
+      // 1️⃣ Fetch current seen logs for the receiver
+      const { data, error: fetchErr } = await supabase
+        .from("fwebaccount")
+        .select("seen")
+        .eq("id", receiver_id)
+        .maybeSingle();
+
+      if (fetchErr) {
+        console.error("❌ Failed to fetch receiver seen logs:", fetchErr);
+        return { error: "Failed to fetch receiver data" };
+      }
+
+      let seenArray = [];
+      try {
+        // Handle potential null or corrupted JSON
+        seenArray = data?.seen ? JSON.parse(data.seen) : [];
+      } catch (err) {
+        console.warn("⚠️ Seen JSON corrupted, resetting:", err);
+        seenArray = [];
+      }
+
+      // 2️⃣ Prepare the new log entries
+      const newSeenLogs = ids.map(msgId => ({
+        message_id: msgId,
+        status: status || "seen",
+        sender_id: sender_id,
+        timestamp: Date.now()
+      }));
+
+      // 3️⃣ Combine and update (adding new logs to the start of the array)
+      const updatedSeen = [...newSeenLogs, ...seenArray];
+
+      // 4️⃣ Save back to the receiver_id's seen column
+      const { error: saveErr } = await supabase
+        .from("fwebaccount")
+        .update({
+          seen: JSON.stringify(updatedSeen)
+        })
+        .eq("id", receiver_id);
+
+      if (saveErr) {
+        console.error("❌ Failed to save seen status:", saveErr);
+        return { error: "Failed to update seen column" };
+      }
+
+      console.log(`✅ Marked ${ids.length} messages as seen for receiver:`, receiver_id);
+      return { success: true, count: ids.length };
+      }
+          
     return { message: "Action not supported yet" };
 
   } catch (err) {
