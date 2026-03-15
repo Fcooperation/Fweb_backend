@@ -949,18 +949,19 @@ let partnerStatus = null;
 if (chatwithid) {
 
   const { data: partnerData, error: partnerErr } = await supabase
-    .from("fwebaccount")
-    .select("logs, last_seen")
-    .eq("id", chatwithid)
-    .maybeSingle();
+  .from("fwebaccount")
+  .select("logs, last_seen, seen")
+  .eq("id", chatwithid)
+  .maybeSingle();
 
   if (!partnerErr && partnerData) {
 
     try {
       partnerStatus = {
-        logs: partnerData.logs ? JSON.parse(partnerData.logs) : null,
-        last_seen: partnerData.last_seen
-      };
+  logs: partnerData.logs ? JSON.parse(partnerData.logs) : null,
+  last_seen: partnerData.last_seen,
+  seen_messages: partnerData.seen ? JSON.parse(partnerData.seen) : []
+};
     } catch (e) {
       console.error("Failed to parse partner logs:", e);
     }
