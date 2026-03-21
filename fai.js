@@ -1,77 +1,73 @@
-// fai.js
 import fetch from "node-fetch";
 
-const HF_API_KEY = process.env.HF_API_KEY; // Set this in Render or your environment
-const MODEL = "EleutherAI/gpt-neo-2.7B";
-
 /**
- * Fetch AI-generated answer + Google-like Fcards links
+ * Fetch AI-like answer using Wikipedia
  * @param {string} query
- * @returns {Promise<{answer: string, links: Array<{title:string,url:string,favicon:string}>}>}
  */
 export async function fetchFAI(query) {
   if (!query) throw new Error("❌ No query provided to FAI");
 
   try {
-    // 1️⃣ Call Hugging Face Inference API
-    const response = await fetch(`https://api-inference.huggingface.co/models/${MODEL}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${HF_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs: query }),
-    });
+    // 1️⃣ Search Wikipedia
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`
+    );
 
-    if (!response.ok) {
-      throw new Error(`HF API error ${response.status}: ${await response.text()}`);
+    const searchData = await searchRes.json();
+
+    const firstResult = searchData?.query?.search?.[0];
+
+    if (!firstResult) {
+      return {
+        answer: "No relevant information found on Wikipedia.",
+        links: []
+      };
     }
 
-    const result = await response.json();
+    const title = firstResult.title;
 
-    // Some Hugging Face outputs have different structures
+    // 2️⃣ Get page summary (extract)
+    const summaryRes = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
+    );
+
+    const summaryData = await summaryRes.json();
+
     const answer =
-      result[0]?.generated_text ||
-      result.generated_text ||
-      JSON.stringify(result);
+      summaryData.extract ||
+      "No summary available.";
 
-    // 2️⃣ Build Google-like links for Fcards
+    // 3️⃣ Build links (real this time 🔥)
     const links = [
       {
-        title: `Search results for "${query}"`,
-        url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-        snippet: `See more about "${query}" on Google Search.`,
-        favicon: "https://www.google.com/favicon.ico",
-      },
-      {
-        title: `Wikipedia - ${query}`,
-        url: `https://en.wikipedia.org/wiki/${encodeURIComponent(query)}`,
-        snippet: `Learn about ${query} on Wikipedia.`,
+        title: summaryData.title,
+        url: summaryData.content_urls?.desktop?.page,
+        snippet: answer.substring(0, 120) + "...",
         favicon: "https://www.wikipedia.org/static/favicon/wikipedia.ico",
       },
       {
-        title: `News on ${query}`,
-        url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
-        snippet: `Latest news about ${query}.`,
-        favicon: "https://news.google.com/favicon.ico",
-      },
+        title: `Search more about "${query}"`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+        snippet: `Explore more results for ${query}`,
+        favicon: "https://www.google.com/favicon.ico",
+      }
     ];
 
     return { answer, links };
-  } catch (err) {
-    console.error("❌ FAI fetch error:", err.message);
 
-    // Fallback response
+  } catch (err) {
+    console.error("❌ FAI Wiki error:", err.message);
+
     return {
       answer: "No AI response available",
       links: [
         {
-          title: "Search more on Google",
+          title: "Search on Google",
           url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-          snippet: "See additional results on Google.",
+          snippet: "See more results",
           favicon: "https://www.google.com/favicon.ico",
         },
       ],
     };
   }
-}
+      }
