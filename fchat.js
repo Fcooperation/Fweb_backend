@@ -1,8 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
+import 'dotenv/config'; // ✅ This loads your variables
 
-// Supabase client
-const supabaseUrl = "https://pwsxezhugsxosbwhkdvf.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3hlemh1Z3N4b3Nid2hrZHZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTkyODM4NywiZXhwIjoyMDY3NTA0Mzg3fQ.u7lU9gAE-hbFprFIDXQlep4q2bhjj0QdlxXF-kylVBQ"; // Replace with your hardcoded key or env variable
+// Supabase client - Now pulled from the environment
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ ERROR: Missing Supabase Environment Variables!");
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function handleFChat(body) {
