@@ -1123,24 +1123,21 @@ if (action === "send_votes") {
         seenArray = [];
       }
 
-      // 2️⃣ Prepare the new log entries
-      const newSeenLogs = ids.map(msgId => ({
-        message_id: msgId,
-        status: status || "seen",
-        sender_id: sender_id,
-        timestamp: Date.now()
-      }));
+      // 2️⃣ Prepare ONLY latest seen log
+const updatedSeen = [{
+  message_id: ids[ids.length - 1],
+  status: status || "seen",
+  sender_id: sender_id,
+  timestamp: Date.now()
+}];
 
-      // 3️⃣ Combine and update (adding new logs to the start of the array)
-      const updatedSeen = [...newSeenLogs, ...seenArray];
-
-      // 4️⃣ Save back to the receiver_id's seen column
-      const { error: saveErr } = await supabase
-        .from("fwebaccount")
-        .update({
-          seen: JSON.stringify(updatedSeen)
-        })
-        .eq("id", receiver_id);
+// 3️⃣ Save (overwrite)
+const { error: saveErr } = await supabase
+  .from("fwebaccount")
+  .update({
+    seen: JSON.stringify(updatedSeen)
+  })
+  .eq("id", receiver_id);
 
       if (saveErr) {
         console.error("❌ Failed to save seen status:", saveErr);
