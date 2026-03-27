@@ -1147,6 +1147,77 @@ const { error: saveErr } = await supabase
       console.log(`✅ Marked ${ids.length} messages as seen for receiver:`, receiver_id);
       return { success: true, count: ids.length };
       }
+
+    // --------------------
+// Delete for Everyone (Backend Handler)
+// --------------------
+if (action === "delete_for_everyone") {
+  const { chat_id, message_ids, requested_by } = body;
+
+  if (!chat_id || !message_ids || !Array.isArray(message_ids)) {
+    return { error: "Missing required fields for delete for everyone" };
+  }
+
+  try {
+    // 1️⃣ Fetch the TARGET user's account (the receiver)
+    // In "Delete for Everyone", the chat_id is the person who should see the deletion
+    const { data: targetUser, error: fetchErr } = await supabase
+      .from("fwebaccount")
+      .select("messages")
+      .eq("id", chat_id)
+      .maybeSingle();
+
+    if (fetchErr || !targetUser) {
+      return { error: "Target chat partner not found" };
+    }
+
+    // 2️⃣ Parse their existing messages
+    let messagesArray = [];
+    try {
+      messagesArray = targetUser.messages ? JSON.parse(targetUser.messages) : [];
+    } catch (e) {
+      messagesArray = [];
+    }
+
+    // 3️⃣ Loop through and update the status of the specific messages
+    // Instead of completely removing the JSON, we update it so the UI knows it was deleted
+    const updatedMessages = messagesArray.map(msg => {
+      if (message_ids.includes(msg.id)) {
+        return {
+          ...msg,
+          text: "", // Clear the text content
+          status: "deleted",
+          deleted: true,
+          deleted_for: "everyone"
+        };
+      }
+      return msg;
+    });
+
+    // 4️⃣ Save the updated messages back to the Target User's column
+    const { error: updErr } = await supabase
+      .from("fwebaccount")
+      .update({ messages: JSON.stringify(updatedMessages) })
+      .eq("id", chat_id);
+
+    if (updErr) {
+      console.error("❌ Failed to update target messages:", updErr);
+      return { error: "Failed to sync deletion to partner" };
+    }
+
+    // 5️⃣ Send success back to the frontend
+    return { 
+      success: true, 
+      message: "Messages deleted for everyone",
+      deleted_ids: message_ids 
+    };
+
+  } catch (err) {
+    console.error("❌ delete_for_everyone error:", err);
+    return { error: "Internal server error during deletion" };
+  }
+  }
+         
           
     return { message: "Action not supported yet" };
 
