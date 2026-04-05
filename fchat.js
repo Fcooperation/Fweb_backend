@@ -1184,12 +1184,13 @@ if (action === "delete_for_everyone") {
     const updatedMessages = messagesArray.map(msg => {
       if (message_ids.includes(msg.id)) {
         return {
-          ...msg,
-          text: "", // Clear the text content
-          status: "deleted",
-          deleted: true,
-          deleted_for: "everyone"
-        };
+  ...msg,
+  text: "",
+  status: "deleted",
+  deleted: true,
+  deleted_for: "everyone",
+  requested_by: requested_by   // ✅ ADD THIS
+};
       }
       return msg;
     });
