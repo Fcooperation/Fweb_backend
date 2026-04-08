@@ -573,54 +573,40 @@ if (action === "verify_account") {
   if (error || !data) return { exists: false };
   return { exists: true };
     }
-    // --------------------
-// Handle sending messages
+// --------------------
+// Handle sending messages (NEW SYSTEM)
 // --------------------
 if (action === "send_messages") {
-  const { receiver_id, id, sender_id, text, linked, linked_message_id, sent_at } = body;
-  if (!receiver_id || !id || !sender_id || !text) {
+  const { receiver_id, sender_id, text } = body;
+
+  if (!receiver_id || !sender_id || !text) {
     return { error: "Missing required fields for sending message" };
   }
 
-  // Fetch current messages from receiver
-  const { data: receiverData, error: fetchErr } = await supabase
-    .from("fwebaccount")
-    .select("messages")
-    .eq("id", receiver_id)
-    .maybeSingle();
+  // ✅ Insert into messages table
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id,
+      receiver_id,
+      message: text
+    })
+    .select()
+    .single(); // 🔥 ensures we get one object
 
-  if (fetchErr) return { error: "Receiver not found" };
-
-  let messagesArray = [];
-  try {
-    messagesArray = receiverData?.messages ? JSON.parse(receiverData.messages) : [];
-  } catch (e) {
-    messagesArray = []; // fallback if corrupted
+  if (error) {
+    return { error: "Failed to send message" };
   }
 
-  // Append new message
-  const newMessage = {
-  id,
-  sender_id,
-  receiver_id,       // <— add this
-  text,
-  linked: linked || false,
-  linked_message_id: linked_message_id || null,
-  sent_at,
-  status: "delivered"
-};
-  messagesArray.push(newMessage);
+  // ✅ Return the saved message (WITH REAL ID)
+  return {
+    success: true,
+    message: "Message sent",
+    newMessage: data
+  };
+}
 
-  // Update receiver's messages column
-  const { error: updErr } = await supabase
-    .from("fwebaccount")
-    .update({ messages: JSON.stringify(messagesArray) })
-    .eq("id", receiver_id);
-
-  if (updErr) return { error: "Failed to save message" };
-
-  return { success: true, message: "Message sent", newMessage };
-      }
+    // Hamdle votes 
 
     if (action === "vote_polls") {
   const { poll_id, sender_id, receiver_id, option_voted } = body;
