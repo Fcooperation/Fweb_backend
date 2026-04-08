@@ -936,7 +936,7 @@ let allReactions = [];
 allMessages.forEach(item => {
 
   // Reaction object
-  if (item && item.reaction && item.message_id) {
+  if (item && item.hasOwnProperty("reaction") && item.message_id) {
     allReactions.push(item);
   }
 
