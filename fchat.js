@@ -577,8 +577,7 @@ if (action === "verify_account") {
 // Handle sending messages (NEW SYSTEM)
 // --------------------
 if (action === "send_messages") {
-  const { receiver_id, sender_id, text } = body;
-
+  const { receiver_id, sender_id, text, id } = body;
   if (!receiver_id || !sender_id || !text) {
     return { error: "Missing required fields for sending message" };
   }
@@ -587,6 +586,7 @@ if (action === "send_messages") {
   const { data, error } = await supabase
     .from("messages")
     .insert({
+      id,
       sender_id,
       receiver_id,
       message: text
