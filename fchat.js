@@ -893,45 +893,17 @@ await supabase
   })
   .eq("id", id);
   try {
-    // 1️⃣ Fetch the account from Supabase
-    const { data: accountData, error: accErr } = await supabase
-      .from("fwebaccount")
-      .select("messages")
-      .eq("id", id)
-      .maybeSingle();
+    
+    // Fetch messages from messages table
+const { data: messagesData, error: msgErr } = await supabase
+  .from("messages")
+  .select("*")
+  .eq("receiver_id", id) // 🔥 THIS is your condition
+  .order("created_at", { ascending: true });
 
-    if (accErr || !accountData) {
-      return { error: "Account not found" };
-    }
-
-    // 2️⃣ Parse messages safely
-    let allMessages = [];
-    try {
-      allMessages = accountData.messages
-        ? JSON.parse(accountData.messages)
-        : [];
-    } catch (e) {
-      console.error("Failed to parse messages JSON:", e);
-      allMessages = [];
-    }
-
-    //Seperate messages from reactions 
-    let allMessagesClean = [];
-let allReactions = [];
-
-allMessages.forEach(item => {
-
-  // Reaction object
-  if (item && item.hasOwnProperty("reaction") && item.message_id) {
-    allReactions.push(item);
-  }
-
-  // Normal message
-  else {
-    allMessagesClean.push(item);
-  }
-
-});
+if (msgErr) {
+  return { error: "Failed to fetch messages" };
+}
 
     // ================================
 // FETCH CHAT PARTNER STATUS
@@ -996,8 +968,8 @@ if (!usersErr && usersData) {
 }
 // 4️⃣ Return cleanly separated data
 return {
-  messages: allMessagesClean,
-  reactions: allReactions,
+  messages: messagesData || [],
+reactions: [],
   polls: allPolls,
   votes: allVotes,
   partner_status: partnerStatus
