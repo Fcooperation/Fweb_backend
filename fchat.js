@@ -574,31 +574,35 @@ if (action === "verify_account") {
   return { exists: true };
     }
 // --------------------
-// Handle sending messages (NEW SYSTEM)
+// Handle sending messages (WITH LINK SUPPORT)
 // --------------------
 if (action === "send_messages") {
-  const { receiver_id, sender_id, text, id } = body;
+  const { receiver_id, sender_id, text, id, linked, linked_message_id } = body;
+
   if (!receiver_id || !sender_id || !text) {
     return { error: "Missing required fields for sending message" };
   }
 
-  // ✅ Insert into messages table
+  // ✅ Insert into messages table (INCLUDING LINK DATA)
   const { data, error } = await supabase
     .from("messages")
     .insert({
       id,
       sender_id,
       receiver_id,
-      message: text
+      message: text,
+      linked: linked || false,
+      linked_message_id: linked_message_id || null
     })
     .select()
-    .single(); // 🔥 ensures we get one object
+    .single();
 
   if (error) {
+    console.error("Insert error:", error);
     return { error: "Failed to send message" };
   }
 
-  // ✅ Return the saved message (WITH REAL ID)
+  // ✅ Return full saved message (now includes linked fields)
   return {
     success: true,
     message: "Message sent",
