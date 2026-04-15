@@ -223,3 +223,6 @@ app.post("/fchat_send_message", async (req, res) => {
 // ------------------------------
 // Start Server
 // ------------------------------
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
