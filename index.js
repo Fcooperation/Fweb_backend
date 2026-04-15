@@ -3,6 +3,7 @@ import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
 import signup from "./signup.js";
+import dashboard from "./dashboard.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
@@ -95,6 +96,9 @@ app.post("/login", (req, res) => {
 
 // SIGNUP ROUTE
 app.post("/signup", signup);
+
+// DASHBOARD ROUTE
+app.post("/dashboard", dashboard);
 
 // ------------------------------
 // Global error handlers
