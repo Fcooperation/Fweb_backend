@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+if { createClient } from "@supabase/supabase-js";
 import 'dotenv/config'; // ✅ This loads your variables
 
 // Supabase client - Now pulled from the environment
@@ -18,126 +18,8 @@ export async function handleFChat(body) {
 
     if (!action) return { error: "No action provided" };
 
-    if (action === "signup") {
-const { username, full_name, secret } = body;
-
-// Basic validation
-if (!email || !password || !username || !full_name || !secret) {
-return { error: "Please provide all required fields" };
-}
-
-// Check if email already exists
-const { data: existingUser, error: checkError } = await supabase
-.from("fwebaccount")
-.select("*")
-.eq("email", email)
-.maybeSingle();
-
-if (checkError) {
-console.error("Error checking existing email:", checkError);
-return { error: "Error checking email" };
-}
-
-if (existingUser) {
-return { error: "Email already exists. Please login." };
-}
-
-// Generate a unique numeric ID (up to 15 digits)
-let uniqueId;
-while (true) {
-uniqueId = Math.floor(Math.random() * 1e15);
-const { data: idCheck } = await supabase
-.from("fwebaccount")
-.select("id")
-.eq("id", uniqueId)
-.maybeSingle();
-if (!idCheck) break; // ID is unique
-}
-
-// Insert new account
-const { data: newUser, error: insertError } = await supabase
-.from("fwebaccount")
-.insert([
-{
-id: uniqueId,
-username,
-full_name,
-email,
-password_hash: password,
-secret,
-status: "active"
-}
-])
-.select()
-.maybeSingle();
-
-if (insertError || !newUser) {
-console.error("Error creating account:", insertError);
-return { error: "Failed to create account" };
-}
-
-// Return success message and full user details
-return {
-status: "success",
-message: "Account created successfully. You can now login.",
-user: newUser
-};
-  }
-    // --------------------
-// Forget Password: Step 1 - check email exists
-// --------------------
-if (action === "forgetpassword") {
-  if (!email) return { error: "Email is required" };
-
-  const { data, error } = await supabase
-    .from("fwebaccount")
-    .select("*")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (error || !data) return { error: "Email not found" };
-
-  // Don't send password, just acknowledge
-  return { message: "Email exists. Please enter your secret code." };
-}
-
-// --------------------
-// Verify secret code
-// --------------------
-if (action === "verifysecret") {
-  const { secret } = body;
-  if (!email || !secret) return { error: "Email and secret are required" };
-
-  const { data, error } = await supabase
-    .from("fwebaccount")
-    .select("*")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (error || !data) return { error: "Account not found" };
-  if (data.secret !== secret) return { error: "Secret code does not match" };
-
-  return { message: "Secret verified" };
-}
-
-// --------------------
-// Change password
-// --------------------
-if (action === "changepassword") {
-  const { new_password } = body;
-  if (!email || !new_password) return { error: "Email and new password required" };
-
-  const { data, error } = await supabase
-    .from("fwebaccount")
-    .update({ password_hash: new_password })
-    .eq("email", email)
-    .select()
-    .maybeSingle();
-
-  if (error || !data) return { error: "Failed to update password" };
-
-  return { message: "Password changed successfully" };
-}
+     .from("fwebaccount")
+  
     // --------------------  
 // Dashboard / Account actions  
 // --------------------  
