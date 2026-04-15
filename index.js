@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
-import { login } from "./faccount.js";
+import { login } from "./login.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
@@ -87,21 +87,15 @@ app.get("/fvids", async (req, res) => {
   }
 });
 
-// ------------------------------
-// Login
-// ------------------------------
-app.post("/login", async (req, res) => {
-  console.log(`🔑 Login attempt: ${req.body.email}`);
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "Missing fields" });
+// LOGIN ROUTE
+app.post("/login", (req, res) => {
+  login(req, res);
+});
 
-  try {
-    const user = await login({ email, password });
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error("❌ Login error:", err.message);
-    res.status(401).json({ error: err.message });
-  }
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
 // ------------------------------
