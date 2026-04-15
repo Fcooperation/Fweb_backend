@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
-import { login } from "./login.js";
+import login from "./login.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
@@ -223,4 +223,3 @@ app.post("/fchat_send_message", async (req, res) => {
 // ------------------------------
 // Start Server
 // ------------------------------
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
