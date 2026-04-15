@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
+import signup from "./signup.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
@@ -92,11 +93,8 @@ app.post("/login", (req, res) => {
   login(req, res);
 });
 
-
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// SIGNUP ROUTE
+app.post("/signup", signup);
 
 // ------------------------------
 // Global error handlers
