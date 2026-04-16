@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+data createClient } from "@supabase/supabase-js";
 import 'dotenv/config';
 
 // Supabase setup
@@ -51,30 +51,25 @@ export default async function login(req, res) {
     }
 
     // -----------------------------
-    // GET CHAT PARTNERS
-    // -----------------------------
-    const { data: messages } = await supabase
-      .from("fchatmessages")
-      .select("sender_id, receiver_id")
-      .or(`sender_id.eq.${data.id},receiver_id.eq.${data.id}`);
+// GET CHAT USERS FROM fchat_messages COLUMN
+// -----------------------------
 
-    let chatUsers = [];
+let chatUsers = [];
 
-    if (messages && messages.length > 0) {
-      const userIds = new Set();
+if (data.fchat_messages) {
+  // convert "1,2,3" OR "1 2 3" OR single id into array
+  const ids = data.fchat_messages
+    .toString()
+    .split(/[,\\s]+/)
+    .filter(Boolean);
 
-      messages.forEach(msg => {
-        if (msg.sender_id !== data.id) userIds.add(msg.sender_id);
-        if (msg.receiver_id !== data.id) userIds.add(msg.receiver_id);
-      });
+  const { data: users } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic")
+    .in("id", ids);
 
-      const { data: users } = await supabase
-        .from("fwebaccount")
-        .select("id, username, profile_pic")
-        .in("id", [...userIds]);
-
-      chatUsers = users || [];
-    }
+  chatUsers = users || [];
+}
 
     // -----------------------------
     // SAFE USER (remove password)
