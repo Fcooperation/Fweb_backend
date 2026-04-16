@@ -1,4 +1,4 @@
-data createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import 'dotenv/config';
 
 // Supabase setup
@@ -51,28 +51,28 @@ export default async function login(req, res) {
     }
 
     // -----------------------------
-// GET CHAT USERS FROM fchat_messages COLUMN
-// -----------------------------
+    // GET CHAT USERS FROM fchat_messages FIELD
+    // -----------------------------
+    let chatUsers = [];
 
-let chatUsers = [];
+    if (data.fchat_messages) {
+      const ids = data.fchat_messages
+        .toString()
+        .split(/[,\\s]+/)
+        .filter(Boolean);
 
-if (data.fchat_messages) {
-  // convert "1,2,3" OR "1 2 3" OR single id into array
-  const ids = data.fchat_messages
-    .toString()
-    .split(/[,\\s]+/)
-    .filter(Boolean);
+      if (ids.length > 0) {
+        const { data: users } = await supabase
+          .from("fwebaccount")
+          .select("id, username, profile_pic")
+          .in("id", ids);
 
-  const { data: users } = await supabase
-    .from("fwebaccount")
-    .select("id, username, profile_pic")
-    .in("id", ids);
-
-  chatUsers = users || [];
-}
+        chatUsers = users || [];
+      }
+    }
 
     // -----------------------------
-    // SAFE USER (remove password)
+    // SAFE USER (REMOVE PASSWORD)
     // -----------------------------
     const { password_hash, ...safeUser } = data;
 
@@ -86,4 +86,4 @@ if (data.fchat_messages) {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-                          }
+          }
