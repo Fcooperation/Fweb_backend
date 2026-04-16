@@ -294,10 +294,6 @@ async function fetchAndRenderFchatters(){
 function displayChats(chats){
   const box = document.getElementById("users-list");
   box.innerHTML="";
-
-  // get all messages (already stored)
-  const allMessages = JSON.parse(localStorage.getItem("fchat_messages")) || [];
-
   chats.forEach(user=>{
     const card = document.createElement("div");
     card.className="fcard";
@@ -312,47 +308,21 @@ function displayChats(chats){
       img.style.height="100%";
       img.style.borderRadius="50%";
       pfp.appendChild(img);
-
       img.onclick = e => { 
-        e.stopPropagation();
+        e.stopPropagation(); // stop card click
         document.getElementById("profile-modal").style.display="flex";
         document.getElementById("modal-img").src=user.profile_pic;
       };
-    } else {
+    }else{
       pfp.textContent=user.username?.[0]?.toUpperCase()||"U";
     }
 
-    // 🔥 FILTER MESSAGES FOR THIS USER
-    const userMessages = allMessages.filter(msg =>
-      msg.sender_id === user.id || msg.receiver_id === user.id
-    );
-
-    // 🔥 GET LAST MESSAGE
-    let lastMessage = "";
-    if (userMessages.length > 0) {
-      const latest = userMessages[userMessages.length - 1];
-      lastMessage = latest.message || "";
-    }
-
-    // trim message
-    if (lastMessage.length > 25) {
-      lastMessage = lastMessage.slice(0, 25) + "...";
-    }
-
-    // 🔥 UI STRUCTURE (WhatsApp style)
     const info = document.createElement("div");
-    info.style.display = "flex";
-    info.style.flexDirection = "column";
-
-    info.innerHTML = `
-      <div class="username">${user.username}</div>
-      <div style="font-size:13px;color:#777;">${lastMessage}</div>
-    `;
-
+    info.innerHTML = `<div class="username">${user.username}</div><div class="userid">ID: ${user.id}</div>`;
     card.appendChild(pfp);
     card.appendChild(info);
 
-    // open chat
+    // ---------- UPDATED ONCLICK ----------
     card.onclick = ()=>{ 
       const chatTarget = {
         id: user.id,
@@ -510,7 +480,6 @@ async function syncFchatLogs() {
 
     // SAVE to localStorage
     localStorage.setItem("fchat_messages", JSON.stringify(messages));
-    
 
     // CHECK NEW MESSAGES
     if (messages.length > lastMessageCount) {
