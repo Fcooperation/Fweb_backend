@@ -26,7 +26,7 @@ export default async function login(req, res) {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Check password (⚠️ later you should hash this)
+    // Check password
     if (data.password_hash !== password) {
       return res.status(401).json({ error: "Invalid password" });
     }
@@ -50,13 +50,45 @@ export default async function login(req, res) {
       }
     }
 
+    // -----------------------------
+    // GET CHAT PARTNERS
+    // -----------------------------
+    const { data: messages } = await supabase
+      .from("fchatmessages")
+      .select("sender_id, receiver_id")
+      .or(`sender_id.eq.${data.id},receiver_id.eq.${data.id}`);
+
+    let chatUsers = [];
+
+    if (messages && messages.length > 0) {
+      const userIds = new Set();
+
+      messages.forEach(msg => {
+        if (msg.sender_id !== data.id) userIds.add(msg.sender_id);
+        if (msg.receiver_id !== data.id) userIds.add(msg.receiver_id);
+      });
+
+      const { data: users } = await supabase
+        .from("fwebaccount")
+        .select("id, username, profile_pic")
+        .in("id", [...userIds]);
+
+      chatUsers = users || [];
+    }
+
+    // -----------------------------
+    // SAFE USER (remove password)
+    // -----------------------------
+    const { password_hash, ...safeUser } = data;
+
     return res.json({
       message: "Login successful",
       status: responseStatus,
-      user: data
+      user: safeUser,
+      chatUsers
     });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-}
+                          }
