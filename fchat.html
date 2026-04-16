@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fchat</title>
+<style>
+/* ----------------- GENERAL ----------------- */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background:white;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Update these in your <style> tag */
+#loading-screen {
+  display: none; /* Changed from flex to none */
+}
+
+#main-ui {
+  display: flex; /* Changed from none to flex */
+  flex: 1;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+
+/* ----------------- TOP BAR ----------------- */
+#top-bar {
+  padding: 12px 16px;
+  font-size: 24px;
+  font-weight: bold;
+  color: black;
+  border-bottom: 1px solid #ddd;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+#search-bar {
+  margin: 8px 16px;
+  padding:8px 12px;
+  border-radius:20px;
+  border:1px solid #ccc;
+  font-size:14px;
+  width: calc(100% - 32px);
+}
+
+/* ----------------- USERS LIST ----------------- */
+#users-list {
+  flex:1;
+  overflow-y:auto;
+  margin: 0 16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding-bottom: 70px;
+}
+
+/* ----------------- FCARD ----------------- */
+.fcard {
+  background:white;
+  border-radius:10px;
+  padding:12px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  cursor:pointer;
+}
+
+.pfp {
+  width:50px;
+  height:50px;
+  border-radius:50%;
+  object-fit:cover;
+  background:black;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-weight:bold;
+  font-size:18px;
+}
+
+.username { font-size:16px; font-weight:bold; }
+.userid { font-size:12px; color:#555; }
+
+/* ----------------- MODAL ----------------- */
+#profile-modal {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.85);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:2000;
+}
+#profile-modal img { width:75%; max-width:300px; border-radius:50%; }
+
+/* ----------------- ADD BUTTON ----------------- */
+#add-btn {
+  position:fixed;
+  right:16px;
+  bottom:80px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#2196f3;
+  color:white;
+  border:none;
+  font-size:28px;
+  font-weight:bold;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  box-shadow:0 3px 6px rgba(0,0,0,0.2);
+}
+
+/* ----------------- BOTTOM NAV ----------------- */
+#bottom-nav {
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:60px;
+  display:flex;
+  border-top:1px solid #ddd;
+  background:white;
+}
+
+.nav-item {
+  flex:1;
+  text-align:center;
+  font-size:14px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  color:#555;
+}
+
+.nav-item.active { color:#2196f3; font-weight:bold; }
+
+/* ----------------- UPDATE LOG ----------------- */
+#update-log {
+  position:fixed;
+  bottom:65px;
+  left:0;
+  width:100%;
+  text-align:center;
+  font-size:14px;
+  color:#555;
+}
+/* ----------------- THREE DOTS MENU ----------------- */
+#menu-btn {
+  cursor: pointer;
+  font-size: 24px;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+}
+
+#menu-dropdown {
+  position: absolute;
+  top: 50px; /* below the top bar */
+  right: 16px; /* aligned with button */
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  display: none;
+  flex-direction: column;
+  min-width: 160px;
+  z-index: 3000;
+}
+
+.menu-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.menu-item:hover {
+  background: #f0f0f0;
+}
+</style>
+</head>
+<body>
+
+<!-- MAIN UI -->
+<div id="main-ui">
+  <div id="top-bar">FCHAT
+  <button id="menu-btn">⋮</button>
+<div id="menu-dropdown">
+  <div class="menu-item" onclick="location.href='friendrequest.html'">Friend Requests</div>
+</div></div>
+  <input type="text" id="search-bar" placeholder="Search users...">
+  <div id="users-list"></div>
+  <div id="update-log"></div>
+  <button id="add-btn" onclick="location.href='add.html'">+</button>
+  <div id="bottom-nav">
+    <div class="nav-item active">FCHAT</div>
+    <div class="nav-item" onclick="location.href='fvids.html'">FVIDS</div>
+    <div class="nav-item" onclick="location.href='fchatupdates.html'">UPDATES</div>
+    <div class="nav-item" onclick="location.href='fchatme.html'">ME</div>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div id="profile-modal">
+  <img id="modal-img">
+</div>
+
+<script>
+const API_URL = "https://fweb-backend.onrender.com/fchat";
+
+// Load account from localStorage
+let account = JSON.parse(localStorage.getItem("faccount")) || { email:"", password:"" };
+const EMAIL = account.email;
+const PASSWORD = account.password;
+
+// Load previous fchatters from localStorage immediately
+const savedChats = JSON.parse(localStorage.getItem("fchat_messages")) || [];
+if(savedChats.length > 0) displayChats(savedChats);
+
+/* ----------------- LOADING SEQUENCE ----------------- */
+async function runLoadingSequence(){
+  const logs = ["Starting...", "Preparing modules...", "Checking storage...", "Loading chats...", "Finalizing..."];
+  const logBox = document.getElementById("loading-logs");
+  for(let i=0;i<logs.length;i++){
+    logBox.textContent = logs[i];
+    await new Promise(r=>setTimeout(r,600));
+  }
+  showMainUI();
+
+  // Fetch online only
+  if(navigator.onLine){
+    try{
+      await callBackend("get_all_users");
+      await fetchAndRenderFchatters();
+    }catch(e){ console.warn("Offline or server error, using cached data."); }
+  }
+}
+
+/* ----------------- SHOW MAIN UI ----------------- */
+function showMainUI(){
+  document.getElementById("loading-screen").style.display="none";
+  document.getElementById("main-ui").style.display="flex";
+}
+
+/* ----------------- CALL BACKEND ----------------- */
+async function callBackend(action, body={}){
+  const payload = { action, email: EMAIL, password: PASSWORD, ...body };
+  try{
+    const res = await fetch(API_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(action==="get_all_users" && data.data) localStorage.setItem("all_users", JSON.stringify(data.data));
+    return data;
+  }catch(e){
+    console.warn("Backend call failed:", e);
+    return {data:[]};
+  }
+}
+
+/* ----------------- FETCH AND RENDER FCHATTERS ----------------- */
+async function fetchAndRenderFchatters(){
+  document.getElementById("update-log").textContent =
+  navigator.onLine ? "Updating..." : "Offline mode";
+  if(!navigator.onLine) return; // skip if offline
+  try{
+    const data = await callBackend("get_all_fchatters");
+    if(data.data){
+      localStorage.setItem("fchat_messages", JSON.stringify(data.data));
+      displayChats(data.data);
+    }
+  }catch(e){ console.warn("Fetch fchatters failed:", e); }
+  document.getElementById("update-log").textContent="Updated";
+}
+
+/* ----------------- DISPLAY FCARDS ----------------- */
+function displayChats(chats){
+  const box = document.getElementById("users-list");
+  box.innerHTML="";
+
+  // get all messages (already stored)
+  const allMessages = JSON.parse(localStorage.getItem("fchat_messages")) || [];
+
+  chats.forEach(user=>{
+    const card = document.createElement("div");
+    card.className="fcard";
+
+    const pfp = document.createElement("div");
+    pfp.className="pfp";
+
+    if(user.profile_pic){
+      const img = document.createElement("img");
+      img.src = user.profile_pic;
+      img.style.width="100%";
+      img.style.height="100%";
+      img.style.borderRadius="50%";
+      pfp.appendChild(img);
+
+      img.onclick = e => { 
+        e.stopPropagation();
+        document.getElementById("profile-modal").style.display="flex";
+        document.getElementById("modal-img").src=user.profile_pic;
+      };
+    } else {
+      pfp.textContent=user.username?.[0]?.toUpperCase()||"U";
+    }
+
+    // 🔥 FILTER MESSAGES FOR THIS USER
+    const userMessages = allMessages.filter(msg =>
+      msg.sender_id === user.id || msg.receiver_id === user.id
+    );
+
+    // 🔥 GET LAST MESSAGE
+    let lastMessage = "";
+    if (userMessages.length > 0) {
+      const latest = userMessages[userMessages.length - 1];
+      lastMessage = latest.message || "";
+    }
+
+    // trim message
+    if (lastMessage.length > 25) {
+      lastMessage = lastMessage.slice(0, 25) + "...";
+    }
+
+    // 🔥 UI STRUCTURE (WhatsApp style)
+    const info = document.createElement("div");
+    info.style.display = "flex";
+    info.style.flexDirection = "column";
+
+    info.innerHTML = `
+      <div class="username">${user.username}</div>
+      <div style="font-size:13px;color:#777;">${lastMessage}</div>
+    `;
+
+    card.appendChild(pfp);
+    card.appendChild(info);
+
+    // open chat
+    card.onclick = ()=>{ 
+      const chatTarget = {
+        id: user.id,
+        username: user.username || "",
+        profile_pic: user.profile_pic || "",
+        status: user.status || ""
+      };
+      localStorage.setItem("chatting_with", JSON.stringify(chatTarget));
+      window.location.href="chat.html";
+    };
+
+    box.appendChild(card);
+  });
+}
+
+/* ----------------- SEARCH ----------------- */
+document.getElementById("search-bar").addEventListener("input", function(){
+  const term = this.value.toLowerCase();
+  const chats = JSON.parse(localStorage.getItem("fchat_messages"))||[];
+  const filtered = chats.filter(u=>u.username.toLowerCase().includes(term));
+  displayChats(filtered);
+});
+
+/* ----------------- MODAL ----------------- */
+document.getElementById("profile-modal").onclick = ()=>{
+  document.getElementById("profile-modal").style.display="none";
+};
+
+// load fchatters first 
+function loadCachedChatsFirst() {
+  const cached = JSON.parse(localStorage.getItem("fchat_messages")) || [];
+
+  if (cached.length > 0) {
+    displayChats(cached); // 👈 INSTANT UI LOAD
+  }
+}
+/* ----------------- START ----------------- */
+// 1. LOAD CACHE FIRST (NO NETWORK)
+loadCachedChatsFirst();
+
+// 2. THEN TRY BACKGROUND UPDATE
+if (navigator.onLine) {
+  fetchAndRenderFchatters();
+}
+
+// 3. KEEP REFRESH LOOP (BUT NON-BLOCKING)
+setInterval(() => {
+  if (navigator.onLine) {
+    fetchAndRenderFchatters();
+  }
+}, 5000);
+
+// ----------------- THREE DOTS MENU -----------------
+const menuBtn = document.getElementById("menu-btn");
+const menuDropdown = document.getElementById("menu-dropdown");
+
+menuBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  menuDropdown.style.display = menuDropdown.style.display === "flex" ? "none" : "flex";
+});
+
+// Hide menu if clicking outside
+document.addEventListener("click", () => {
+  menuDropdown.style.display = "none";
+});
+</script>
+<script>
+let lastMessageCount = 0;
+
+// -------------------- RED DOT --------------------
+function showRedDot() {
+  let nav = document.querySelector(".nav-item.active");
+  if (!nav) return;
+
+  if (document.getElementById("fchat-dot")) return;
+
+  const dot = document.createElement("span");
+  dot.id = "fchat-dot";
+  dot.style.width = "8px";
+  dot.style.height = "8px";
+  dot.style.background = "red";
+  dot.style.borderRadius = "50%";
+  dot.style.display = "inline-block";
+  dot.style.marginLeft = "6px";
+
+  nav.appendChild(dot);
+}
+
+function removeRedDot() {
+  const dot = document.getElementById("fchat-dot");
+  if (dot) dot.remove();
+}
+
+// -------------------- BLUE MESSAGE PREVIEW --------------------
+function showMessagePreview(messages) {
+  if (!messages.length) return;
+
+  const latest = messages[messages.length - 1].message || "";
+
+  let previewText = latest;
+  if (previewText.length > 30) {
+    previewText = previewText.slice(0, 30) + "...";
+  }
+
+  // create or update fixed bottom bar
+  let bar = document.getElementById("msg-preview");
+
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "msg-preview";
+
+    // fixed bottom styling
+    bar.style.position = "fixed";
+    bar.style.bottom = "60px"; // just above bottom nav
+    bar.style.left = "0";
+    bar.style.width = "100%";
+    bar.style.background = "white";
+    bar.style.borderTop = "1px solid #ddd";
+    bar.style.padding = "10px 16px";
+    bar.style.fontSize = "13px";
+    bar.style.fontWeight = "bold";
+    bar.style.color = "blue";
+    bar.style.zIndex = "999";
+    bar.style.textAlign = "left";
+
+    document.body.appendChild(bar);
+  }
+
+  // update text (does NOT disappear now)
+  bar.textContent = previewText;
+}
+
+// -------------------- SYNC ENGINE --------------------
+async function syncFchatLogs() {
+  if (!navigator.onLine) return;
+
+  const account = JSON.parse(localStorage.getItem("faccount")) || {};
+  if (!account.id) return;
+
+  try {
+    const res = await fetch("https://fweb-backend.onrender.com/fchat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "get_all_fchatlogs",
+        id: account.id,
+        last_seen: new Date().toISOString()
+      })
+    });
+
+    const data = await res.json();
+    if (!data || data.error) return;
+
+    const messages = data.messages || [];
+
+    // SAVE to localStorage
+    localStorage.setItem("fchat_messages", JSON.stringify(messages));
+    
+
+    // CHECK NEW MESSAGES
+    if (messages.length > lastMessageCount) {
+      document.getElementById("update-log").textContent = "New messages found";
+      showRedDot();
+      showMessagePreview(messages);
+    } else {
+      document.getElementById("update-log").textContent = "Updated";
+      removeRedDot();
+    }
+
+    lastMessageCount = messages.length;
+
+  } catch (err) {
+    console.log("Sync failed:", err);
+  }
+}
+
+// -------------------- INIT --------------------
+const cached = JSON.parse(localStorage.getItem("fchat_messages")) || [];
+lastMessageCount = cached.length;
+
+// load preview instantly if cached exists
+if (cached.length > 0) {
+  showMessagePreview(cached);
+}
+
+// run immediately
+syncFchatLogs();
+
+// repeat every 2 seconds
+setInterval(syncFchatLogs, 2000);
+</script>
+</body>
+  </html>
