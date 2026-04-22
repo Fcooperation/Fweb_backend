@@ -523,6 +523,17 @@ const { data: messagesData, error: msgErr } = await supabase
   .eq("receiver_id", id) // 🔥 THIS is your condition
   .order("created_at", { ascending: true });
 
+    // 2️⃣ Fetch reactions for this user
+const { data: reactionsData, error: reactErr } = await supabase
+  .from("reactions")
+  .select("*")
+  .eq("receiver_id", id)
+  .order("created_at", { ascending: true });
+
+if (reactErr) {
+  console.error("Failed to fetch reactions:", reactErr);
+}
+    
 if (msgErr) {
   return { error: "Failed to fetch messages" };
 }
@@ -591,7 +602,7 @@ if (!usersErr && usersData) {
 // 4️⃣ Return cleanly separated data
 return {
   messages: messagesData || [],
-reactions: [],
+reactions: reactionsData || [],
   polls: allPolls,
   votes: allVotes,
   partner_status: partnerStatus
