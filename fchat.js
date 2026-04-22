@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+if { createClient } from "@supabase/supabase-js";
 import 'dotenv/config'; // ✅ This loads your variables
 
 // Supabase client - Now pulled from the environment
@@ -297,75 +297,30 @@ if (action === "send_messages") {
 
     // Messages Reaction Function
 if (action === "react_to_messages") {
-
   const { receiver_id, reaction_payload } = body;
 
   if (!receiver_id || !reaction_payload) {
     return { error: "Missing required fields" };
   }
 
-  // Add receiver_id into payload storage
-  const newReaction = {
-    ...reaction_payload,
-    receiver_id
-  };
+  const { message_id, sender_id, reaction } = reaction_payload;
 
-  // 1️⃣ Get existing messages
-  const { data, error: fetchError } = await supabase
-    .from("fwebaccount")
-    .select("messages")
-    .eq("id", receiver_id)
-    .single();
+  // 🔁 Upsert (overwrite if already reacted)
+  const { error } = await supabase
+    .from("reactions")
+    .upsert({
+      message_id,
+      sender_id,
+      receiver_id,
+      reaction
+    }, {
+      onConflict: "message_id,sender_id"
+    });
 
-  if (fetchError) return { error: "Failed to fetch existing messages" };
-
-  // 2️⃣ Parse existing messages safely
-  let existingMessages = [];
-
-  try {
-    existingMessages = data.messages ? JSON.parse(data.messages) : [];
-
-    if (!Array.isArray(existingMessages)) {
-      existingMessages = [];
-    }
-
-  } catch (e) {
-    existingMessages = [];
-  }
-
-  // ===============================
-  // ⭐ RE-REACTION OVERWRITE LOGIC
-  // ===============================
-
-  existingMessages = existingMessages.filter(msg => {
-
-    // Keep message if:
-    // NOT same message_id AND NOT same sender_id
-
-    if (!msg || !msg.message_id || !msg.sender_id) return true;
-
-    return !(
-      msg.message_id === newReaction.message_id &&
-      msg.sender_id === newReaction.sender_id
-    );
-
-  });
-
-  // Add new reaction
-  existingMessages.push(newReaction);
-
-  // 4️⃣ Save back to Supabase
-  const { error: updateError } = await supabase
-    .from("fwebaccount")
-    .update({
-      messages: JSON.stringify(existingMessages)
-    })
-    .eq("id", receiver_id);
-
-  if (updateError) return { error: "Failed to save reaction" };
+  if (error) return { error: "Failed to save reaction" };
 
   return { success: true };
-    }
+      }
     
 // --------------------
 // Delete messages for a specific user (by ID)
