@@ -1,4 +1,4 @@
-if { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import 'dotenv/config'; // ✅ This loads your variables
 
 // Supabase client - Now pulled from the environment
