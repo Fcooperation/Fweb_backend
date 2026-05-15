@@ -194,7 +194,12 @@ if (action === "accept") {
 // Get all FCHAT friends/chats
 // --------------------
 if (action === "get_all_fchatters") {
-  if (!email) return { error: "Email required" };
+
+  const { email, id } = body;
+
+  if (!email) {
+    return { error: "Email required" };
+  }
 
   // 1️⃣ Get the user's fchat_messages
   const { data: myAccount, error: accErr } = await supabase
@@ -203,25 +208,57 @@ if (action === "get_all_fchatters") {
     .eq("email", email)
     .maybeSingle();
 
-  if (accErr || !myAccount) return { error: "Account not found" };
+  if (accErr || !myAccount) {
+    return { error: "Account not found" };
+  }
 
   const fchatIds = myAccount.fchat_messages
-    ? myAccount.fchat_messages.split(",").map(id => id.trim()).filter(Boolean)
+    ? myAccount.fchat_messages
+        .split(",")
+        .map(id => id.trim())
+        .filter(Boolean)
     : [];
 
-  if (fchatIds.length === 0) return { data: [] }; // no friends
+  // no friends
+  if (fchatIds.length === 0) {
+    return {
+      data: [],
+      messages: []
+    };
+  }
 
-  // 2️⃣ Fetch all the users in fchat_messages
+  // 2️⃣ Fetch all chat users
   const { data: fchatUsers, error: usersErr } = await supabase
     .from("fwebaccount")
     .select("id, username, profile_pic, status_text")
     .in("id", fchatIds);
 
-  if (usersErr) return { error: "Failed to fetch fchatters" };
+  if (usersErr) {
+    return { error: "Failed to fetch fchatters" };
+  }
 
-  // 3️⃣ Return to frontend
-  return { data: fchatUsers || [] };
-}
+  // 3️⃣ Fetch ALL messages sent TO this user
+  let messagesData = [];
+
+  if (id) {
+
+    const { data: msgs, error: msgErr } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("receiver_id", id)
+      .order("created_at", { ascending: true });
+
+    if (!msgErr && msgs) {
+      messagesData = msgs;
+    }
+  }
+
+  // 4️⃣ Return everything
+  return {
+    data: fchatUsers || [],
+    messages: messagesData
+  };
+      }
     // --------------------
 // Verify if account exists
 // --------------------
