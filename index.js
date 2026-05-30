@@ -4,6 +4,7 @@ import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
 import signup from "./signup.js";
 import dashboard from "./dashboard.js";
+import admin from "./admin.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
@@ -99,6 +100,20 @@ app.post("/signup", signup);
 
 // DASHBOARD ROUTE
 app.post("/dashboard", dashboard);
+
+// ADMIN ROUTE
+app.post("/admin", async (req, res) => {
+  try {
+    const result = await admin(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Admin error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 
 // ------------------------------
 // Global error handlers
