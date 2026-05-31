@@ -91,6 +91,58 @@ return {
 };
 
 }
+  
+//Get quiz 
+  if (action === "get_quiz") {
+
+  const {
+    course,
+    count
+  } = body;
+
+  if (!course) {
+    return {
+      success: false,
+      error: "Missing course"
+    };
+  }
+
+  // -------------------------
+  // BUILD QUERY
+  // -------------------------
+  let query = supabase
+    .from("fchatstudy")
+    .select("*")
+    .eq("course", course);
+
+  // -------------------------
+  // LIMIT QUESTIONS
+  // -------------------------
+  if (count && count !== "all") {
+    query = query.limit(count);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+
+  // -------------------------
+  // RETURN QUIZ DATA
+  // -------------------------
+  return {
+    success: true,
+    course,
+    total: data.length,
+    questions: data
+  };
+  }
 
 // -------------------------
 // UNKNOWN ACTION
