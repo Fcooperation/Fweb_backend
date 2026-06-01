@@ -1,6 +1,6 @@
 export async function fetchFAI(prompt) {
 
-  const API_KEY = "AQ.Ab8RN6KgwITYrsONaxtnsA9_lx4JG7ueJNZcmVsXjulA1ZCxYQ";
+  const API_KEY = "AQ.Ab8RN6Jt0S0irgd-BRlAFh9HNKvHDju_7u-46oZK3XKRCZdNOQ";
 
   try {
 
