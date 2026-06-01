@@ -236,6 +236,31 @@ app.post("/fchat_send_message", async (req, res) => {
   }
 });
 
+// FVIDS UPLOAD VIDEO ROUTE
+app.post("/fvids", upload.single("file"), async (req, res) => {
+
+  try {
+
+    // upload to cloudinary
+
+    // get video URL
+
+    res.json({
+      success: true,
+      video_url: url
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
 
 // ------------------------------
 // Start Server
