@@ -1,1 +1,16 @@
+# secrets
 .env
+
+# dependencies
+node_modules/
+
+# logs
+*.log
+
+# production builds
+dist/
+build/
+
+# system files
+.DS_Store
+Thumbs.db
