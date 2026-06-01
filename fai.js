@@ -1,6 +1,6 @@
-import "dotenv/config";
-
 export async function fetchFAI(prompt) {
+
+  const API_KEY = "AQ.Ab8RN6KgwITYrsONaxtnsA9_lx4JG7ueJNZcmVsXjulA1ZCxYQ";
 
   try {
 
@@ -10,21 +10,19 @@ export async function fetchFAI(prompt) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-goog-api-key": process.env.GEMINI_API_KEY
+          "X-goog-api-key": API_KEY
         },
         body: JSON.stringify({
           contents: [
             {
               parts: [
                 {
-                  text: `
-You are FAI (FCOOPERATION Study AI).
+                  text: `You are FAI (FCOOPERATION Study AI).
 
-Explain clearly for students.
+Explain clearly for students in simple terms.
 
 Question:
-${prompt}
-                  `
+${prompt}`
                 }
               ]
             }
@@ -37,11 +35,10 @@ ${prompt}
 
     console.log("FAI RAW RESPONSE:", JSON.stringify(data, null, 2));
 
-    const answer =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     return {
-      answer: answer || "No response from AI."
+      answer: answer ?? "No response from AI."
     };
 
   } catch (err) {
@@ -53,4 +50,4 @@ ${prompt}
     };
 
   }
-}
+      }
