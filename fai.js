@@ -1,54 +1,58 @@
-import { handleSearch } from "./fcrawler.js";
+import "dotenv/config";
 
-/**
- * FAI = AI summary powered by Fserver results
- * @param {string} query
- */
-export async function fetchFAI(query) {
-  if (!query) throw new Error("❌ No query provided to FAI");
+export async function fetchFAI(prompt) {
 
   try {
-    // 1️⃣ Get results from your search engine
-    const results = await handleSearch(query);
 
-    if (!results || results.length === 0) {
-      return {
-        answer: "No results found.",
-        links: []
-      };
-    }
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `
+You are FAI (FCOOPERATION Study AI).
 
-    // 2️⃣ Extract useful snippets
-    const snippets = results
-      .map(r => r.snippet)
-      .filter(Boolean)
-      .slice(0, 5);
+Rules:
+- Explain in simple student-friendly way
+- Keep answers clear and short unless asked for detail
+- Focus on education (math, science, exams, tech)
 
-    // 3️⃣ Clean + merge into AI-like response
-    let answer = snippets.join(" ");
+Question:
+${prompt}
+                  `
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-    // Optional cleanup (makes it look smarter 👀)
-    answer = answer
-      .replace(/\s+/g, " ")
-      .replace(/(\.\s*)+/g, ". ")
-      .trim();
+    const data = await res.json();
 
-    // 4️⃣ Prepare links (reuse your results)
-    const links = results.slice(0, 5).map(r => ({
-      title: r.title,
-      url: r.url,
-      snippet: r.snippet,
-      favicon: `https://www.google.com/s2/favicons?domain=${r.url}`
-    }));
-
-    return { answer, links };
-
-  } catch (err) {
-    console.error("❌ FAI error:", err.message);
+    const answer =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "No response from AI.";
 
     return {
-      answer: "AI could not generate response.",
-      links: []
+      answer
     };
+
+  } catch (err) {
+
+    console.error("FAI ERROR:", err);
+
+    return {
+      answer: "FAI failed to respond. Try again."
+    };
+
   }
-              }
+}
