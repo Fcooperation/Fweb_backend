@@ -5,25 +5,22 @@ export async function fetchFAI(prompt) {
   try {
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-goog-api-key": process.env.GEMINI_API_KEY
         },
         body: JSON.stringify({
           contents: [
             {
-              role: "user",
               parts: [
                 {
                   text: `
 You are FAI (FCOOPERATION Study AI).
 
-Rules:
-- Explain in simple student-friendly way
-- Keep answers clear and short unless asked for detail
-- Focus on education (math, science, exams, tech)
+Explain clearly for students.
 
 Question:
 ${prompt}
@@ -38,12 +35,13 @@ ${prompt}
 
     const data = await res.json();
 
+    console.log("FAI RAW RESPONSE:", JSON.stringify(data, null, 2));
+
     const answer =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "No response from AI.";
+      data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     return {
-      answer
+      answer: answer || "No response from AI."
     };
 
   } catch (err) {
@@ -51,7 +49,7 @@ ${prompt}
     console.error("FAI ERROR:", err);
 
     return {
-      answer: "FAI failed to respond. Try again."
+      answer: "FAI failed to respond."
     };
 
   }
