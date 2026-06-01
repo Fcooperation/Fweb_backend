@@ -238,21 +238,16 @@ app.post("/fchat_send_message", async (req, res) => {
 });
 
 // FVIDS UPLOAD VIDEO ROUTE
-app.post("/fvids", async (req, res) => {
+app.post("/fvids", upload.single("file"), async (req, res) => {
 
   try {
-
     const result = await fvidUpload(req, res);
-
     res.json(result);
-
   } catch (err) {
-
     res.status(500).json({
       success: false,
       error: err.message
     });
-
   }
 
 });
