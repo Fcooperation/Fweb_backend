@@ -1,6 +1,8 @@
+import "dotenv/config";
+
 export async function fetchFAI(prompt) {
 
-  const API_KEY = "AQ.Ab8RN6Jt0S0irgd-BRlAFh9HNKvHDju_7u-46oZK3XKRCZdNOQ";
+  const API_KEY = process.env.GEMINI_API_KEY;
 
   try {
 
@@ -51,4 +53,4 @@ ${prompt}`
     };
 
   }
-      }
+}
