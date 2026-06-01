@@ -35,17 +35,20 @@ ${prompt}`
 
     console.log("FAI RAW RESPONSE:", JSON.stringify(data, null, 2));
 
-    // 🚀 RETURN RAW GEMINI RESPONSE (no filtering)
-    return data;
+    const answer =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    return {
+      answer: answer || "No response from AI."
+    };
 
   } catch (err) {
 
     console.error("FAI ERROR:", err);
 
     return {
-      error: "FAI failed",
-      details: err
+      answer: "FAI failed to respond."
     };
 
   }
-}
+      }
