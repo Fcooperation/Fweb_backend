@@ -41,21 +41,27 @@ export default async function fvidUpload(req, res) {
         .end(req.file.buffer);
     });
 
-    // ---------------- 2. GET META FROM REQUEST ----------------
-    const {
-      category,
-      language,
-      hashtags,
-      details,
-      user_id
-    } = req.body;
+    // ---------------- 2. CREATE OPTIMIZED URL ----------------
+const optimizedUrl = result.secure_url.replace(
+  "/upload/",
+  "/upload/q_auto,f_auto,w_720/"
+);
+
+// ---------------- 3. GET META FROM REQUEST ----------------
+const {
+  category,
+  language,
+  hashtags,
+  details,
+  user_id
+} = req.body;
 
     // ---------------- 3. INSERT INTO SUPABASE ----------------
     const { data, error } = await supabase
       .from("fvids")
       .insert([
         {
-          video_url: result.secure_url,
+          video_url: optimizedUrl,
           public_id: result.public_id,
           duration: result.duration,
           category: category || null,
