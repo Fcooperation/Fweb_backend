@@ -79,18 +79,18 @@ app.get("/fimages", async (req, res) => {
 // Videos search route
 // ------------------------------
 app.get("/fvids", async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: "No query provided" });
-
   try {
-    const videos = await fetchVideos(query);
-    res.json(videos);
+    const videos = await fetchVideos(); // NO query
+
+    return res.json(videos);
   } catch (err) {
     console.error("❌ Videos fetch error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
-
 // LOGIN ROUTE
 app.post("/login", (req, res) => {
   login(req, res);
