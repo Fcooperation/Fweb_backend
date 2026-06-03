@@ -1,18 +1,25 @@
 import "dotenv/config";
 
 const MODELS = [
-  "gemini-3.1-flash-lite", // default
   "gemini-2.5-flash",
   "gemini-3.5-flash",
   "gemini-3-flash-preview"
 ];
 
-export async function fetchFAI(prompt) {
+export async function fetchFAI({ userId, messages = [], prompt }) {
 
   const API_KEY = process.env.GEMINI_API_KEY;
 
-  for (const model of MODELS) {
+  // convert chat history into readable text
+  const context = messages
+    .slice(-15) // extra safety
+    .map(m => {
+      const role = m.role === "ai" ? "Assistant" : "User";
+      return `${role}: ${m.text}`;
+    })
+    .join("\n");
 
+  for (const model of MODELS) {
     try {
 
       const res = await fetch(
@@ -28,12 +35,24 @@ export async function fetchFAI(prompt) {
               {
                 parts: [
                   {
-                    text: `You are FAI (FCOOPERATION Study AI).
+                    text: `
+You are FAI, a helpful study assistant inside the FCOOPERATION AI system.
 
-Explain clearly for students in simple terms.
+RULES:
+- Do NOT introduce yourself unless asked
+- Do NOT repeat "I am FAI"
+- Answer naturally and directly
+- Be short, clear, and student-friendly
+- If user asks for explanation, break it down simply
 
-Question:
-${prompt}`
+User ID: ${userId}
+
+Conversation history:
+${context}
+
+Current user message:
+${prompt}
+                    `.trim()
                   }
                 ]
               }
@@ -45,7 +64,7 @@ ${prompt}`
       const data = await res.json();
 
       console.log(
-        `FAI RAW RESPONSE (${model}):`,
+        `FAI RAW (${model}):`,
         JSON.stringify(data, null, 2)
       );
 
@@ -55,23 +74,19 @@ ${prompt}`
       if (answer) {
         return {
           answer,
-          model
+          model,
+          userId
         };
       }
 
     } catch (err) {
-
-      console.error(
-        `FAI ERROR (${model}):`,
-        err
-      );
-
+      console.error(`❌ FAI ERROR (${model}):`, err.message);
     }
-
   }
 
   return {
-    answer: "FAI failed to respond."
+    answer: "FAI failed to respond. Please try again.",
+    model: null,
+    userId
   };
-
-    }
+                    }
