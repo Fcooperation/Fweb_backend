@@ -74,9 +74,25 @@ export default async function signup(req, res) {
         .maybeSingle();
 
       if (insertError || !newUser) {
-        console.error(insertError);
-        return res.status(500).json({ error: "Failed to create account" });
-      }
+  console.error(insertError);
+  return res.status(500).json({ error: "Failed to create account" });
+}
+
+// --------------------
+// CREATE FAI MEMORY ROW
+// --------------------
+const { error: memoryError } = await supabase
+  .from("fai_memory")
+  .insert({
+    user_id: newUser.id,   // IMPORTANT: must match FAI userId
+    memory: {}
+  });
+
+if (memoryError) {
+  console.log("⚠️ FAI memory init failed:", memoryError.message);
+} else {
+  console.log("✅ FAI memory initialized for:", newUser.id);
+}
 
       return res.json({
         status: "success",
