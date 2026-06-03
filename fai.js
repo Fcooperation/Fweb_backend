@@ -22,16 +22,27 @@ export async function fetchFAI({ userId, messages = [], prompt }) {
 
   const API_KEY = process.env.GEMINI_API_KEY;
 
-  // ❌ If no userId, do nothing
-  if (!userId) {
-    return {
-      answer: "Guest mode: memory disabled.",
-      model: null,
-      userId: null
-    };
-  }
+  // ------------------------------
+  // SAFE DEFAULT MEMORY
+  // ------------------------------
+  let userMemory = {};
 
-messages
+  // ------------------------------
+  // 1. LOAD MEMORY ONLY IF USER EXISTS
+  // ------------------------------
+  if (userId) {
+    const { data, error } = await supabase
+      .from("fai_memory")
+      .select("memory")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.log("⚠️ Supabase fetch error:", error.message);
+    }
+
+    userMemory = data?.memory || {};
+  }
 
   // ------------------------------
   // 2. FORMAT CHAT HISTORY
@@ -45,7 +56,7 @@ messages
     .join("\n");
 
   // ------------------------------
-  // 3. BUILD MEMORY STRING
+  // 3. MEMORY STRING
   // ------------------------------
   const memoryText = JSON.stringify(userMemory, null, 2);
 
@@ -102,22 +113,29 @@ ${prompt}
       if (!answer) continue;
 
       // ------------------------------
-      // 5. UPDATE MEMORY (SIMPLE AUTO UPDATE)
+      // 5. UPDATE MEMORY ONLY IF userId EXISTS
       // ------------------------------
-      const updatedMemory = await generateMemoryUpdate({
-        userId,
-        prompt,
-        answer,
-        oldMemory: userMemory
-      });
+      if (userId) {
 
-      if (updatedMemory) {
-        await supabase
-          .from("fai_memory")
-          .upsert({
-            user_id: userId,
-            memory: updatedMemory
-          });
+        const updatedMemory = await generateMemoryUpdate({
+          userId,
+          prompt,
+          answer,
+          oldMemory: userMemory
+        });
+
+        if (updatedMemory) {
+          const { error } = await supabase
+            .from("fai_memory")
+            .upsert({
+              user_id: userId,
+              memory: updatedMemory
+            });
+
+          if (error) {
+            console.log("❌ Supabase save error:", error.message);
+          }
+        }
       }
 
       return {
@@ -206,4 +224,4 @@ Focus on:
     console.log("⚠️ Memory update error:", err.message);
     return null;
   }
-        }
+       }
