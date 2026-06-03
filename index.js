@@ -137,6 +137,29 @@ app.get("/fai", async (req, res) => {
     res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
+
+app.post("/fai", async (req, res) => {
+  const { userId, messages, prompt } = req.body;
+
+  if (!prompt) {
+    return res.status(400).json({ error: "No prompt provided" });
+  }
+
+  try {
+    const result = await fetchFAI({
+      userId,
+      messages,
+      prompt
+    });
+
+    res.json(result);
+
+  } catch (err) {
+    console.error("❌ FAI POST error:", err.message);
+    res.status(500).json({ error: "FAI failed", details: err.message });
+  }
+});
+
 // ------------------------------
 // Training route
 // ------------------------------
