@@ -221,26 +221,39 @@ Focus on:
       const data = await res.json();
 
       const text =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      if (!text) continue;
+if (!text) continue;
 
-      try {
+try {
 
-        const newMemory = JSON.parse(text);
+  console.log("🧠 RAW MEMORY RESPONSE:", text);
 
-        return {
-          ...oldMemory,
-          ...newMemory
-        };
+  const cleanText = text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
 
-      } catch (err) {
+  const newMemory = JSON.parse(cleanText);
 
-        console.log(
-          `⚠️ Memory JSON parse failed (${model})`
-        );
+  // Don't save empty updates
+  if (Object.keys(newMemory).length === 0) {
+    return null;
+  }
 
-      }
+  return {
+    ...oldMemory,
+    ...newMemory
+  };
+
+} catch (err) {
+
+  console.log(
+    `⚠️ Memory JSON parse failed (${model}):`,
+    err.message
+  );
+
+}
 
     } catch (err) {
 
