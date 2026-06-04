@@ -126,11 +126,11 @@ ${prompt}
 
         if (updatedMemory) {
           const { error } = await supabase
-            .from("fai_memory")
-            .upsert({
-              user_id: userId,
-              memory: updatedMemory
-            });
+  .from("fai_memory")
+  .update({
+    memory: updatedMemory
+  })
+  .eq("user_id", userId);
 
           if (error) {
             console.log("❌ Supabase save error:", error.message);
@@ -159,25 +159,34 @@ ${prompt}
 // ------------------------------
 // MEMORY UPDATE GENERATOR
 // ------------------------------
-async function generateMemoryUpdate({ userId, prompt, answer, oldMemory }) {
+
+    async function generateMemoryUpdate({
+  userId,
+  prompt,
+  answer,
+  oldMemory
+}) {
 
   const API_KEY = process.env.GEMINI_API_KEY;
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-goog-api-key": API_KEY
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `
+  for (const model of MODELS) {
+
+    try {
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-goog-api-key": API_KEY
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `
 Extract important user facts ONLY.
 
 Old Memory:
@@ -190,7 +199,9 @@ AI responded:
 ${answer}
 
 Return ONLY valid JSON.
-If nothing important changed, return {}.
+
+If nothing important changed:
+{}
 
 Focus on:
 - name
@@ -198,30 +209,50 @@ Focus on:
 - preferences
 - projects
 - study topics
-                  `.trim()
-                }
-              ]
-            }
-          ]
-        })
+                    `.trim()
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      );
+
+      const data = await res.json();
+
+      const text =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) continue;
+
+      try {
+
+        const newMemory = JSON.parse(text);
+
+        return {
+          ...oldMemory,
+          ...newMemory
+        };
+
+      } catch (err) {
+
+        console.log(
+          `⚠️ Memory JSON parse failed (${model})`
+        );
+
       }
-    );
 
-    const data = await res.json();
+    } catch (err) {
 
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      console.log(
+        `⚠️ Memory model failed (${model}):`,
+        err.message
+      );
 
-    if (!text) return null;
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
     }
 
-  } catch (err) {
-    console.log("⚠️ Memory update error:", err.message);
-    return null;
   }
+
+  return null;
+    }
        }
