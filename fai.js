@@ -2,17 +2,18 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 const MODELS = [
-  // 🔥 Best stable chat models
+  // 🔥 Primary (best balance of intelligence + speed)
   "gemini-3.5-flash",
-  "gemini-3-flash",
 
-  // 🧠 Strong reasoning (stable preview but widely used)
-  "gemini-3.1-pro-preview",
+  // ⚡ Fast fallback (cheap + reliable)
+  "gemini-3.1-flash-lite",
 
-  // ⚡ Lightweight + cheap (good fallback)
-  "gemini-3.1-flash-lite"
+  // 🧠 Strong reasoning / memory extraction
+  "gemini-2.5-flash",
+
+  // 🧠 Advanced reasoning (slowest but smartest fallback)
+  "gemini-3.1-pro-preview"
 ];
-
 // ------------------------------
 // Supabase setup
 // ------------------------------
