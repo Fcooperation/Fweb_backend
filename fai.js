@@ -127,10 +127,11 @@ ${prompt}
         if (updatedMemory) {
           const { error } = await supabase
   .from("fai_memory")
-  .update({
-    memory: updatedMemory
-  })
-  .eq("user_id", userId);
+.update({
+  memory: updatedMemory
+})
+.eq("user_id", userId)
+.select();
 
           if (error) {
             console.log("❌ Supabase save error:", error.message);
@@ -229,12 +230,17 @@ try {
 
   console.log("🧠 RAW MEMORY RESPONSE:", text);
 
-  const cleanText = text
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+let cleanText = text.trim();
 
-  const newMemory = JSON.parse(cleanText);
+// remove all code fences
+cleanText = cleanText.replace(/```json|```/gi, "").trim();
+
+// extract ONLY the JSON object (safer)
+const match = cleanText.match(/\{[\s\S]*\}/);
+
+if (!match) return null;
+
+const newMemory = JSON.parse(match[0]);
 
   // Don't save empty updates
   if (Object.keys(newMemory).length === 0) {
@@ -268,4 +274,4 @@ try {
 
   return null;
     }
-       }
+       
