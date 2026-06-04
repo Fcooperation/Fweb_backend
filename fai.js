@@ -2,9 +2,15 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 const MODELS = [
-  "gemini-2.5-flash",
+  // 🔥 Best stable chat models
   "gemini-3.5-flash",
-  "gemini-3-flash-preview"
+  "gemini-3-flash",
+
+  // 🧠 Strong reasoning (stable preview but widely used)
+  "gemini-3.1-pro-preview",
+
+  // ⚡ Lightweight + cheap (good fallback)
+  "gemini-3.1-flash-lite"
 ];
 
 // ------------------------------
