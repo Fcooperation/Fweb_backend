@@ -10,6 +10,7 @@ import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
 import { runFTrainer } from "./ftrainer.js";
 import { handleFChat } from "./fchat.js";
+import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -274,6 +275,11 @@ app.post("/fvids", upload.single("file"), async (req, res) => {
   }
 
 });
+
+// Fvids like endpoint
+app.post("/fvids/like", fvidLike);
+
+
 // ------------------------------
 // Start Server
 // ------------------------------
