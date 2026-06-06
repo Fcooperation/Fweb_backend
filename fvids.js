@@ -19,20 +19,32 @@ export async function fetchVideos(userId = null) {
 
   const safeData = data.map(video => {
 
-    const likesArray = video.likes || [];
+    // ✅ convert TEXT → ARRAY safely
+    let likesArray = [];
+
+    try {
+      likesArray = video.likes
+        ? JSON.parse(video.likes)
+        : [];
+    } catch (e) {
+      likesArray = [];
+    }
+
+    const uid = userId ? String(userId) : null;
 
     return {
       ...video,
 
-      // ❌ remove raw likes array
+      // ❌ remove raw DB field
       likes: undefined,
 
-      // optional computed field
-      liked: userId
-        ? likesArray.includes(userId)
+      // ✅ correct liked check
+      liked: uid
+        ? likesArray.includes(uid)
         : false,
 
-      likes_count: video.likes_count || likesArray.length
+      // ✅ always trust parsed array
+      likes_count: likesArray.length
     };
   });
 
