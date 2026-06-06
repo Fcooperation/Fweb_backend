@@ -6,7 +6,8 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-export async function fetchVideos() {
+export async function fetchVideos(userId = null) {
+
   const { data, error } = await supabase
     .from("fvids")
     .select("*")
@@ -16,5 +17,24 @@ export async function fetchVideos() {
     throw new Error(error.message);
   }
 
-  return data;
+  const safeData = data.map(video => {
+
+    const likesArray = video.likes || [];
+
+    return {
+      ...video,
+
+      // ❌ remove raw likes array
+      likes: undefined,
+
+      // optional computed field
+      liked: userId
+        ? likesArray.includes(userId)
+        : false,
+
+      likes_count: video.likes_count || likesArray.length
+    };
+  });
+
+  return safeData;
 }
