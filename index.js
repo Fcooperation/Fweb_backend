@@ -81,7 +81,9 @@ app.get("/fimages", async (req, res) => {
 // ------------------------------
 app.get("/fvids", async (req, res) => {
   try {
-    const videos = await fetchVideos(); // NO query
+    const userId = req.query.userId; // 👈 ADD THIS
+
+    const videos = await fetchVideos(userId); // 👈 PASS IT
 
     return res.json(videos);
   } catch (err) {
