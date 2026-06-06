@@ -10,11 +10,7 @@ export default async function fvidLike(req, res) {
 
   try {
 
-    const {
-      videoId,
-      userId,
-      action
-    } = req.body;
+    const { videoId, userId, action } = req.body;
 
     if (!videoId || !userId) {
       return res.status(400).json({
@@ -24,50 +20,48 @@ export default async function fvidLike(req, res) {
     }
 
     // get current likes
-    const {
-      data: video,
-      error: fetchError
-    } = await supabase
+    const { data: video, error: fetchError } = await supabase
       .from("fvids")
       .select("likes")
       .eq("id", videoId)
       .single();
 
-    if (fetchError) {
-      throw fetchError;
+    if (fetchError) throw fetchError;
+
+    // ✅ PARSE TEXT → ARRAY
+    let likes = [];
+
+    try {
+      likes = video.likes ? JSON.parse(video.likes) : [];
+    } catch (e) {
+      likes = [];
     }
 
-    let likes = video.likes || [];
+    const uid = String(userId);
 
     if (action === "like") {
 
-      if (!likes.includes(userId)) {
-        likes.push(userId);
+      if (!likes.includes(uid)) {
+        likes.push(uid);
       }
 
     } else if (action === "unlike") {
 
-      likes = likes.filter(
-        id => id !== userId
-      );
-
+      likes = likes.filter(id => id !== uid);
     }
 
     const likesCount = likes.length;
 
-    const {
-      error: updateError
-    } = await supabase
+    // ✅ SAVE AS STRING (IMPORTANT)
+    const { error: updateError } = await supabase
       .from("fvids")
       .update({
-        likes,
+        likes: JSON.stringify(likes),
         likes_count: likesCount
       })
       .eq("id", videoId);
 
-    if (updateError) {
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
     return res.json({
       success: true,
@@ -83,6 +77,5 @@ export default async function fvidLike(req, res) {
       success: false,
       error: err.message
     });
-
   }
-}
+      }
