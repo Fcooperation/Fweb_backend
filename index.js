@@ -12,6 +12,7 @@ import { runFTrainer } from "./ftrainer.js";
 import { handleFChat } from "./fchat.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
+import fvidsComment from "./fvidsComment.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -280,6 +281,12 @@ app.post("/fvids", upload.single("file"), async (req, res) => {
 
 // Fvids like endpoint
 app.post("/fvids/like", fvidLike);
+
+// Fvids comments endpoint
+app.post(
+  "/fvids/comment",
+  fvidsComment
+);
 
 
 // ------------------------------
