@@ -1,100 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
-import "dotenv/config";
-
-// ---------------- LAZY SUPABASE CLIENT ----------------
-let cachedSupabase = null;
-
-function getSupabase() {
-  if (!cachedSupabase) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-      throw new Error("Missing Supabase environment variables!");
-    }
-
-    cachedSupabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_KEY
-    );
-  }
-
-  return cachedSupabase;
-}
-
-// ---------------- MAIN HANDLER ----------------
-export default async function fvidsComment(req, res) {
-  try {
-    const supabase = getSupabase();
-
-    if (req.method === "POST") {
-      return await postComment(req, res, supabase);
-    }
-
-    if (req.method === "GET") {
-      return await getComments(req, res, supabase);
-    }
-
-    return res.status(405).json({ error: "Method not allowed" });
-
-  } catch (err) {
-    console.error("COMMENTS ROUTE ERROR:", err);
-    return res.status(500).json({ error: err.message || "Server error" });
-  }
-}
-
-// ================= POST COMMENT =================
-async function postComment(req, res, supabase) {
-  try {
-    const { videoId, videoUrl, userId, commentText } = req.body;
-
-    if (!videoId || !videoUrl || !userId || !commentText) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const { data, error } = await supabase
-      .from("comments")
-      .insert([
-        {
-          video_id: videoId,
-          video_url: videoUrl,
-          user_id: userId,
-          comment_text: commentText
-        }
-      ])
-      .select();
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    // update comment count
-    const { count } = await supabase
-      .from("comments")
-      .select("*", { count: "exact", head: true })
-      .eq("video_id", videoId);
-
-    await supabase
-      .from("fvids")
-      .update({ comment_count: count || 0 })
-      .eq("id", videoId);
-
-    return res.status(200).json({
-      success: true,
-      comment: data[0]
-    });
-
-  } catch (err) {
-    console.error("POST COMMENT ERROR:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
-}
-
-// ================= GET COMMENTS (PAGINATED) =================
 async function getComments(req, res, supabase) {
   try {
-    const { videoId, page = 1, limit = 20 } = req.query;
+    const {
+      videoId,
+      page = 1,
+      limit = 20
+    } = req.query;
 
     if (!videoId) {
-      return res.status(400).json({ error: "videoId required" });
+      return res.status(400).json({
+        success: false,
+        error: "videoId required"
+      });
     }
 
     const pageNum = Number(page);
@@ -112,21 +28,34 @@ async function getComments(req, res, supabase) {
       .range(start, end);
 
     if (error) {
-      console.error(error);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
 
     if (!data || data.length === 0) {
-      return res.status(200).json([]);
+      return res.status(200).json({
+        success: true,
+        comments: [],
+        hasMore: false
+      });
     }
 
     // ---------------- GET USERNAMES ----------------
     const userIds = [...new Set(data.map(c => c.user_id))];
 
-    const { data: users } = await supabase
+    const { data: users, error: userError } = await supabase
       .from("fwebaccount")
       .select("id, username")
       .in("id", userIds);
+
+    if (userError) {
+      return res.status(500).json({
+        success: false,
+        error: userError.message
+      });
+    }
 
     const userMap = {};
     (users || []).forEach(u => {
@@ -134,7 +63,7 @@ async function getComments(req, res, supabase) {
     });
 
     // ---------------- FORMAT RESPONSE ----------------
-    const result = data.map(c => ({
+    const comments = data.map(c => ({
       id: c.id,
       video_id: c.video_id,
       comment_text: c.comment_text,
@@ -143,10 +72,21 @@ async function getComments(req, res, supabase) {
       created_at: c.created_at
     }));
 
-    return res.status(200).json(result);
+    // ---------------- CHECK IF MORE ----------------
+    const hasMore = data.length === limitNum;
+
+    return res.status(200).json({
+      success: true,
+      comments,
+      page: pageNum,
+      hasMore
+    });
 
   } catch (err) {
     console.error("GET COMMENTS ERROR:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      success: false,
+      error: "Server error"
+    });
   }
-}
+        }
