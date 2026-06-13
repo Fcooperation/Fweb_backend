@@ -6,12 +6,19 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-export async function fetchVideos(userId = null) {
+export async function fetchVideos(
+  userId = null,
+  page = 1,
+  limit = 20
+) {
+
+  const start = (page - 1) * limit;
+  const end = start + limit - 1;
 
   const { data, error } = await supabase
     .from("fvids")
     .select("*")
-    .order("created_at", { ascending: false });
+    .range(start, end);
 
   if (error) {
     throw new Error(error.message);
@@ -19,34 +26,67 @@ export async function fetchVideos(userId = null) {
 
   const safeData = data.map(video => {
 
-    // ✅ convert TEXT → ARRAY safely
     let likesArray = [];
 
     try {
       likesArray = video.likes
         ? JSON.parse(video.likes)
         : [];
-    } catch (e) {
+    } catch {
       likesArray = [];
     }
 
-    const uid = userId ? String(userId) : null;
+    const uid =
+      userId ? String(userId) : null;
 
     return {
       ...video,
 
-      // ❌ remove raw DB field
       likes: undefined,
 
-      // ✅ correct liked check
       liked: uid
         ? likesArray.includes(uid)
         : false,
 
-      // ✅ always trust parsed array
-      likes_count: likesArray.length
+      likes_count: likesArray.length,
+
+      comment_count:
+        video.comment_count || 0
     };
   });
 
-  return safeData;
-}
+  // ---------------- SHUFFLE ----------------
+  function shuffle(arr) {
+
+    for (
+      let i = arr.length - 1;
+      i > 0;
+      i--
+    ) {
+
+      const j = Math.floor(
+        Math.random() * (i + 1)
+      );
+
+      [arr[i], arr[j]] =
+        [arr[j], arr[i]];
+    }
+
+    return arr;
+  }
+
+  // ---------------- UNLIKED FIRST ----------------
+  const unliked =
+    safeData.filter(v => !v.liked);
+
+  const liked =
+    safeData.filter(v => v.liked);
+
+  shuffle(unliked);
+  shuffle(liked);
+
+  return [
+    ...unliked,
+    ...liked
+  ];
+                              }
