@@ -12,7 +12,7 @@ import { runFTrainer } from "./ftrainer.js";
 import { handleFChat } from "./fchat.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
-import { postComment, getComments } from "./fvidsComments.js";
+import { postComment, getComments } from "./fvidsComment.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
