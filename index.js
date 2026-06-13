@@ -78,23 +78,42 @@ app.get("/fimages", async (req, res) => {
 });
 
 // ------------------------------
-// Videos search route
+// FVideos get route
 // ------------------------------
 app.get("/fvids", async (req, res) => {
   try {
-    const userId = req.query.userId; // 👈 ADD THIS
 
-    const videos = await fetchVideos(userId); // 👈 PASS IT
+    const userId = req.query.userId || null;
+
+    // ---------------- PAGINATION ----------------
+    const page =
+      parseInt(req.query.page) || 1;
+
+    const limit =
+      parseInt(req.query.limit) || 20;
+
+    const videos = await fetchVideos(
+      userId,
+      page,
+      limit
+    );
 
     return res.json(videos);
+
   } catch (err) {
-    console.error("❌ Videos fetch error:", err.message);
+
+    console.error(
+      "❌ Videos fetch error:",
+      err.message
+    );
+
     return res.status(500).json({
       success: false,
       error: err.message
     });
   }
 });
+
 // LOGIN ROUTE
 app.post("/login", (req, res) => {
   login(req, res);
