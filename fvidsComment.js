@@ -1,4 +1,73 @@
-async function getComments(req, res, supabase) {
+import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
+
+// ---------------- SUPABASE INIT ----------------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+// ---------------- POST COMMENT ----------------
+export async function postComment(req, res) {
+  try {
+    const {
+      videoId,
+      videoUrl,
+      userId,
+      commentText
+    } = req.body;
+
+    if (!videoId || !videoUrl || !userId || !commentText) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+    }
+
+    // insert comment
+    const { data, error } = await supabase
+      .from("comments")
+      .insert([
+        {
+          video_id: videoId,
+          video_url: videoUrl,
+          user_id: userId,
+          comment_text: commentText
+        }
+      ])
+      .select();
+
+    if (error) throw error;
+
+    // update comment count
+    const { count } = await supabase
+      .from("comments")
+      .select("*", { count: "exact", head: true })
+      .eq("video_id", videoId);
+
+    await supabase
+      .from("fvids")
+      .update({
+        comment_count: count || 0
+      })
+      .eq("id", videoId);
+
+    return res.status(200).json({
+      success: true,
+      comment: data[0]
+    });
+
+  } catch (err) {
+    console.error("POST COMMENT ERROR:", err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+}
+
+// ---------------- GET COMMENTS (PAGINATED) ----------------
+export async function getComments(req, res) {
   try {
     const {
       videoId,
@@ -9,7 +78,7 @@ async function getComments(req, res, supabase) {
     if (!videoId) {
       return res.status(400).json({
         success: false,
-        error: "videoId required"
+        error: "videoId is required"
       });
     }
 
@@ -20,73 +89,58 @@ async function getComments(req, res, supabase) {
     const end = start + limitNum - 1;
 
     // ---------------- FETCH COMMENTS ----------------
-    const { data, error } = await supabase
+    const { data: comments, error } = await supabase
       .from("comments")
       .select("*")
       .eq("video_id", videoId)
       .order("created_at", { ascending: false })
       .range(start, end);
 
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
+    if (error) throw error;
 
-    if (!data || data.length === 0) {
-      return res.status(200).json({
+    if (!comments || comments.length === 0) {
+      return res.json({
         success: true,
         comments: [],
         hasMore: false
       });
     }
 
-    // ---------------- GET USERNAMES ----------------
-    const userIds = [...new Set(data.map(c => c.user_id))];
+    // ---------------- GET USER IDS ----------------
+    const userIds = [...new Set(comments.map(c => c.user_id))];
 
-    const { data: users, error: userError } = await supabase
+    const { data: users } = await supabase
       .from("fwebaccount")
       .select("id, username")
       .in("id", userIds);
-
-    if (userError) {
-      return res.status(500).json({
-        success: false,
-        error: userError.message
-      });
-    }
 
     const userMap = {};
     (users || []).forEach(u => {
       userMap[u.id] = u.username;
     });
 
-    // ---------------- FORMAT RESPONSE ----------------
-    const comments = data.map(c => ({
+    // ---------------- ENRICH COMMENTS ----------------
+    const enriched = comments.map(c => ({
       id: c.id,
-      video_id: c.video_id,
-      comment_text: c.comment_text,
-      user_id: c.user_id,
+      videoId: c.video_id,
+      text: c.comment_text,
+      userId: c.user_id,
       username: userMap[c.user_id] || "Unknown",
-      created_at: c.created_at
+      createdAt: c.created_at
     }));
 
-    // ---------------- CHECK IF MORE ----------------
-    const hasMore = data.length === limitNum;
-
-    return res.status(200).json({
+    return res.json({
       success: true,
-      comments,
+      comments: enriched,
       page: pageNum,
-      hasMore
+      hasMore: comments.length === limitNum
     });
 
   } catch (err) {
-    console.error("GET COMMENTS ERROR:", err);
+    console.error("GET COMMENTS ERROR:", err.message);
     return res.status(500).json({
       success: false,
-      error: "Server error"
+      error: err.message
     });
   }
-        }
+    }
