@@ -12,7 +12,7 @@ import { runFTrainer } from "./ftrainer.js";
 import { handleFChat } from "./fchat.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
-import fvidsComment from "./fvidsComment.js";
+import { postComment, getComments } from "./fvidsComments.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -301,79 +301,10 @@ app.post("/fvids", upload.single("file"), async (req, res) => {
 // Fvids like endpoint
 app.post("/fvids/like", fvidLike);
 
-// Fvids comments endpoint
-app.post(
-  "/fvids/comment",
-  fvidsComment
-);
+// ---------------- COMMENTS ROUTES ----------------
+app.post("/fvids/comment", postComment);
 
-app.get("/fvids/comments", async (req, res) => {
-  try {
-    const { videoId, page = 1, limit = 20 } = req.query;
-
-    if (!videoId) {
-      return res.status(400).json({
-        success: false,
-        error: "videoId is required"
-      });
-    }
-
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
-
-    // ---------------- FETCH COMMENTS ----------------
-    const { data: comments, error } = await supabase
-      .from("comments")
-      .select("*")
-      .eq("video_id", videoId)
-      .order("created_at", { ascending: false })
-      .range(start, end);
-
-    if (error) throw new Error(error.message);
-
-    if (!comments || comments.length === 0) {
-      return res.json({
-        comments: [],
-        hasMore: false
-      });
-    }
-
-    // ---------------- GET USER IDS ----------------
-    const userIds = comments.map(c => c.user_id);
-
-    // fetch usernames from fwebaccount
-    const { data: users } = await supabase
-      .from("fwebaccount")
-      .select("user_id, username")
-      .in("user_id", userIds);
-
-    const userMap = {};
-    for (const u of users || []) {
-      userMap[u.user_id] = u.username;
-    }
-
-    // ---------------- ATTACH USERNAMES ----------------
-    const enriched = comments.map(c => ({
-      id: c.id,
-      text: c.comment_text,
-      userId: c.user_id,
-      username: userMap[c.user_id] || "Unknown",
-      createdAt: c.created_at
-    }));
-
-    return res.json({
-      comments: enriched,
-      hasMore: comments.length === limit
-    });
-
-  } catch (err) {
-    console.error("❌ comments fetch error:", err.message);
-    return res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
-});
+app.get("/fvids/comments", getComments);
 
 
 // ------------------------------
