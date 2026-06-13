@@ -51,6 +51,21 @@ export default async function fvidsComment(req, res) {
       });
     }
 
+    const { count } = await supabase
+  .from("comments")
+  .select("*", {
+    count: "exact",
+    head: true
+  })
+  .eq("video_id", videoId);
+
+await supabase
+  .from("fvids")
+  .update({
+    comment_count: count || 0
+  })
+  .eq("id", videoId);
+
     return res.status(200).json({
       success: true,
       comment: data[0]
