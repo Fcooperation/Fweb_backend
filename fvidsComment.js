@@ -69,6 +69,7 @@ export async function postComment(req, res) {
 // ---------------- GET COMMENTS (PAGINATED) ----------------
 export async function getComments(req, res) {
   try {
+
     const {
       videoId,
       page = 1,
@@ -87,6 +88,98 @@ export async function getComments(req, res) {
 
     const start = (pageNum - 1) * limitNum;
     const end = start + limitNum - 1;
+
+    // ---------------- GET VIDEO OWNER ----------------
+    const { data: videoData, error: videoError } =
+      await supabase
+        .from("fvids")
+        .select("user_id, created_at")
+        .eq("id", videoId)
+        .single();
+
+    if (videoError) throw videoError;
+
+    const creatorId =
+      videoData?.user_id || null;
+
+    const videoCreatedAt =
+      videoData?.created_at || null;
+
+    // ---------------- FETCH COMMENTS ----------------
+    const { data: comments, error } =
+      await supabase
+        .from("comments")
+        .select("*")
+        .eq("video_id", videoId)
+        .order("created_at", {
+          ascending: false
+        })
+        .range(start, end);
+
+    if (error) throw error;
+
+    if (!comments || comments.length === 0) {
+      return res.json({
+        success: true,
+        comments: [],
+        hasMore: false
+      });
+    }
+
+    // ---------------- GET USER IDS ----------------
+    const userIds = [
+      ...new Set(
+        comments.map(c => c.user_id)
+      )
+    ];
+
+    const { data: users } =
+      await supabase
+        .from("fwebaccount")
+        .select("id, username")
+        .in("id", userIds);
+
+    const userMap = {};
+
+    (users || []).forEach(u => {
+      userMap[u.id] = u.username;
+    });
+
+    // ---------------- ENRICH COMMENTS ----------------
+    const enriched = comments.map(c => ({
+      id: c.id,
+      text: c.comment_text,
+      userId: c.user_id,
+      username:
+        userMap[c.user_id] || "Unknown",
+
+      creatorId,
+
+      createdAt: c.created_at,
+
+      videoCreatedAt
+    }));
+
+    return res.json({
+      success: true,
+      comments: enriched,
+      hasMore:
+        comments.length === limitNum
+    });
+
+  } catch (err) {
+
+    console.error(
+      "GET COMMENTS ERROR:",
+      err.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+}
 
     // ---------------- FETCH COMMENTS ----------------
     const { data: comments, error } = await supabase
