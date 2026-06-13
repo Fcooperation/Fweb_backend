@@ -1,9 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-// Supabase setup (same style as login)
+// Supabase setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase environment variables!");
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -47,7 +51,7 @@ async function postComment(req, res) {
     .select();
 
   if (error) {
-    console.error(error);
+    console.error("Insert error:", error);
     return res.status(500).json({ error: error.message });
   }
 
@@ -57,10 +61,11 @@ async function postComment(req, res) {
     .select("*", { count: "exact", head: true })
     .eq("video_id", videoId);
 
+  // Note: Ensure your 'fvids' table ID column type matches the videoId payload!
   await supabase
     .from("fvids")
     .update({ comment_count: count || 0 })
-    .eq("id", videoId);
+    .eq("id", videoId); 
 
   return res.status(200).json({
     success: true,
@@ -76,8 +81,11 @@ async function getComments(req, res) {
     return res.status(400).json({ error: "videoId required" });
   }
 
-  const start = (page - 1) * limit;
-  const end = start + limit - 1;
+  // Safe numeric conversion to prevent JS type concatenation bugs!
+  const pageNum = Number(page) || 1;
+  const limitNum = Number(limit) || 20;
+  const start = (pageNum - 1) * limitNum;
+  const end = start + limitNum - 1;
 
   // fetch comments
   const { data, error } = await supabase
@@ -88,7 +96,7 @@ async function getComments(req, res) {
     .range(start, end);
 
   if (error) {
-    console.error(error);
+    console.error("Fetch comments error:", error);
     return res.status(500).json({ error: error.message });
   }
 
@@ -120,4 +128,4 @@ async function getComments(req, res) {
   }));
 
   return res.status(200).json(result);
-      }
+}
