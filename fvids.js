@@ -55,6 +55,44 @@ export async function fetchVideos(
     };
   });
 
+    export async function getSingleVideo(publicId) {
+  if (!publicId) {
+    throw new Error("No video id provided");
+  }
+
+  const { data, error } = await supabase
+    .from("fvids")
+    .select("*")
+    .eq("public_id", publicId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let likesArray = [];
+
+  try {
+    likesArray = data.likes
+      ? JSON.parse(data.likes)
+      : [];
+  } catch {
+    likesArray = [];
+  }
+
+  return {
+    ...data,
+
+    likes: undefined,
+
+    liked: false, // we don’t know user here (frontend can patch it)
+
+    likes_count: likesArray.length,
+
+    comment_count: data.comment_count || 0
+  };
+      }
+
   // ---------------- SHUFFLE ----------------
   function shuffle(arr) {
 
