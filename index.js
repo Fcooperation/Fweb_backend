@@ -13,6 +13,7 @@ import { handleFChat } from "./fchat.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
 import { postComment, getComments } from "./fvidsComment.js";
+import { getSingleVideo } from "./fvids.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -305,6 +306,20 @@ app.post("/fvids/like", fvidLike);
 app.post("/fvids/comment", postComment);
 
 app.get("/fvids/comments", getComments);
+
+      // ---------------- SINGLE VIDEO ROUTE ----------------
+app.get("/fvids/single", async (req, res) => {
+  try {
+    const videoId = req.query.id;
+
+    const result = await getSingleVideo(videoId);
+
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Single video error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 // ------------------------------
