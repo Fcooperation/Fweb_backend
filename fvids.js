@@ -55,7 +55,7 @@ export async function fetchVideos(
     };
   });
 
-    export async function getSingleVideo(publicId) {
+    async function getSingleVideo(publicId) {
   if (!publicId) {
     throw new Error("No video id provided");
   }
@@ -128,3 +128,8 @@ export async function fetchVideos(
     ...liked
   ];
                               }
+
+        export {
+  fetchVideos,
+  getSingleVideo
+};
