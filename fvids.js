@@ -40,7 +40,6 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
     };
   });
 
-  // ---------------- SHUFFLE ----------------
   function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -49,7 +48,6 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
     return arr;
   }
 
-  // ---------------- YOUR ORIGINAL LOGIC ----------------
   const unliked = safeData.filter(v => !v.liked);
   const liked = safeData.filter(v => v.liked);
 
@@ -90,4 +88,4 @@ export async function getSingleVideo(publicId) {
     likes_count: likesArray.length,
     comment_count: data.comment_count || 0
   };
-    }
+      }
