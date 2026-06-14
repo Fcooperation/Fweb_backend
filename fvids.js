@@ -75,13 +75,6 @@ export async function getSingleVideo(publicId) {
 
   if (error) throw new Error(error.message);
 
-  const currentShares = data.share_count || 0;
-
-await supabase
-  .from("fvids")
-  .update({ share_count: currentShares + 1 })
-  .eq("public_id", publicId);
-  
   let likesArray = [];
 
   try {
