@@ -8,15 +8,23 @@ const supabase = createClient(
 export default async function fvidShare(body) {
   const { publicId, type } = body;
 
-  if (!publicId) throw new Error("No publicId");
+  if (!publicId) {
+    throw new Error("No publicId");
+  }
 
   const { data, error } = await supabase
     .from("fvids")
     .select("share_count")
     .eq("public_id", publicId)
-    .single();
+    .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(`Video not found: ${publicId}`);
+  }
 
   const newCount = (data.share_count || 0) + 1;
 
@@ -25,7 +33,9 @@ export default async function fvidShare(body) {
     .update({ share_count: newCount })
     .eq("public_id", publicId);
 
-  if (updateError) throw updateError;
+  if (updateError) {
+    throw updateError;
+  }
 
   return {
     success: true,
