@@ -61,33 +61,54 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
 
 
 // ---------------- GET SINGLE VIDEO ----------------
-export async function getSingleVideo(publicId) {
+export async function getSingleVideo(publicId, page = 1, limit = 20) {
 
-  if (!publicId) {
-    throw new Error("No video id provided");
-  }
+  const start = (page - 1) * limit;
+  const end = start + limit - 1;
 
+  // 1. fetch paginated feed
   const { data, error } = await supabase
     .from("fvids")
     .select("*")
-    .eq("public_id", publicId)
-    .single();
+    .range(start, end);
 
   if (error) throw new Error(error.message);
 
-  let likesArray = [];
+  // 2. find target video inside THIS batch
+  let targetVideo = null;
 
-  try {
-    likesArray = data.likes ? JSON.parse(data.likes) : [];
-  } catch {
-    likesArray = [];
+  const filtered = data.filter(video => {
+    if (video.public_id === publicId) {
+      targetVideo = video;
+      return false; // remove from list
+    }
+    return true;
+  });
+
+  // 3. parse likes safely
+  function format(video) {
+    let likesArray = [];
+
+    try {
+      likesArray = video.likes ? JSON.parse(video.likes) : [];
+    } catch {
+      likesArray = [];
+    }
+
+    return {
+      ...video,
+      likes: undefined,
+      liked: false,
+      likes_count: likesArray.length,
+      comment_count: video.comment_count || 0
+    };
   }
 
-  return {
-    ...data,
-    likes: undefined,
-    liked: false,
-    likes_count: likesArray.length,
-    comment_count: data.comment_count || 0
-  };
-  }
+  const safeFiltered = filtered.map(format);
+
+  const result = targetVideo
+    ? [format(targetVideo), ...safeFiltered]
+    : safeFiltered;
+
+  return result;
+}
