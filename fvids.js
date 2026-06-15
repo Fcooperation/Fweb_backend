@@ -69,16 +69,16 @@ export async function getSingleVideo(publicId, page = 1, limit = 20) {
 
   // 1. ALWAYS fetch the target video directly (safe lookup)
   const { data: targetData, error: targetError } = await supabase
-    .from("fvids")
-    .select("*")
-    .eq("public_id", publicId)
-    .single();
+  .from("fvids")
+  .select("*")
+  .eq("public_id", publicId)
+  .maybeSingle();
 
-  if (targetError && targetError.code !== "PGRST116") {
-    throw new Error(targetError.message);
-  }
+if (targetError) {
+  throw new Error(targetError.message);
+}
 
-  let targetVideo = targetData || null;
+let targetVideo = targetData || null;
 
   // 2. fetch random feed videos
   const start = (page - 1) * limit;
