@@ -63,10 +63,27 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
 // ---------------- GET SINGLE VIDEO ----------------
 export async function getSingleVideo(publicId, page = 1, limit = 20) {
 
+  if (!publicId) {
+    throw new Error("No video id provided");
+  }
+
+  // 1. ALWAYS fetch the target video directly (safe lookup)
+  const { data: targetData, error: targetError } = await supabase
+    .from("fvids")
+    .select("*")
+    .eq("public_id", publicId)
+    .single();
+
+  if (targetError && targetError.code !== "PGRST116") {
+    throw new Error(targetError.message);
+  }
+
+  let targetVideo = targetData || null;
+
+  // 2. fetch random feed videos
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
-  // 1. fetch paginated feed
   const { data, error } = await supabase
     .from("fvids")
     .select("*")
@@ -74,18 +91,7 @@ export async function getSingleVideo(publicId, page = 1, limit = 20) {
 
   if (error) throw new Error(error.message);
 
-  // 2. find target video inside THIS batch
-  let targetVideo = null;
-
-  const filtered = data.filter(video => {
-    if (video.public_id === publicId) {
-      targetVideo = video;
-      return false; // remove from list
-    }
-    return true;
-  });
-
-  // 3. parse likes safely
+  // 3. format helper
   function format(video) {
     let likesArray = [];
 
@@ -104,11 +110,21 @@ export async function getSingleVideo(publicId, page = 1, limit = 20) {
     };
   }
 
-  const safeFiltered = filtered.map(format);
+  const formattedFeed = data.map(format);
 
-  const result = targetVideo
-    ? [format(targetVideo), ...safeFiltered]
-    : safeFiltered;
+  // 4. remove duplicate if target exists inside feed
+  const filteredFeed = formattedFeed.filter(
+    v => v.public_id !== publicId
+  );
+
+  // 5. build final result
+  const result = [];
+
+  if (targetVideo) {
+    result.push(format(targetVideo));
+  }
+
+  result.push(...filteredFeed);
 
   return result;
 }
