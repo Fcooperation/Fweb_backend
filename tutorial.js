@@ -1,6 +1,12 @@
 import express from "express";
+import { createClient } from "@supabase/supabase-js";
 
 const router = express.Router();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 router.get("/", async (req, res) => {
   try {
@@ -10,8 +16,6 @@ router.get("/", async (req, res) => {
     const limit = 10;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
-
-    const supabase = req.app.locals.supabase;
 
     const { data, error } = await supabase
       .from("fvids")
@@ -25,6 +29,7 @@ router.get("/", async (req, res) => {
     const result = (data || []).map((video) => {
       let liked = false;
 
+      // compute liked state only
       if (userId && video.likes) {
         try {
           const likesArray =
@@ -40,7 +45,7 @@ router.get("/", async (req, res) => {
         }
       }
 
-      // ❌ REMOVE raw likes from response
+      // ❌ remove likes before sending to frontend
       const { likes, ...safeVideo } = video;
 
       return {
@@ -53,6 +58,7 @@ router.get("/", async (req, res) => {
 
   } catch (err) {
     console.error("Tutorial fetch error:", err);
+
     res.status(500).json({
       error: "Failed to fetch tutorials"
     });
