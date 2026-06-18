@@ -11,6 +11,7 @@ const supabase = createClient(
 router.get("/", async (req, res) => {
   try {
     const page = parseInt(req.query.page || "1", 10);
+    const userId = req.query.userId || null; // frontend may or may not send this
 
     const limit = 10;
     const from = (page - 1) * limit;
@@ -23,12 +24,34 @@ router.get("/", async (req, res) => {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    res.json(data || []);
+    const result = (data || []).map((video) => {
+      let liked = false;
 
+      // only check if userId exists AND likes exists
+      if (userId && video.likes) {
+        try {
+          const likesArray =
+            typeof video.likes === "string"
+              ? JSON.parse(video.likes)
+              : video.likes;
+
+          liked = Array.isArray(likesArray)
+            ? likesArray.includes(userId)
+            : false;
+        } catch (e) {
+          liked = false;
+        }
+      }
+
+      return {
+        ...video,
+        liked
+      };
+    });
+
+    res.json(result);
   } catch (err) {
     console.error("Tutorial fetch error:", err);
 
