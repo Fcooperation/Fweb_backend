@@ -1,0 +1,41 @@
+import express from "express";
+import { createClient } from "@supabase/supabase-js";
+
+const router = express.Router();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+router.get("/", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page || "1", 10);
+
+    const limit = 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const { data, error } = await supabase
+      .from("fvids")
+      .select("*")
+      .eq("category", "tutorial")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json(data || []);
+
+  } catch (err) {
+    console.error("Tutorial fetch error:", err);
+
+    res.status(500).json({
+      error: "Failed to fetch tutorials"
+    });
+  }
+});
+
+export default router;
