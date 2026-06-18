@@ -15,6 +15,7 @@ import fvidUpload from "./fvidUpload.js";
 import { postComment, getComments } from "./fvidsComment.js";
 import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
+import tutorialRoutes from "./tutorial.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -335,6 +336,9 @@ app.post("/fvids/share", async (req, res) => {
     });
   }
 });
+
+// Tutorials vid load 
+app.use("/fvids/tutorials", tutorialRoutes);
 
 
 // ------------------------------
