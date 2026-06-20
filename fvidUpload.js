@@ -1,6 +1,10 @@
 import { v2 as cloudinary } from "cloudinary";
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
+import ffmpeg from "fluent-ffmpeg";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 // ---------------- CLOUDINARY CONFIG ----------------
 cloudinary.config({
@@ -15,6 +19,25 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
+// ---------------- HELPERS ----------------
+function runCompression(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
+        "-vf scale=480:-2",      // 🔥 reduce resolution (KEY for data saving)
+        "-r 30",                 // smooth playback
+        "-c:v libx264",
+        "-crf 32",               // 🔥 heavy compression (important for students/data saving)
+        "-preset veryfast",
+        "-c:a aac",
+        "-b:a 96k"
+      ])
+      .on("end", resolve)
+      .on("error", reject)
+      .save(outputPath);
+  });
+}
+
 // ---------------- MAIN UPLOAD HANDLER ----------------
 export default async function fvidUpload(req, res) {
   try {
@@ -25,7 +48,18 @@ export default async function fvidUpload(req, res) {
       });
     }
 
-    // ---------------- 1. UPLOAD TO CLOUDINARY ----------------
+    const inputPath = path.join(os.tmpdir(), `input-${Date.now()}.mp4`);
+    const outputPath = path.join(os.tmpdir(), `output-${Date.now()}.mp4`);
+
+    // ---------------- 1. SAVE TEMP FILE ----------------
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    // ---------------- 2. COMPRESS VIDEO (🔥 NEW CORE LOGIC) ----------------
+    await runCompression(inputPath, outputPath);
+
+    const compressedBuffer = fs.readFileSync(outputPath);
+
+    // ---------------- 3. UPLOAD COMPRESSED VIDEO TO CLOUDINARY ----------------
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
@@ -38,32 +72,26 @@ export default async function fvidUpload(req, res) {
             else resolve(result);
           }
         )
-        .end(req.file.buffer);
+        .end(compressedBuffer);
     });
 
-    // ---------------- 2. CREATE OPTIMIZED URL ----------------
-const optimizedUrl = result.secure_url.replace(
-  "/upload/",
-  "/upload/q_auto,f_auto,w_720/"
-);
+    // ---------------- 4. GET META FROM REQUEST ----------------
+    const {
+      category,
+      language,
+      hashtags,
+      details,
+      user_id
+    } = req.body;
 
-// ---------------- 3. GET META FROM REQUEST ----------------
-const {
-  category,
-  language,
-  hashtags,
-  details,
-  user_id
-} = req.body;
-
-    // ---------------- 3. INSERT INTO SUPABASE ----------------
+    // ---------------- 5. INSERT INTO SUPABASE ----------------
     const { data, error } = await supabase
       .from("fvids")
       .insert([
         {
-          video_url: optimizedUrl,
+          video_url: result.secure_url,   // 🔥 NOW THIS IS COMPRESSED VIDEO
           public_id: result.public_id,
-          duration: result.duration,
+          duration: result.duration || null,
           category: category || null,
           language: language || null,
           hashtags: hashtags ? JSON.parse(hashtags) : [],
@@ -83,7 +111,15 @@ const {
       });
     }
 
-    // ---------------- 4. RETURN SUCCESS ----------------
+    // ---------------- 6. CLEANUP TEMP FILES ----------------
+    try {
+      fs.unlinkSync(inputPath);
+      fs.unlinkSync(outputPath);
+    } catch (e) {
+      console.log("Cleanup warning:", e.message);
+    }
+
+    // ---------------- 7. RETURN SUCCESS ----------------
     return res.json({
       success: true,
       video_url: result.secure_url,
@@ -99,4 +135,4 @@ const {
       error: err.message
     });
   }
-        }
+}
