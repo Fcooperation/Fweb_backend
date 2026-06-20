@@ -6,6 +6,9 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
+// 🔥 WebSocket progress sender
+import { sendProgress } from "./ws.js";
+
 // ---------------- CLOUDINARY CONFIG ----------------
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -20,20 +23,44 @@ const supabase = createClient(
 );
 
 // ---------------- HELPERS ----------------
-function runCompression(inputPath, outputPath) {
+function runCompression(inputPath, outputPath, user_id) {
   return new Promise((resolve, reject) => {
+
     ffmpeg(inputPath)
       .outputOptions([
-        "-vf scale=480:-2",      // 🔥 reduce resolution (KEY for data saving)
-        "-r 30",                 // smooth playback
+        "-vf scale=480:-2",
+        "-r 30",
         "-c:v libx264",
-        "-crf 32",               // 🔥 heavy compression (important for students/data saving)
+        "-crf 32",
         "-preset veryfast",
         "-c:a aac",
         "-b:a 96k"
       ])
-      .on("end", resolve)
+
+      // 🔥 FFmpeg progress tracking
+      .on("progress", (progress) => {
+        const percent = Math.min(
+          95,
+          Math.round(progress.percent || 0)
+        );
+
+        sendProgress(user_id, {
+          stage: "compressing",
+          progress: percent
+        });
+      })
+
+      .on("end", () => {
+        sendProgress(user_id, {
+          stage: "compressed",
+          progress: 100
+        });
+
+        resolve();
+      })
+
       .on("error", reject)
+
       .save(outputPath);
   });
 }
@@ -48,18 +75,47 @@ export default async function fvidUpload(req, res) {
       });
     }
 
+    const {
+      category,
+      language,
+      hashtags,
+      details,
+      user_id
+    } = req.body;
+
+    // 🔥 STEP 0: INIT
+    sendProgress(user_id, {
+      stage: "upload_received",
+      progress: 5
+    });
+
     const inputPath = path.join(os.tmpdir(), `input-${Date.now()}.mp4`);
     const outputPath = path.join(os.tmpdir(), `output-${Date.now()}.mp4`);
 
     // ---------------- 1. SAVE TEMP FILE ----------------
     fs.writeFileSync(inputPath, req.file.buffer);
 
-    // ---------------- 2. COMPRESS VIDEO (🔥 NEW CORE LOGIC) ----------------
-    await runCompression(inputPath, outputPath);
+    sendProgress(user_id, {
+      stage: "file_saved",
+      progress: 10
+    });
+
+    // ---------------- 2. COMPRESS VIDEO ----------------
+    sendProgress(user_id, {
+      stage: "compressing_start",
+      progress: 15
+    });
+
+    await runCompression(inputPath, outputPath, user_id);
 
     const compressedBuffer = fs.readFileSync(outputPath);
 
-    // ---------------- 3. UPLOAD COMPRESSED VIDEO TO CLOUDINARY ----------------
+    // ---------------- 3. UPLOAD TO CLOUDINARY ----------------
+    sendProgress(user_id, {
+      stage: "uploading_cloudinary",
+      progress: 95
+    });
+
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
@@ -75,21 +131,17 @@ export default async function fvidUpload(req, res) {
         .end(compressedBuffer);
     });
 
-    // ---------------- 4. GET META FROM REQUEST ----------------
-    const {
-      category,
-      language,
-      hashtags,
-      details,
-      user_id
-    } = req.body;
+    sendProgress(user_id, {
+      stage: "uploaded_cloudinary",
+      progress: 98
+    });
 
-    // ---------------- 5. INSERT INTO SUPABASE ----------------
+    // ---------------- 4. INSERT INTO SUPABASE ----------------
     const { data, error } = await supabase
       .from("fvids")
       .insert([
         {
-          video_url: result.secure_url,   // 🔥 NOW THIS IS COMPRESSED VIDEO
+          video_url: result.secure_url,
           public_id: result.public_id,
           duration: result.duration || null,
           category: category || null,
@@ -105,13 +157,20 @@ export default async function fvidUpload(req, res) {
 
     if (error) {
       console.error("SUPABASE INSERT ERROR:", error);
+
+      sendProgress(user_id, {
+        stage: "failed",
+        progress: 0,
+        error: error.message
+      });
+
       return res.json({
         success: false,
         error: error.message
       });
     }
 
-    // ---------------- 6. CLEANUP TEMP FILES ----------------
+    // ---------------- 5. CLEANUP ----------------
     try {
       fs.unlinkSync(inputPath);
       fs.unlinkSync(outputPath);
@@ -119,7 +178,12 @@ export default async function fvidUpload(req, res) {
       console.log("Cleanup warning:", e.message);
     }
 
-    // ---------------- 7. RETURN SUCCESS ----------------
+    // ---------------- 6. DONE ----------------
+    sendProgress(user_id, {
+      stage: "done",
+      progress: 100
+    });
+
     return res.json({
       success: true,
       video_url: result.secure_url,
@@ -135,4 +199,4 @@ export default async function fvidUpload(req, res) {
       error: err.message
     });
   }
-}
+        }
