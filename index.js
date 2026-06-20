@@ -17,39 +17,8 @@ import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
-
-import http from "http";
-import { WebSocketServer } from "ws";
-
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-const server = http.createServer(app);
-
-//Web socket 
-const wss = new WebSocketServer({ server });
-
-const clients = new Map();
-
-wss.on("connection", (ws) => {
-  console.log("🔌 WebSocket connected");
-
-  ws.on("message", (msg) => {
-    const data = JSON.parse(msg);
-
-    if (data.type === "register") {
-      clients.set(data.user_id, ws);
-    }
-  });
-
-  ws.on("close", () => {
-    for (const [id, socket] of clients.entries()) {
-      if (socket === ws) {
-        clients.delete(id);
-      }
-    }
-  });
-});
 
 app.use(cors());
 app.use(express.json());
@@ -371,19 +340,10 @@ app.post("/fvids/share", async (req, res) => {
 // Tutorials vid load 
 app.use("/fvids/tutorials", tutorialRoutes);
 
-// Websocket Send Progress
-export function sendProgress(user_id, payload) {
-  const ws = clients.get(user_id);
-
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify(payload));
-  }
-}
-
 
 // ------------------------------
 // Start Server
 // ------------------------------
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
