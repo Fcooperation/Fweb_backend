@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import http from "http";
+import { WebSocketServer } from "ws";
 import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
 import signup from "./signup.js";
@@ -18,6 +20,7 @@ import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -38,6 +41,37 @@ app.use((req, res, next) => {
   });
 
   next();
+});
+
+// WebSocketServer
+const wss = new WebSocketServer({ server });
+
+const clients = new Map();
+
+wss.on("connection", (ws) => {
+  console.log("🔌 WebSocket connected");
+
+  ws.on("message", (msg) => {
+    try {
+      const data = JSON.parse(msg);
+
+      if (data.type === "register") {
+        clients.set(data.user_id, ws);
+        console.log("✅ Registered:", data.user_id);
+      }
+    } catch (err) {
+      console.log("WS error:", err.message);
+    }
+  });
+
+  ws.on("close", () => {
+    for (const [id, socket] of clients.entries()) {
+      if (socket === ws) {
+        clients.delete(id);
+        console.log("❌ Removed:", id);
+      }
+    }
+  });
 });
 
 // ------------------------------
@@ -340,10 +374,34 @@ app.post("/fvids/share", async (req, res) => {
 // Tutorials vid load 
 app.use("/fvids/tutorials", tutorialRoutes);
 
+// Test route 
+let testInterval = null;
+
+app.get("/test", (req, res) => {
+  console.log("🧪 Test triggered");
+
+  // avoid duplicate intervals
+  if (testInterval) clearInterval(testInterval);
+
+  testInterval = setInterval(() => {
+    for (const [userId, ws] of clients.entries()) {
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: "test",
+          message: "it works 🚀",
+          time: Date.now()
+        }));
+      }
+    }
+  }, 10000);
+
+  res.json({ success: true, message: "WebSocket test started" });
+});
+
 
 // ------------------------------
 // Start Server
 // ------------------------------
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
