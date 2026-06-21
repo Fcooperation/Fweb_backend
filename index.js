@@ -74,6 +74,16 @@ wss.on("connection", (ws) => {
   });
 });
 
+//Send Progress of fvids upload 
+export function sendProgress(user_id, payload) {
+  const ws = clients.get(user_id);
+
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+
 // ------------------------------
 // Routes
 // ------------------------------
