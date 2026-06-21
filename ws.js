@@ -1,35 +1,18 @@
-import { WebSocketServer } from "ws";
+const ws = new WebSocket("wss://fweb-backend.onrender.com");
 
-export const clients = new Map();
+ws.onopen = () => {
+  console.log("connected ✔");
 
-export function initWS(server) {
-  const wss = new WebSocketServer({ server });
+  ws.send(JSON.stringify({
+    type: "register",
+    user_id: "test-user"
+  }));
 
-  wss.on("connection", (ws) => {
-    console.log("🔌 WebSocket connected");
+  // start backend test loop
+  fetch("https://fweb-backend.onrender.com/test");
+};
 
-    ws.on("message", (msg) => {
-      const data = JSON.parse(msg);
-
-      if (data.type === "register") {
-        clients.set(data.user_id, ws);
-      }
-    });
-
-    ws.on("close", () => {
-      for (const [id, socket] of clients.entries()) {
-        if (socket === ws) {
-          clients.delete(id);
-        }
-      }
-    });
-  });
-}
-
-export function sendProgress(user_id, payload) {
-  const ws = clients.get(user_id);
-
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify(payload));
-  }
-}
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log("SERVER:", data);
+};
