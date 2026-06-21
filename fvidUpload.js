@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
+import { sendProgress } from "./index.js";
 
 // ---------------- CLOUDINARY CONFIG ----------------
 cloudinary.config({
@@ -25,38 +26,56 @@ export default async function fvidUpload(req, res) {
       });
     }
 
-    // ---------------- 1. UPLOAD TO CLOUDINARY ----------------
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            resource_type: "video",
-            folder: "fvids"
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        )
-        .end(req.file.buffer);
+    const {
+      category,
+      language,
+      hashtags,
+      details,
+      user_id
+    } = req.body;
+
+    // ---------------- 1. START PROGRESS ----------------
+    sendProgress(user_id, {
+      type: "upload",
+      stage: "starting",
+      progress: 5
     });
 
-    // ---------------- 2. CREATE OPTIMIZED URL ----------------
-const optimizedUrl = result.secure_url.replace(
-  "/upload/",
-  "/upload/q_auto,f_auto,w_720/"
-);
+    // ---------------- 2. UPLOAD TO CLOUDINARY ----------------
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: "video",
+          folder: "fvids"
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
 
-// ---------------- 3. GET META FROM REQUEST ----------------
-const {
-  category,
-  language,
-  hashtags,
-  details,
-  user_id
-} = req.body;
+      stream.end(req.file.buffer);
 
-    // ---------------- 3. INSERT INTO SUPABASE ----------------
+      sendProgress(user_id, {
+        type: "upload",
+        stage: "uploading",
+        progress: 50
+      });
+    });
+
+    // ---------------- 3. OPTIMIZED URL ----------------
+    const optimizedUrl = result.secure_url.replace(
+      "/upload/",
+      "/upload/q_auto,f_auto,w_720/"
+    );
+
+    sendProgress(user_id, {
+      type: "upload",
+      stage: "processing",
+      progress: 80
+    });
+
+    // ---------------- 4. INSERT INTO SUPABASE ----------------
     const { data, error } = await supabase
       .from("fvids")
       .insert([
@@ -76,17 +95,30 @@ const {
       .single();
 
     if (error) {
-      console.error("SUPABASE INSERT ERROR:", error);
+      sendProgress(user_id, {
+        type: "upload",
+        stage: "error",
+        progress: 0,
+        error: error.message
+      });
+
       return res.json({
         success: false,
         error: error.message
       });
     }
 
-    // ---------------- 4. RETURN SUCCESS ----------------
+    // ---------------- 5. DONE ----------------
+    sendProgress(user_id, {
+      type: "upload",
+      stage: "done",
+      progress: 100,
+      video_url: optimizedUrl
+    });
+
     return res.json({
       success: true,
-      video_url: result.secure_url,
+      video_url: optimizedUrl,
       public_id: result.public_id,
       db_record: data
     });
@@ -99,4 +131,4 @@ const {
       error: err.message
     });
   }
-  }
+        }
