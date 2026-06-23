@@ -30,7 +30,21 @@ const result = await new Promise((resolve, reject) => {
   cloudinary.uploader.upload_stream(
     {
       resource_type: "video",
-      folder: "fvids"
+      folder: "fvids",
+
+      // IMPORTANT: ensure eager transformation is triggered
+      eager: [
+        {
+          width: 1280,
+          height: 720,
+          crop: "limit",
+          fps: 30,
+          video_codec: "h264",
+          bitrate: "1000k",
+          audio_codec: "aac",
+          format: "mp4"
+        }
+      ]
     },
     (error, result) => {
       if (error) reject(error);
@@ -39,18 +53,23 @@ const result = await new Promise((resolve, reject) => {
   ).end(req.file.buffer);
 });
 
-// ---------------- DEBUG LOG ----------------
-console.log(
-  "CLOUDINARY RESULT:",
-  JSON.stringify(result, null, 2)
-);
+console.log("CLOUDINARY RESULT:", JSON.stringify(result, null, 2));
 
-// ---------------- 2. USE EAGER VIDEO IF AVAILABLE ----------------
-const compressedUrl =
-  result.eager?.[0]?.secure_url ||
-  result.secure_url;
+// ---------------- 2. STRICT EAGER CHECK ----------------
+const eagerVideo = result?.eager?.[0];
 
-// ---------------- 3. GET META FROM REQUEST ----------------
+if (!eagerVideo || !eagerVideo.secure_url) {
+  return res.json({
+    success: false,
+    error: "Eager transformation failed",
+    reason: "Cloudinary did not return eager video. Check upload preset or transformation config.",
+    debug: result
+  });
+}
+
+const compressedUrl = eagerVideo.secure_url;
+
+// ---------------- 3. GET META ----------------
 const {
   category,
   language,
@@ -91,14 +110,10 @@ if (error) {
 return res.json({
   success: true,
 
-  // original upload
   original_video_url: result.secure_url,
-
-  // eager compressed version
   compressed_video_url: compressedUrl,
 
   public_id: result.public_id,
-
   db_record: data
 });
 
@@ -111,4 +126,4 @@ return res.json({
 });
 
 }
-    }
+          }
