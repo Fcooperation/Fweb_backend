@@ -16,6 +16,7 @@ import { postComment, getComments } from "./fvidsComment.js";
 import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
+import fvidFollow from "./fvidsfollow.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -339,6 +340,23 @@ app.post("/fvids/share", async (req, res) => {
 
 // Tutorials vid load 
 app.use("/fvids/tutorials", tutorialRoutes);
+
+// FVIDS FOLLOW ROUTE
+app.post("/follow", async (req, res) => {
+  try {
+    const result = await fvidFollow(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+    console.error("❌ Follow error:", err.message);
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 
 
 // ------------------------------
