@@ -110,10 +110,14 @@ if (error) {
 return res.json({
   success: true,
 
+  video_url: compressedUrl,
+
   original_video_url: result.secure_url,
   compressed_video_url: compressedUrl,
 
   public_id: result.public_id,
+  duration: result.duration,
+
   db_record: data
 });
 
@@ -126,4 +130,4 @@ return res.json({
 });
 
 }
-          }
+          } 
