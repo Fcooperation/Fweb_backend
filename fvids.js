@@ -48,6 +48,24 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
     );
   }
 
+  let followingMap = {};
+
+if (userId) {
+
+  const { data: follows } =
+    await supabase
+      .from("fvidsfollow")
+      .select("following_id")
+      .eq("follower_id", String(userId));
+
+  followingMap = Object.fromEntries(
+    (follows || []).map(row => [
+      String(row.following_id),
+      true
+    ])
+  );
+}
+
   const safeData = data.map(video => {
 
     let likesArray = [];
@@ -75,6 +93,14 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
       liked: uid
         ? likesArray.includes(uid)
         : false,
+
+      following: uid
+  ? Boolean(
+      followingMap[
+        String(video.user_id)
+      ]
+    )
+  : false,
 
       likes_count: likesArray.length,
 
