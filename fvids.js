@@ -19,39 +19,96 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
 
   if (error) throw new Error(error.message);
 
+  // ---------------- FETCH MATCHING USERS ----------------
+
+  const userIds = [
+    ...new Set(
+      data
+        .map(v => v.user_id)
+        .filter(Boolean)
+    )
+  ];
+
+  let usersMap = {};
+
+  if (userIds.length) {
+
+    const { data: users, error: usersError } =
+      await supabase
+        .from("fwebaccount")
+        .select("*")
+        .in("id", userIds);
+
+    if (usersError) {
+      throw new Error(usersError.message);
+    }
+
+    usersMap = Object.fromEntries(
+      users.map(user => [String(user.id), user])
+    );
+  }
+
   const safeData = data.map(video => {
 
     let likesArray = [];
 
     try {
-      likesArray = video.likes ? JSON.parse(video.likes) : [];
+      likesArray = video.likes
+        ? JSON.parse(video.likes)
+        : [];
     } catch {
       likesArray = [];
     }
 
-    const uid = userId ? String(userId) : null;
+    const uid = userId
+      ? String(userId)
+      : null;
 
     return {
       ...video,
+
+      user:
+        usersMap[String(video.user_id)] || null,
+
       likes: undefined,
-      liked: uid ? likesArray.includes(uid) : false,
+
+      liked: uid
+        ? likesArray.includes(uid)
+        : false,
+
       likes_count: likesArray.length,
-      comment_count: video.comment_count || 0
+
+      comment_count:
+        video.comment_count || 0
     };
   });
 
   // ---------------- SHUFFLE ----------------
+
   function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+    for (
+      let i = arr.length - 1;
+      i > 0;
+      i--
+    ) {
+      const j = Math.floor(
+        Math.random() * (i + 1)
+      );
+
+      [arr[i], arr[j]] =
+      [arr[j], arr[i]];
     }
+
     return arr;
   }
 
-  // ---------------- UNLIKED FIRST (YOUR LOGIC) ----------------
-  const unliked = safeData.filter(v => !v.liked);
-  const liked = safeData.filter(v => v.liked);
+  // ---------------- UNLIKED FIRST ----------------
+
+  const unliked =
+    safeData.filter(v => !v.liked);
+
+  const liked =
+    safeData.filter(v => v.liked);
 
   shuffle(unliked);
   shuffle(liked);
@@ -61,33 +118,67 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
 
 
 // ---------------- GET SINGLE VIDEO ----------------
+
 export async function getSingleVideo(publicId) {
 
   if (!publicId) {
-    throw new Error("No video id provided");
+    throw new Error(
+      "No video id provided"
+    );
   }
 
-  const { data, error } = await supabase
-    .from("fvids")
-    .select("*")
-    .eq("public_id", publicId)
-    .single();
+  const { data, error } =
+    await supabase
+      .from("fvids")
+      .select("*")
+      .eq("public_id", publicId)
+      .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
 
   let likesArray = [];
 
   try {
-    likesArray = data.likes ? JSON.parse(data.likes) : [];
+    likesArray =
+      data.likes
+        ? JSON.parse(data.likes)
+        : [];
   } catch {
     likesArray = [];
   }
 
+  // ---------------- FETCH VIDEO OWNER ----------------
+
+  let user = null;
+
+  if (data.user_id) {
+
+    const {
+      data: account
+    } = await supabase
+      .from("fwebaccount")
+      .select("*")
+      .eq("id", data.user_id)
+      .single();
+
+    user = account || null;
+  }
+
   return {
     ...data,
+
+    user,
+
     likes: undefined,
+
     liked: false,
-    likes_count: likesArray.length,
-    comment_count: data.comment_count || 0
+
+    likes_count:
+      likesArray.length,
+
+    comment_count:
+      data.comment_count || 0
   };
-        }
+                             }
