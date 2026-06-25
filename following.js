@@ -63,34 +63,36 @@ return [];
 // GET USER DETAILS
 // --------------------------
 const creatorIds = [
-...new Set(
-videos.map(v => String(v.user_id))
-)
+  ...new Set(
+    videos.map(v => String(v.user_id))
+  )
 ];
 
 const { data: users, error: userError } =
 await supabase
-.from("fwebaccount")
-.select("*")
-.in("id", creatorIds);
+  .from("fwebaccount")
+  .select("id, username, profile_pic")
+  .in("id", creatorIds);
 
 if (userError) {
-throw userError;
+  throw userError;
 }
 
 const userMap = {};
 
 users.forEach(user => {
-userMap[String(user.id)] = user;
+  userMap[String(user.id)] = {
+    username: user.username,
+    profile_pic: user.profile_pic
+  };
 });
 
 // --------------------------
 // ATTACH USER DETAILS
 // --------------------------
 const enrichedVideos = videos.map(video => ({
-...video,
-user: userMap[String(video.user_id)] || null
+  ...video,
+  user: userMap[String(video.user_id)] || null
 }));
 
 return enrichedVideos;
-}
