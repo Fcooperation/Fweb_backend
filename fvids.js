@@ -34,10 +34,10 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
   if (userIds.length) {
 
     const { data: users, error: usersError } =
-      await supabase
-        .from("fwebaccount")
-        .select("*")
-        .in("id", userIds);
+  await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic")
+    .in("id", userIds);
 
     if (usersError) {
       throw new Error(usersError.message);
@@ -153,12 +153,13 @@ export async function getSingleVideo(publicId) {
     );
   }
 
-  const { data, error } =
-    await supabase
-      .from("fvids")
-      .select("*")
-      .eq("public_id", publicId)
-      .single();
+  const {
+  data: account
+} = await supabase
+  .from("fwebaccount")
+  .select("id, username, profile_pic")
+  .eq("id", data.user_id)
+  .single();
 
   if (error) {
     throw new Error(error.message);
