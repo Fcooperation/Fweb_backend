@@ -145,10 +145,7 @@ if (userId) {
 
 // ---------------- GET SINGLE VIDEO ----------------
 
-export async function getSingleVideo(
-  publicId,
-  userId = null
-) {
+export async function getSingleVideo(publicId) {
 
   if (!publicId) {
     throw new Error(
@@ -170,17 +167,14 @@ export async function getSingleVideo(
 
   let likesArray = [];
 
-try {
-  likesArray = data.likes
-    ? JSON.parse(data.likes)
-    : [];
-} catch {
-  likesArray = [];
-}
-
-const uid = userId
-  ? String(userId)
-  : null;
+  try {
+    likesArray =
+      data.likes
+        ? JSON.parse(data.likes)
+        : [];
+  } catch {
+    likesArray = [];
+  }
 
   // ---------------- FETCH VIDEO OWNER ----------------
 
@@ -199,38 +193,19 @@ const uid = userId
     user = account || null;
   }
 
-  let following = false;
-
-if (userId && data.user_id) {
-
-  const { data: followRow } =
-    await supabase
-      .from("fvidsfollow")
-      .select("id")
-      .eq("follower_id", String(userId))
-      .eq("following_id", String(data.user_id))
-      .maybeSingle();
-
-  following = !!followRow;
-}
-
   return {
-  ...data,
+    ...data,
 
-  user,
+    user,
 
-  likes: undefined,
+    likes: undefined,
 
-  liked: uid
-    ? likesArray.includes(uid)
-    : false,
+    liked: false,
 
-  following,
+    likes_count:
+      likesArray.length,
 
-  likes_count:
-    likesArray.length,
-
-  comment_count:
-    data.comment_count || 0
-};
-  }
+    comment_count:
+      data.comment_count || 0
+  };
+      }
