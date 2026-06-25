@@ -17,6 +17,7 @@ import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import fvidFollow from "./fvidsfollow.js";
+import followingFeed from "./following.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -356,6 +357,28 @@ app.post("/follow", async (req, res) => {
       error: err.message
     });
   }
+});
+
+// FOLLOWING FEED ROUTE
+app.get("/fvids/following-feed", async (req, res) => {
+
+  try {
+
+    const result = await followingFeed(req, res);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error("❌ Following feed error:", err.message);
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
 });
 
 
