@@ -13,8 +13,8 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
   const end = start + limit - 1;
 
   const { data, error } = await supabase
-    .from("fwebaccount")
-.select("id, username, profile_pic")
+    .from("fvids")
+    .select("*")
     .range(start, end);
 
   if (error) throw new Error(error.message);
@@ -44,14 +44,8 @@ export async function fetchVideos(userId = null, page = 1, limit = 20) {
     }
 
     usersMap = Object.fromEntries(
-  users.map(user => [
-    String(user.id),
-    {
-      username: user.username,
-      profile_pic: user.profile_pic
-    }
-  ])
-);
+      users.map(user => [String(user.id), user])
+    );
   }
 
   let followingMap = {};
@@ -151,10 +145,7 @@ if (userId) {
 
 // ---------------- GET SINGLE VIDEO ----------------
 
-export async function getSingleVideo(
-  publicId,
-  userId = null
-) {
+export async function getSingleVideo(publicId) {
 
   if (!publicId) {
     throw new Error(
@@ -191,59 +182,29 @@ export async function getSingleVideo(
   if (data.user_id) {
 
     const {
-  data: account
-} = await supabase
-  .from("fwebaccount")
-  .select("id, username, profile_pic")
-  .eq("id", data.user_id)
-  .single();
+      data: account
+    } = await supabase
+      .from("fwebaccount")
+      .select("*")
+      .eq("id", data.user_id)
+      .single();
 
-user = account
-  ? {
-      username: account.username,
-      profile_pic: account.profile_pic
-    }
-  : null;
+    user = account || null;
   }
 
-  const uid = userId
-  ? String(userId)
-  : null;
-
-const liked = uid
-  ? likesArray.includes(uid)
-  : false;
-
-let following = false;
-
-if (uid && data.user_id) {
-
-  const { data: followRow } =
-    await supabase
-      .from("fvidsfollow")
-      .select("id")
-      .eq("follower_id", uid)
-      .eq("following_id", String(data.user_id))
-      .maybeSingle();
-
-  following = Boolean(followRow);
-}
-
   return {
-  ...data,
+    ...data,
 
-  user,
+    user,
 
-  likes: undefined,
+    likes: undefined,
 
-  liked,
+    liked: false,
 
-  following,
+    likes_count:
+      likesArray.length,
 
-  likes_count:
-    likesArray.length,
-
-  comment_count:
-    data.comment_count || 0
-};
-                             }
+    comment_count:
+      data.comment_count || 0
+  };
+}
