@@ -175,16 +175,6 @@ export async function getSingleVideo(publicId) {
     likesArray = [];
   }
 
-  // ---------------- FETCH VIDEO OWNER ----------------
-
-  import { createClient } from "@supabase/supabase-js";
-import "dotenv/config";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
-
 // ---------------- FETCH FEED VIDEOS ----------------
 export async function fetchVideos(userId = null, page = 1, limit = 20) {
 
