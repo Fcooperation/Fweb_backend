@@ -18,6 +18,8 @@ import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import fvidFollow from "./fvidsfollow.js";
 import followingFeed from "./following.js";
+import fvidsUserDetails
+  from "./fvidsuserdetails.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
