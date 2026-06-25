@@ -26,43 +26,113 @@ router.get("/", async (req, res) => {
 
     if (error) throw error;
 
-    const result = (data || []).map((video) => {
-      let liked = false;
+    // ---------------- USERS ----------------
 
-      // compute liked state only
-      if (userId && video.likes) {
-        try {
-          const likesArray =
-            typeof video.likes === "string"
-              ? JSON.parse(video.likes)
-              : video.likes;
+const userIds = [
+  ...new Set(
+    (data || [])
+      .map(v => v.user_id)
+      .filter(Boolean)
+  )
+];
 
-          liked = Array.isArray(likesArray)
-            ? likesArray.includes(userId)
-            : false;
-        } catch {
-          liked = false;
-        }
+let usersMap = {};
+
+if (userIds.length) {
+
+  const {
+    data: users,
+    error: usersError
+  } = await supabase
+    .from("fwebaccount")
+    .select("id, username, profile_pic")
+    .in("id", userIds);
+
+  if (usersError) throw usersError;
+
+  usersMap = Object.fromEntries(
+    users.map(user => [
+      String(user.id),
+      {
+        username: user.username,
+        profile_pic: user.profile_pic
       }
+    ])
+  );
+}
 
-      // ❌ remove likes before sending to frontend
-      const { likes, ...safeVideo } = video;
+// ---------------- FOLLOWING ----------------
 
-      return {
-        ...safeVideo,
-        liked
-      };
-    });
+let followingMap = {};
 
-    res.json(result);
+if (userId) {
 
-  } catch (err) {
-    console.error("Tutorial fetch error:", err);
+  const {
+    data: follows,
+    error: followError
+  } = await supabase
+    .from("fvidsfollow")
+    .select("following_id")
+    .eq("follower_id", String(userId));
 
-    res.status(500).json({
-      error: "Failed to fetch tutorials"
-    });
+  if (followError) throw followError;
+
+  followingMap = Object.fromEntries(
+    (follows || []).map(row => [
+      String(row.following_id),
+      true
+    ])
+  );
+}
+
+// ---------------- ENRICH VIDEOS ----------------
+
+const result = (data || []).map(video => {
+
+  let liked = false;
+  let likesArray = [];
+
+  try {
+
+    likesArray =
+      typeof video.likes === "string"
+        ? JSON.parse(video.likes)
+        : (video.likes || []);
+
+    liked = userId
+      ? likesArray.includes(String(userId))
+      : false;
+
+  } catch {
+    liked = false;
+    likesArray = [];
   }
+
+  const { likes, ...safeVideo } = video;
+
+  return {
+    ...safeVideo,
+
+    user:
+      usersMap[
+        String(video.user_id)
+      ] || null,
+
+    liked,
+
+    following: userId
+      ? Boolean(
+          followingMap[
+            String(video.user_id)
+          ]
+        )
+      : false,
+
+    likes_count: likesArray.length,
+
+    comment_count:
+      video.comment_count || 0
+  };
 });
 
-export default router;
+res.json(result);
