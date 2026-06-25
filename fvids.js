@@ -156,17 +156,16 @@ export async function getSingleVideo(
     );
   }
 
-  const {
-  data: account
-} = await supabase
-  .from("fwebaccount")
-  .select("id, username, profile_pic")
-  .eq("id", data.user_id)
-  .single();
+  const { data, error } =
+  await supabase
+    .from("fvids")
+    .select("*")
+    .eq("public_id", publicId)
+    .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+if (error) {
+  throw new Error(error.message);
+}
 
   let likesArray = [];
 
@@ -192,7 +191,7 @@ const uid = userId
       data: account
     } = await supabase
       .from("fwebaccount")
-      .select("*")
+      .select("id, username, profile_pic")
       .eq("id", data.user_id)
       .single();
 
