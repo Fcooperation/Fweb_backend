@@ -314,14 +314,28 @@ app.get("/fvids/comments", getComments);
       // ---------------- SINGLE VIDEO ROUTE ----------------
 app.get("/fvids/single", async (req, res) => {
   try {
-    const videoId = req.query.id;
 
-    const result = await getSingleVideo(videoId);
+    const videoId = req.query.id;
+    const userId = req.query.userId || null;
+
+    const result = await getSingleVideo(
+      videoId,
+      userId
+    );
 
     res.json(result);
+
   } catch (err) {
-    console.error("❌ Single video error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+
+    console.error(
+      "❌ Single video error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 

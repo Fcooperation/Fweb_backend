@@ -324,7 +324,10 @@ if (userId) {
 
 // ---------------- GET SINGLE VIDEO ----------------
 
-export async function getSingleVideo(publicId) {
+export async function getSingleVideo(
+  publicId,
+  userId = null
+) {
 
   if (!publicId) {
     throw new Error(
