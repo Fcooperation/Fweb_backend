@@ -67,15 +67,13 @@ export default async function fvidsUserDetails(
   // ---------------- USER VIDEOS ----------------
 
   const {
-    data: videos,
-    error: videosError
-  } = await supabase
-    .from("fvids")
-    .select("*")
-    .eq(
-      "user_id",
-      String(userId)
-    );
+  data: videos,
+  error: videosError
+} = await supabase
+  .from("fvids")
+  .select("*")
+  .eq("user_id", String(userId))
+  .order("created_at", { ascending: false });
 
   if (videosError) {
     throw new Error(
