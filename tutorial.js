@@ -136,3 +136,13 @@ const result = (data || []).map(video => {
 });
 
 res.json(result);
+    } catch (err) {
+  console.error("Tutorial fetch error:", err);
+
+  res.status(500).json({
+    error: "Failed to fetch tutorials"
+  });
+}
+});
+
+export default router;
