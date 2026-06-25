@@ -88,12 +88,50 @@ users.forEach(user => {
 });
 
 // --------------------------
-// ATTACH USER DETAILS
+// ENRICH VIDEOS
 // --------------------------
-const enrichedVideos = videos.map(video => ({
-  ...video,
-  user: userMap[String(video.user_id)] || null
-}));
+
+const uid = String(userId);
+
+const enrichedVideos = videos.map(video => {
+
+  let likesArray = [];
+
+  try {
+
+    likesArray = video.likes
+      ? JSON.parse(video.likes)
+      : [];
+
+  } catch {
+
+    likesArray = Array.isArray(video.likes)
+      ? video.likes
+      : [];
+  }
+
+  return {
+    ...video,
+
+    user:
+      userMap[String(video.user_id)] || null,
+
+    likes: undefined,
+
+    liked:
+      likesArray.includes(uid),
+
+    following: true,
+
+    likes_count:
+      likesArray.length,
+
+    comment_count:
+      video.comment_count || 0,
+
+    share_count:
+      video.share_count || 0
+  };
+});
 
 return enrichedVideos;
-}
