@@ -395,6 +395,34 @@ app.get("/fvids/following-feed", async (req, res) => {
 
 });
 
+// ---------------- USER DETAILS ROUTE ----------------
+app.get("/fvids-user-details", async (req, res) => {
+
+  try {
+
+    const userId = req.query.id;
+
+    const result =
+      await fvidsUserDetails(userId);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ User details error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
 
 // ------------------------------
 // Start Server
