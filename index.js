@@ -17,8 +17,8 @@ import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import fvidFollow from "./fvidsfollow.js";
-import fvidFollowers from "./fvidfollowers.js";
-import fvidFollowing from "./fvidfollowing.js";
+import fvidFollowers from "./fvidsfollowers.js";
+import fvidFollowing from "./fvidsfollowing.js";
 import followingFeed from "./following.js";
 import fvidsUserDetails
   from "./fvidsuserdetails.js";
