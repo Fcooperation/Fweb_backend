@@ -52,7 +52,7 @@ export default async function fvidFollowers(
     return [];
   }
 
-  // ---------------- GET USER IDS ----------------
+  // ---------------- GET IDS ----------------
 
   const ids =
     followers.map(
@@ -67,10 +67,10 @@ export default async function fvidFollowers(
   } = await supabase
     .from("fwebaccount")
     .select(
-      "user_id,username,profile_pic"
+      "id,username,profile_pic"
     )
     .in(
-      "user_id",
+      "id",
       ids
     );
 
@@ -87,7 +87,7 @@ export default async function fvidFollowers(
     const account =
       accounts.find(
         x =>
-          String(x.user_id) ===
+          String(x.id) ===
           String(follower.follower_id)
       );
 
