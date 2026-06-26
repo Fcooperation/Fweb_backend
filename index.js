@@ -404,10 +404,17 @@ app.get("/fvids-user-details", async (req, res) => {
 
   try {
 
-    const userId = req.query.id;
+    const userId =
+      req.query.id;
+
+    const viewerId =
+      req.query.viewerId || null;
 
     const result =
-      await fvidsUserDetails(userId);
+      await fvidsUserDetails(
+        userId,
+        viewerId
+      );
 
     res.json(result);
 
