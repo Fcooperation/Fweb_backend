@@ -434,8 +434,18 @@ app.get("/fvids/followers", async (req, res) => {
 
     const userId = req.query.id;
 
+    const page =
+      parseInt(req.query.page) || 1;
+
+    const limit =
+      parseInt(req.query.limit) || 20;
+
     const result =
-      await fvidFollowers(userId);
+      await fvidFollowers(
+        userId,
+        page,
+        limit
+      );
 
     res.json(result);
 
@@ -462,8 +472,18 @@ app.get("/fvids/following", async (req, res) => {
 
     const userId = req.query.id;
 
+    const page =
+      parseInt(req.query.page) || 1;
+
+    const limit =
+      parseInt(req.query.limit) || 20;
+
     const result =
-      await fvidFollowing(userId);
+      await fvidFollowing(
+        userId,
+        page,
+        limit
+      );
 
     res.json(result);
 
