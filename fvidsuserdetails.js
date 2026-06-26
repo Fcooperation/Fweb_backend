@@ -64,6 +64,22 @@ export default async function fvidsUserDetails(
     );
   }
 
+  // ---------------- ACCOUNT DETAILS ----------------
+
+const {
+  data: account,
+  error: accountError
+} = await supabase
+  .from("fwebaccount")
+  .select("username, profile_pic")
+  .eq("id", String(userId))
+  .single();
+
+if (accountError) {
+  throw new Error(accountError.message);
+}
+
+  
   // ---------------- USER VIDEOS ----------------
 
   const {
@@ -121,22 +137,28 @@ export default async function fvidsUserDetails(
 
   return {
 
-    success: true,
+  success: true,
 
-    followers_count:
-      followersCount || 0,
+  username:
+    account?.username || "",
 
-    following_count:
-      followingCount || 0,
+  profile_pic:
+    account?.profile_pic || "",
 
-    likes_received:
-      totalLikes,
+  followers_count:
+    followersCount || 0,
 
-    videos_count:
-      safeVideos.length,
+  following_count:
+    followingCount || 0,
 
-    videos:
-      safeVideos
+  likes_received:
+    totalLikes,
 
-  };
+  videos_count:
+    safeVideos.length,
+
+  videos:
+    safeVideos
+
+};
 }
