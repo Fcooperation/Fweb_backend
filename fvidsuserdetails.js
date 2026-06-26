@@ -11,7 +11,8 @@ const supabase = createClient(
 );
 
 export default async function fvidsUserDetails(
-  userId
+  userId,
+  viewerId = null
 ) {
 
   if (!userId) {
@@ -79,6 +80,34 @@ if (accountError) {
   throw new Error(accountError.message);
 }
 
+  // ---------------- FOLLOW STATUS ----------------
+
+let following = false;
+
+if (
+  viewerId &&
+  String(viewerId) !== String(userId)
+) {
+
+  const {
+    data: follow
+  } = await supabase
+    .from("fvidsfollow")
+    .select("id")
+    .eq(
+      "follower_id",
+      String(viewerId)
+    )
+    .eq(
+      "following_id",
+      String(userId)
+    )
+    .maybeSingle();
+
+  following = !!follow;
+
+}
+
   
   // ---------------- USER VIDEOS ----------------
 
@@ -144,6 +173,8 @@ if (accountError) {
 
   profile_pic:
     account?.profile_pic || "",
+
+  following,
 
   followers_count:
     followersCount || 0,
