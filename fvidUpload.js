@@ -69,6 +69,19 @@ if (!eagerVideo || !eagerVideo.secure_url) {
 
 const compressedUrl = eagerVideo.secure_url;
 
+  // ---------------- THUMBNAIL ----------------
+
+const thumbnailUrl =
+  cloudinary.url(result.public_id, {
+    resource_type: "video",
+    format: "jpg",
+    transformation: [
+      {
+        start_offset: 1
+      }
+    ]
+  });
+
 // ---------------- 3. GET META ----------------
 const {
   category,
@@ -84,7 +97,9 @@ const { data, error } = await supabase
   .insert([
     {
       video_url: compressedUrl,
-      public_id: result.public_id,
+public_id: result.public_id,
+thumbnail_url: thumbnailUrl,
+thumbnail_public_id: result.public_id,
       duration: result.duration,
       category: category || null,
       language: language || null,
@@ -111,6 +126,7 @@ return res.json({
   success: true,
 
   video_url: compressedUrl,
+  thumbnail_url: thumbnailUrl,
 
   original_video_url: result.secure_url,
   compressed_video_url: compressedUrl,
