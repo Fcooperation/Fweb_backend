@@ -17,6 +17,8 @@ import { getSingleVideo } from "./fvids.js";
 import fvidShare from "./fvidShare.js";
 import tutorialRoutes from "./tutorial.js";
 import fvidFollow from "./fvidsfollow.js";
+import fvidFollowers from "./fvidfollowers.js";
+import fvidFollowing from "./fvidfollowing.js";
 import followingFeed from "./following.js";
 import fvidsUserDetails
   from "./fvidsuserdetails.js";
@@ -413,6 +415,62 @@ app.get("/fvids-user-details", async (req, res) => {
 
     console.error(
       "❌ User details error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- GET FOLLOWERS ----------------
+app.get("/fvids/followers", async (req, res) => {
+
+  try {
+
+    const userId = req.query.id;
+
+    const result =
+      await fvidFollowers(userId);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Followers error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- GET FOLLOWING ----------------
+app.get("/fvids/following", async (req, res) => {
+
+  try {
+
+    const userId = req.query.id;
+
+    const result =
+      await fvidFollowing(userId);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Following error:",
       err.message
     );
 
