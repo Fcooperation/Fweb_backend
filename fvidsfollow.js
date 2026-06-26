@@ -24,30 +24,93 @@ export default async function fvidFollow(data) {
     throw new Error("Cannot follow yourself");
   }
 
-  // already following?
-  const { data: existing } =
-    await supabase
-      .from("fvidsfollow")
-      .select("*")
-      .eq("follower_id", followerId)
-      .eq("following_id", followingId)
-      .maybeSingle();
+  // ---------------- CHECK EXISTING ----------------
+
+  const {
+    data: existing
+  } = await supabase
+    .from("fvidsfollow")
+    .select("*")
+    .eq("follower_id", followerId)
+    .eq("following_id", followingId)
+    .maybeSingle();
+
+  // ==================================================
+  // UNFOLLOW
+  // ==================================================
 
   if (existing) {
+
+    const { error } = await supabase
+      .from("fvidsfollow")
+      .delete()
+      .eq("follower_id", followerId)
+      .eq("following_id", followingId);
+
+    if (error) {
+      throw error;
+    }
+
+    // get follower account
+    const {
+      data: followerAccount
+    } = await supabase
+      .from("fwebaccount")
+      .select("following_count")
+      .eq("id", followerId)
+      .single();
+
+    // get followed account
+    const {
+      data: followedAccount
+    } = await supabase
+      .from("fwebaccount")
+      .select("followers_count")
+      .eq("id", followingId)
+      .single();
+
+    // decrease following count
+    await supabase
+      .from("fwebaccount")
+      .update({
+        following_count: Math.max(
+          (followerAccount?.following_count || 0) - 1,
+          0
+        )
+      })
+      .eq("id", followerId);
+
+    // decrease followers count
+    await supabase
+      .from("fwebaccount")
+      .update({
+        followers_count: Math.max(
+          (followedAccount?.followers_count || 0) - 1,
+          0
+        )
+      })
+      .eq("id", followingId);
+
     return {
       success: true,
-      message: "Already following"
+      following: false,
+      message: "Unfollowed successfully"
     };
+
   }
 
-  // create relationship
-  const { error: followError } =
-    await supabase
-      .from("fvidsfollow")
-      .insert({
-        follower_id: followerId,
-        following_id: followingId
-      });
+  // ==================================================
+  // FOLLOW
+  // ==================================================
+
+  const {
+    error: followError
+  } = await supabase
+    .from("fvidsfollow")
+    .insert({
+      follower_id: followerId,
+      following_id: followingId
+    });
 
   if (followError) {
     throw followError;
@@ -71,26 +134,28 @@ export default async function fvidFollow(data) {
     .eq("id", followingId)
     .single();
 
-  // update following count
+  // increase following count
   await supabase
     .from("fwebaccount")
     .update({
       following_count:
-        (followerAccount.following_count || 0) + 1
+        (followerAccount?.following_count || 0) + 1
     })
     .eq("id", followerId);
 
-  // update follower count
+  // increase followers count
   await supabase
     .from("fwebaccount")
     .update({
       followers_count:
-        (followedAccount.followers_count || 0) + 1
+        (followedAccount?.followers_count || 0) + 1
     })
     .eq("id", followingId);
 
   return {
     success: true,
+    following: true,
     message: "Followed successfully"
   };
-}
+
+    }
