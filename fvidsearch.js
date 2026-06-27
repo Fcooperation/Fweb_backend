@@ -92,6 +92,22 @@ export default async function fvidSearch(query) {
 
       ]);
 
+// ---------------- UPDATE VIDEO HITS ----------------
+hits.forEach(hit => {
+
+  if (String(hit.user_id) === userId) {
+
+    hit.username =
+      accountResult.data?.username || hit.username;
+
+    hit.profile_pic =
+      accountResult.data?.profile_pic || hit.profile_pic;
+
+  }
+
+});
+
+
       users.push({
 
         type: "user",
