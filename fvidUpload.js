@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
+import { algoliasearch } from "algoliasearch";
 
 // ---------------- CLOUDINARY CONFIG ----------------
 cloudinary.config({
@@ -13,6 +14,12 @@ cloudinary.config({
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
+);
+
+// --------------- ALGOLIA CONFIG ---------------
+const algolia = algoliasearch(
+  process.env.ALGOLIA_APP_ID,
+  process.env.ALGOLIA_ADMIN_API_KEY
 );
 
 // ---------------- MAIN UPLOAD HANDLER ----------------
@@ -158,7 +165,40 @@ export default async function fvidUpload(req, res) {
     }
 
     // ================================
-    // 5. RESPONSE
+// 5. SAVE TO ALGOLIA
+// ================================
+
+await algolia.saveObject({
+  indexName: process.env.ALGOLIA_INDEX,
+  object: {
+    objectID: data.id,
+
+    type: "video",
+
+    video_id: data.id,
+
+    user_id: data.user_id,
+
+    category: data.category,
+
+    language: data.language,
+
+    hashtags: data.hashtags,
+
+    details: data.details,
+
+    thumbnail_url: data.thumbnail_url,
+
+    video_url: data.video_url,
+
+    duration: data.duration,
+
+    created_at: data.created_at
+  }
+});
+
+    // ================================
+    // 6. RESPONSE
     // ================================
     return res.json({
       success: true,
