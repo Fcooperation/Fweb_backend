@@ -24,7 +24,7 @@ const algolia = algoliasearch(
 
 await algolia.setSettings({
   indexName: process.env.ALGOLIA_INDEX,
-  settings: {
+  indexSettings: {
     searchableAttributes: [
       "username",
       "hashtags",
