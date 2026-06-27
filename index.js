@@ -526,17 +526,7 @@ app.get("/fvidsearch", async (req, res) => {
 
     const query = req.query.q || "";
 
-    const page =
-      parseInt(req.query.page) || 1;
-
-    const limit =
-      parseInt(req.query.limit) || 20;
-
-    const results = await fvidSearch(
-      query,
-      page,
-      limit
-    );
+    const results = await fvidSearch(query);
 
     res.json(results);
 
