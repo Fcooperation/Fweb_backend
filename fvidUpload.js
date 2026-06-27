@@ -22,6 +22,18 @@ const algolia = algoliasearch(
   process.env.ALGOLIA_ADMIN_API_KEY
 );
 
+await algolia.setSettings({
+  indexName: process.env.ALGOLIA_INDEX,
+  settings: {
+    searchableAttributes: [
+      "username",
+      "hashtags",
+      "details",
+      "category"
+    ]
+  }
+});
+
 // ---------------- MAIN UPLOAD HANDLER ----------------
 export default async function fvidUpload(req, res) {
   try {
@@ -165,6 +177,16 @@ export default async function fvidUpload(req, res) {
     }
 
     // ================================
+// GET USER DETAILS
+// ================================
+
+const { data: account } = await supabase
+  .from("fwebaccount")
+  .select("username, profile_pic")
+  .eq("id", data.user_id)
+  .single();
+
+    // ================================
 // 5. SAVE TO ALGOLIA
 // ================================
 
@@ -175,15 +197,28 @@ await algolia.saveObjects({
       objectID: String(data.id),
 
       type: "video",
+
       video_id: data.id,
       user_id: data.user_id,
+
+      username: account?.username || "",
+      profile_pic: account?.profile_pic || "",
+
       category: data.category,
       language: data.language,
-      hashtags: data.hashtags,
-      details: data.details,
+
+      hashtags: data.hashtags || [],
+      details: data.details || "",
+
       thumbnail_url: data.thumbnail_url,
       video_url: data.video_url,
+
       duration: data.duration,
+
+      // Engagement
+      likes_count: 0,
+      views_count: 0,
+
       created_at: data.created_at
     }
   ]
