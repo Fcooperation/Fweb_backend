@@ -135,13 +135,73 @@ hits.forEach(hit => {
 
   );
 
-  // Videos first, users after
-  return [
+  // ---------------- SORT VIDEOS ----------------
+const q = query.trim().toLowerCase();
 
-    ...hits,
+hits.sort((a, b) => {
 
-    ...users
+  const score = (video) => {
 
-  ];
+    let points = 0;
 
+    // Exact username match
+    if ((video.username || "").toLowerCase() === q) {
+      points += 1000;
+    }
+
+    // Exact hashtag match
+    if (
+      Array.isArray(video.hashtags) &&
+      video.hashtags.some(
+        tag => String(tag).toLowerCase() === q
+      )
+    ) {
+      points += 800;
+    }
+
+    // Partial username match
+    if (
+      (video.username || "")
+        .toLowerCase()
+        .includes(q)
+    ) {
+      points += 400;
+    }
+
+    // Partial hashtag match
+    if (
+      Array.isArray(video.hashtags) &&
+      video.hashtags.some(
+        tag => String(tag)
+          .toLowerCase()
+          .includes(q)
+      )
+    ) {
+      points += 300;
+    }
+
+    // Likes
+    points += Number(video.likes_count || 0);
+
+    return points;
+
+  };
+
+  const scoreA = score(a);
+  const scoreB = score(b);
+
+  if (scoreA !== scoreB) {
+    return scoreB - scoreA;
+  }
+
+  // If scores tie, newer first
+  return new Date(b.created_at) - new Date(a.created_at);
+
+});
+
+// Videos first, users after
+return [
+  ...hits,
+  ...users
+];
 }
