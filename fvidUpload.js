@@ -22,17 +22,6 @@ const algolia = algoliasearch(
   process.env.ALGOLIA_ADMIN_API_KEY
 );
 
-await algolia.setSettings({
-  indexName: process.env.ALGOLIA_INDEX,
-  indexSettings: {
-    searchableAttributes: [
-      "username",
-      "hashtags",
-      "details",
-      "category"
-    ]
-  }
-});
 
 // ---------------- MAIN UPLOAD HANDLER ----------------
 export default async function fvidUpload(req, res) {
