@@ -293,19 +293,25 @@ app.post("/fchat_send_message", async (req, res) => {
 });
 
 // FVIDS UPLOAD VIDEO ROUTE
-app.post("/fvids", upload.single("file"), async (req, res) => {
-
-  try {
-    const result = await fvidUpload(req, res);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+app.post(
+  "/fvids",
+  upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      const result = await fvidUpload(req, res);
+      return res.json(result);
+    } catch (err) {
+      console.error("❌ Upload route error:", err);
+      return res.status(500).json({
+        success: false,
+        error: err.message
+      });
+    }
   }
-
-});
+);
 
 // Fvids like endpoint
 app.post("/fvids/like", fvidLike);
