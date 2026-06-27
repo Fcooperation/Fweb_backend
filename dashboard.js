@@ -1,11 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
+import { v2 as cloudinary } from "cloudinary";
 import "dotenv/config";
+
 
 // Supabase setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ---------------- CLOUDINARY CONFIG ----------------
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 export default async function dashboard(req, res) {
   try {
@@ -131,34 +140,54 @@ export default async function dashboard(req, res) {
       }
 
       // --------------------
-      // UPDATE PROFILE PIC
-      // --------------------
-      if (action === "update_pic") {
-        const { profile_pic } = body;
+// UPDATE PROFILE PIC
+// --------------------
+if (action === "update_pic") {
 
-        if (!profile_pic) {
-          return res.status(400).json({ error: "No image provided" });
-        }
+  const { profile_pic } = body;
 
-        const { data, error } = await supabase
-          .from("fwebaccount")
-          .update({ profile_pic })
-          .eq("email", email)
-          .select()
-          .maybeSingle();
+  if (!profile_pic) {
+    return res.status(400).json({
+      error: "No image provided"
+    });
+  }
 
-        if (error || !data) {
-          return res.status(500).json({ error: "Failed to update profile picture" });
-        }
+  // Upload to Cloudinary
+  const upload = await cloudinary.uploader.upload(
+    profile_pic,
+    {
+      folder: "fweb/profile_pics",
+      public_id: account.user_id,
+      overwrite: true,
+      resource_type: "image"
+    }
+  );
 
-        return res.json({
-          success: true,
-          message: "Profile picture updated",
-          profile_pic: data.profile_pic,
-          status
-        });
-      }
+  const imageUrl = upload.secure_url;
 
+  const { data, error } = await supabase
+    .from("fwebaccount")
+    .update({
+      profile_pic: imageUrl
+    })
+    .eq("email", email)
+    .select()
+    .maybeSingle();
+
+  if (error || !data) {
+    return res.status(500).json({
+      error: "Failed to update profile picture"
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: "Profile picture updated",
+    profile_pic: imageUrl,
+    status
+  });
+
+}
       // --------------------
       // UPDATE DETAILS
       // --------------------
