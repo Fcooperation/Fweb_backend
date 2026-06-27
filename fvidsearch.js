@@ -18,6 +18,34 @@ export default async function fvidSearch(query) {
     }
   });
 
-  return hits;
+  // Create one unique user result per user
+  const usersMap = new Map();
 
-}
+  hits.forEach(hit => {
+
+    if (!hit.user_id) return;
+
+    if (!usersMap.has(hit.user_id)) {
+
+      usersMap.set(hit.user_id, {
+        type: "user",
+        user_id: hit.user_id,
+        username: hit.username,
+        profile_pic: hit.profile_pic || "",
+        followers: hit.followers || 0,
+        following: hit.following || 0
+      });
+
+    }
+
+  });
+
+  const users = [...usersMap.values()];
+
+  // Return videos first, then users
+  return [
+    ...hits,
+    ...users
+  ];
+
+        }
