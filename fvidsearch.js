@@ -14,45 +14,18 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-export default async function fvidSearch(
-  query,
-  page = 1,
-  limit = 20
-) {
+export default async function fvidSearch(query) {
 
-  if (!query) {
-
-  return {
-    results: [],
-    page,
-    limit,
-    hasMore: false
-  };
-
-  }
+  if (!query) return [];
 
   // Search more hits so user extraction is better
-  const {
-
-  hits,
-
-  nbHits
-
-} = await algolia.searchSingleIndex({
-
-  indexName: process.env.ALGOLIA_INDEX,
-
-  searchParams: {
-
-    query,
-
-    page: page - 1,
-
-    hitsPerPage: limit
-
-  }
-
-});
+  const { hits } = await algolia.searchSingleIndex({
+    indexName: process.env.ALGOLIA_INDEX,
+    searchParams: {
+      query,
+      hitsPerPage: 50
+    }
+  });
 
   // ---------------- UNIQUE USERS ----------------
   const usersMap = new Map();
@@ -227,23 +200,8 @@ hits.sort((a, b) => {
 });
 
 // Videos first, users after
-return {
-
-  results: [
-
-    ...hits,
-
-    ...(page === 1 ? users : [])
-
-  ],
-
-  page,
-
-  limit,
-
-  hasMore:
-
-    page * limit < nbHits
-
-};
-}
+return [
+  ...hits,
+  ...users
+];
+        }
