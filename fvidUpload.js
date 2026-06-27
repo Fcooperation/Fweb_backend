@@ -168,33 +168,25 @@ export default async function fvidUpload(req, res) {
 // 5. SAVE TO ALGOLIA
 // ================================
 
-await algolia.saveObject({
+await algolia.saveObjects({
   indexName: process.env.ALGOLIA_INDEX,
-  object: {
-    objectID: data.id,
+  objects: [
+    {
+      objectID: String(data.id),
 
-    type: "video",
-
-    video_id: data.id,
-
-    user_id: data.user_id,
-
-    category: data.category,
-
-    language: data.language,
-
-    hashtags: data.hashtags,
-
-    details: data.details,
-
-    thumbnail_url: data.thumbnail_url,
-
-    video_url: data.video_url,
-
-    duration: data.duration,
-
-    created_at: data.created_at
-  }
+      type: "video",
+      video_id: data.id,
+      user_id: data.user_id,
+      category: data.category,
+      language: data.language,
+      hashtags: data.hashtags,
+      details: data.details,
+      thumbnail_url: data.thumbnail_url,
+      video_url: data.video_url,
+      duration: data.duration,
+      created_at: data.created_at
+    }
+  ]
 });
 
     // ================================
