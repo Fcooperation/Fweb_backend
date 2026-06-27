@@ -18,7 +18,14 @@ const supabase = createClient(
 // ---------------- MAIN UPLOAD HANDLER ----------------
 export default async function fvidUpload(req, res) {
   try {
-    if (!req.file) {
+
+    // ================================
+    // 0. VALIDATE MULTER INPUT
+    // ================================
+    const videoFile = req.files?.file?.[0];
+    const thumbnailFile = req.files?.thumbnail?.[0];
+
+    if (!videoFile) {
       return res.json({
         success: false,
         error: "No video uploaded"
@@ -53,7 +60,7 @@ export default async function fvidUpload(req, res) {
             else resolve(result);
           }
         )
-        .end(req.file.buffer);
+        .end(videoFile.buffer);
     });
 
     console.log("CLOUDINARY VIDEO RESULT:", result);
@@ -73,14 +80,13 @@ export default async function fvidUpload(req, res) {
     // ================================
     // 2. UPLOAD THUMBNAIL TO CLOUDINARY
     // ================================
-
     let thumbnailUrl = null;
     let thumbnailPublicId = null;
 
-    if (req.files?.thumbnail?.[0]) {
-      // USER PROVIDED THUMBNAIL
+    if (thumbnailFile) {
+
       const thumbResult = await cloudinary.uploader.upload(
-        `data:image/jpeg;base64,${req.files.thumbnail[0].buffer.toString("base64")}`,
+        `data:image/jpeg;base64,${thumbnailFile.buffer.toString("base64")}`,
         {
           folder: "fvids/thumbnails",
           resource_type: "image"
@@ -89,24 +95,23 @@ export default async function fvidUpload(req, res) {
 
       thumbnailUrl = thumbResult.secure_url;
       thumbnailPublicId = thumbResult.public_id;
+
     } else {
-      // AUTO-GENERATE THUMBNAIL FROM VIDEO (fallback)
+
       const autoThumb = cloudinary.url(result.public_id, {
         resource_type: "video",
         format: "jpg",
         transformation: [
-          {
-            start_offset: 2
-          }
+          { start_offset: 2 }
         ]
       });
 
       thumbnailUrl = autoThumb;
-      thumbnailPublicId = result.public_id; // fallback reference
+      thumbnailPublicId = result.public_id;
     }
 
     // ================================
-    // 3. GET META DATA
+    // 3. META DATA
     // ================================
     const {
       category,
@@ -153,7 +158,7 @@ export default async function fvidUpload(req, res) {
     }
 
     // ================================
-    // 5. RETURN SUCCESS
+    // 5. RESPONSE
     // ================================
     return res.json({
       success: true,
@@ -176,4 +181,4 @@ export default async function fvidUpload(req, res) {
       error: err.message
     });
   }
-      }
+          }
