@@ -22,6 +22,7 @@ import fvidFollowing from "./fvidsfollowing.js";
 import followingFeed from "./following.js";
 import fvidsUserDetails
   from "./fvidsuserdetails.js";
+import fViews from "./fviews.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -536,6 +537,28 @@ app.get("/fvidsearch", async (req, res) => {
       "❌ Fvid search error:",
       err.message
     );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// FVIDS VIEW ROUTE
+app.post("/fviews", async (req, res) => {
+
+  try {
+
+    const result = await fViews(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error("❌ View error:", err.message);
 
     res.status(500).json({
       success: false,
