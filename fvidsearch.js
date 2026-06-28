@@ -27,6 +27,38 @@ export default async function fvidSearch(query) {
     }
   });
 
+  // ---------------- GET LATEST VIDEOS ----------------
+
+const publicIds = hits
+  .map(hit => hit.public_id)
+  .filter(Boolean);
+
+const {
+  data: latestVideos,
+  error: latestError
+} = await supabase
+  .from("fvids")
+  .select("*")
+  .in("public_id", publicIds);
+
+if (latestError) {
+  throw latestError;
+}
+
+// ---------------- CREATE LOOKUP ----------------
+
+const latestMap = new Map();
+
+(latestVideos || []).forEach(video => {
+
+  latestMap.set(
+    video.public_id,
+    video
+  );
+
+});
+
+
   // ---------------- UNIQUE USERS ----------------
   const usersMap = new Map();
 
@@ -95,6 +127,15 @@ export default async function fvidSearch(query) {
 // ---------------- UPDATE VIDEO HITS ----------------
 hits.forEach(hit => {
 
+  const latest =
+    latestMap.get(hit.public_id);
+
+  if (!latest) return;
+
+  // Merge latest data from Supabase
+  Object.assign(hit, latest);
+
+  // Keep username/profile pic fresh too
   if (String(hit.user_id) === userId) {
 
     hit.username =
