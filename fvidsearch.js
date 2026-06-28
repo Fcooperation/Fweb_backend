@@ -236,9 +236,49 @@ hits.sort((a, b) => {
 
 });
 
+  // ---------------- BUILD HASHTAGS ----------------
+
+const hashtagsMap = new Map();
+
+hits.forEach(video => {
+
+  if (!Array.isArray(video.hashtags)) return;
+
+  video.hashtags.forEach(tag => {
+
+    if (!tag) return;
+
+    const name = String(tag).trim().toLowerCase();
+
+    // Only hashtags related to the search
+    if (!name.includes(q)) return;
+
+    if (!hashtagsMap.has(name)) {
+
+      hashtagsMap.set(name, {
+        type: "hashtag",
+        tag: name,
+        count: 1
+      });
+
+    } else {
+
+      hashtagsMap.get(name).count++;
+
+    }
+
+  });
+
+});
+
+const hashtags =
+  [...hashtagsMap.values()]
+  .sort((a, b) => b.count - a.count);
+
 // Videos first, users after
 return [
   ...hits,
-  ...users
+  ...users,
+  ...hashtags
 ];
         }
