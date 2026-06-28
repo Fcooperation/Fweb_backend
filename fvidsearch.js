@@ -29,8 +29,8 @@ export default async function fvidSearch(query) {
 
   // ---------------- GET LATEST VIDEOS ----------------
 
-const publicIds = hits
-  .map(hit => hit.public_id)
+const videoIds = hits
+  .map(hit => hit.video_id)
   .filter(Boolean);
 
 const {
@@ -39,11 +39,7 @@ const {
 } = await supabase
   .from("fvids")
   .select("*")
-  .in("public_id", publicIds);
-
-if (latestError) {
-  throw latestError;
-}
+  .in("id", videoIds);
 
 // ---------------- CREATE LOOKUP ----------------
 
@@ -52,7 +48,7 @@ const latestMap = new Map();
 (latestVideos || []).forEach(video => {
 
   latestMap.set(
-    video.public_id,
+    String(video.id),
     video
   );
 
@@ -128,7 +124,7 @@ const latestMap = new Map();
 hits.forEach(hit => {
 
   const latest =
-    latestMap.get(hit.public_id);
+  latestMap.get(String(hit.video_id));
 
   if (!latest) return;
 
