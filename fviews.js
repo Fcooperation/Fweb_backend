@@ -93,39 +93,21 @@ export default async function fViews(data) {
     throw insertError;
   }
 
-  // ---------------- GET CURRENT COUNT ----------------
-
-  const {
-    data: currentVideo,
-    error: currentError
-  } = await supabase
-    .from("fvids")
-    .select("views_count")
-    .eq("public_id", publicId)
-    .single();
-
-  if (currentError) {
-    throw currentError;
+  // Update count
+const {
+  data: newCount,
+  error: rpcError
+} = await supabase.rpc(
+  "increment_video_views",
+  {
+    video_id: publicId
   }
+);
 
-  const newCount =
-    (currentVideo.views_count || 0) + 1;
-
-  // ---------------- UPDATE COUNT ----------------
-
-  const {
-    error: updateError
-  } = await supabase
-    .from("fvids")
-    .update({
-      views_count: newCount
-    })
-    .eq("public_id", publicId);
-
-  if (updateError) {
-    throw updateError;
-  }
-
+if (rpcError) {
+  throw rpcError;
+}
+  
   return {
     success: true,
     counted: true,
