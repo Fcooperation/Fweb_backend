@@ -6,38 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// ---------------- POST REPLY ----------------
-export async function postReply(req, res) {
-
-  try {
-
-    const {
-
-      commentId,
-
-      videoId,
-
-      userId,
-
-      replyText
-
-    } = req.body;
-
-    if (
-      !commentId ||
-      !videoId ||
-      !userId ||
-      !replyText
-    ) {
-
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields"
-      });
-
-    }
-
-    // ---------------- GET REPLIES ----------------
+// ---------------- GET REPLIES ----------------
 export async function getReplies(req, res) {
 
   try {
@@ -65,7 +34,6 @@ export async function getReplies(req, res) {
     const to =
       from + limit - 1;
 
-    // ---------------- GET REPLIES ----------------
     const {
 
       data: replies,
@@ -98,7 +66,6 @@ export async function getReplies(req, res) {
       )
     ];
 
-    // ---------------- GET USERS ----------------
     const {
 
       data: users,
@@ -164,9 +131,7 @@ export async function getReplies(req, res) {
 
     });
 
-  }
-
-  catch (err) {
+  } catch (err) {
 
     console.error(
       "GET REPLIES ERROR:",
@@ -185,6 +150,37 @@ export async function getReplies(req, res) {
 
 }
 
+// ---------------- POST REPLY ----------------
+export async function postReply(req, res) {
+
+  try {
+
+    const {
+
+      commentId,
+
+      videoId,
+
+      userId,
+
+      replyText
+
+    } = req.body;
+
+    if (
+      !commentId ||
+      !videoId ||
+      !userId ||
+      !replyText
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields"
+      });
+
+    }
+
     // ---------------- INSERT REPLY ----------------
 
     const {
@@ -197,15 +193,10 @@ export async function getReplies(req, res) {
       .from("comment_replies")
       .insert([
         {
-
           comment_id: commentId,
-
           video_id: videoId,
-
           user_id: userId,
-
           reply_text: replyText
-
         }
       ])
       .select()
@@ -235,7 +226,8 @@ export async function getReplies(req, res) {
 
       .update({
 
-        comment_replies_count: count || 0
+        comment_replies_count:
+          count || 0
 
       })
 
@@ -292,9 +284,7 @@ export async function getReplies(req, res) {
 
     });
 
-  }
-
-  catch (err) {
+  } catch (err) {
 
     console.error(
       "POST REPLY ERROR:",
