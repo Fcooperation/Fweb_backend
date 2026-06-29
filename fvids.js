@@ -86,7 +86,13 @@ if (userId) {
       ...video,
 
       user:
-        usersMap[String(video.user_id)] || null,
+  usersMap[String(video.user_id)] || null,
+
+username:
+  usersMap[String(video.user_id)]?.username || null,
+
+profile_pic:
+  usersMap[String(video.user_id)]?.profile_pic || null,
 
       likes: undefined,
 
@@ -181,36 +187,54 @@ const uid = userId
   ? String(userId)
   : null;
 
-  // ---------------- FETCH VIDEO OWNER ----------------
+// ---------------- FETCH USER + FOLLOW STATUS ----------------
 
-  let user = null;
+let user = null;
+let following = false;
 
-  if (data.user_id) {
+const promises = [];
 
-    const {
-      data: account
-    } = await supabase
+// Fetch owner
+if (data.user_id) {
+
+  promises.push(
+
+    supabase
       .from("fwebaccount")
       .select("id, username, profile_pic")
       .eq("id", data.user_id)
-      .single();
+      .single()
 
-    user = account || null;
-  }
+  );
 
-  let following = false;
+} else {
 
+  promises.push(Promise.resolve({ data: null }));
+
+}
+
+// Fetch follow status
 if (userId && data.user_id) {
 
-  const { data: followRow } =
-    await supabase
+  promises.push(
+
+    supabase
       .from("fvidsfollow")
       .select("id")
       .eq("follower_id", String(userId))
       .eq("following_id", String(data.user_id))
-      .maybeSingle();
+      .maybeSingle()
 
-  following = !!followRow;
+  );
+
+}
+
+const responses = await Promise.all(promises);
+
+user = responses[0]?.data || null;
+
+if (responses.length > 1) {
+  following = !!responses[1]?.data;
 }
 
   return {
@@ -218,6 +242,11 @@ if (userId && data.user_id) {
 
   user,
 
+  // Convenience fields
+  username: user?.username || null,
+  profile_pic: user?.profile_pic || null,
+
+  // Hide raw likes array
   likes: undefined,
 
   liked: uid
@@ -226,10 +255,12 @@ if (userId && data.user_id) {
 
   following,
 
-  likes_count:
-    likesArray.length,
+  likes_count: likesArray.length,
 
   comment_count:
-    data.comment_count || 0
+    data.comment_count || 0,
+
+  views_count:
+    data.views_count || 0
 };
   }
