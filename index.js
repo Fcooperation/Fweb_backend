@@ -25,6 +25,8 @@ import fvidsUserDetails
 import fViews from "./fviews.js";
 import fvidSearchSuggestions
   from "./fvidsearchsuggestions.js";
+import fvidsCommentLikes
+  from "./fvidsCommentlikes.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -589,6 +591,32 @@ app.get("/fvidsearch/suggestions", async (req, res) => {
 
     console.error(
       "❌ Fvid suggestion error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- COMMENT LIKES ----------------
+app.post("/fvids-like-comments", async (req, res) => {
+
+  try {
+
+    const result =
+      await fvidsCommentLikes(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Comment like error:",
       err.message
     );
 
