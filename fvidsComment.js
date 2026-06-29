@@ -133,32 +133,33 @@ export async function getComments(req, res) {
       )
     ];
 
-    const { data: users } =
-      await supabase
-        .from("fwebaccount")
-        .select("id, username")
-        .in("id", userIds);
+    const { data: users } = await supabase
+  .from("fwebaccount")
+  .select("id, username, profile_pic")
+  .in("id", userIds);
 
-    const userMap = {};
+const userMap = {};
 
-    (users || []).forEach(u => {
-      userMap[u.id] = u.username;
-    });
+(users || []).forEach(u => {
+  userMap[u.id] = {
+    username: u.username,
+    profile_pic: u.profile_pic || null
+  };
+});
+
 
     // ---------------- ENRICH COMMENTS ----------------
     const enriched = comments.map(c => ({
-      id: c.id,
-      text: c.comment_text,
-      userId: c.user_id,
-      username:
-        userMap[c.user_id] || "Unknown",
+  id: c.id,
+  text: c.comment_text,
+  userId: c.user_id,
+  username: userMap[c.user_id]?.username || "Unknown",
+  profile_pic: userMap[c.user_id]?.profile_pic || null,
+  creatorId,
+  createdAt: c.created_at,
+  videoCreatedAt
+}));
 
-      creatorId,
-
-      createdAt: c.created_at,
-
-      videoCreatedAt
-    }));
 
     return res.json({
       success: true,
