@@ -200,6 +200,9 @@ const userMap = {};
     comment_likes_count:
       likedUsers.length,
 
+    comment_replies_count:
+      c.comment_replies_count || 0,
+
     liked:
       likedUsers.includes(userId)
 
