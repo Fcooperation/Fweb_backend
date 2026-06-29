@@ -27,6 +27,7 @@ import fvidSearchSuggestions
   from "./fvidsearchsuggestions.js";
 import fvidsCommentLikes
   from "./fvidsCommentlikes.js";
+import { postReply } from "./fvidsreply.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -326,6 +327,9 @@ app.post("/fvids/like", fvidLike);
 app.post("/fvids/comment", postComment);
 
 app.get("/fvids/comments", getComments);
+
+// ---------------- COMMENT REPLIES ----------------
+app.post("/fvids-reply-comments", postReply);
 
       // ---------------- SINGLE VIDEO ROUTE ----------------
 app.get("/fvids/single", async (req, res) => {
