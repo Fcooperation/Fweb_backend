@@ -71,10 +71,11 @@ export async function getComments(req, res) {
   try {
 
     const {
-      videoId,
-      page = 1,
-      limit = 20
-    } = req.query;
+  videoId,
+  userId,
+  page = 1,
+  limit = 20
+} = req.query;
 
     if (!videoId) {
       return res.status(400).json({
@@ -116,6 +117,26 @@ export async function getComments(req, res) {
         })
         .range(start, end);
 
+    // ---------------- GET COMMENT LIKES ----------------
+const commentIds = comments.map(c => c.id);
+
+const { data: likes } = await supabase
+  .from("comment_likes")
+  .select("comment_id, user_id")
+  .in("comment_id", commentIds);
+
+const likesMap = {};
+
+(likes || []).forEach(like => {
+
+  if (!likesMap[like.comment_id]) {
+    likesMap[like.comment_id] = [];
+  }
+
+  likesMap[like.comment_id].push(like.user_id);
+
+});
+
     if (error) throw error;
 
     if (!comments || comments.length === 0) {
@@ -149,16 +170,42 @@ const userMap = {};
 
 
     // ---------------- ENRICH COMMENTS ----------------
-    const enriched = comments.map(c => ({
-  id: c.id,
-  text: c.comment_text,
-  userId: c.user_id,
-  username: userMap[c.user_id]?.username || "Unknown",
-  profile_pic: userMap[c.user_id]?.profile_pic || null,
-  creatorId,
-  createdAt: c.created_at,
-  videoCreatedAt
-}));
+    const enriched = comments.map(c => {
+
+  const likedUsers =
+    likesMap[c.id] || [];
+
+  return {
+
+    id: c.id,
+
+    text: c.comment_text,
+
+    userId: c.user_id,
+
+    username:
+      userMap[c.user_id]?.username ||
+      "Unknown",
+
+    profile_pic:
+      userMap[c.user_id]?.profile_pic ||
+      null,
+
+    creatorId,
+
+    createdAt: c.created_at,
+
+    videoCreatedAt,
+
+    comment_likes_count:
+      likedUsers.length,
+
+    liked:
+      likedUsers.includes(userId)
+
+  };
+
+});
 
 
     return res.json({
