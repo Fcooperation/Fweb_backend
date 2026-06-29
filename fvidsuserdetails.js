@@ -128,39 +128,52 @@ if (
 
   // ---------------- TOTAL LIKES ----------------
 
-  let totalLikes = 0;
+let totalLikes = 0;
 
-  const safeVideos =
-    (videos || []).map(video => {
+const safeVideos =
+  (videos || []).map(video => {
 
-      let likesArray = [];
+    let likesArray = [];
 
-      try {
+    try {
 
-        likesArray = video.likes
-          ? JSON.parse(video.likes)
-          : [];
+      likesArray = video.likes
+        ? JSON.parse(video.likes)
+        : [];
 
-      } catch {
+    } catch {
 
-        likesArray = [];
-      }
+      likesArray = [];
 
-      totalLikes +=
-        likesArray.length;
+    }
 
-      return {
-        ...video,
+    totalLikes += likesArray.length;
 
-        likes: undefined,
+    // Has the logged-in user liked this video?
+    const liked =
+      viewerId
+        ? likesArray.includes(String(viewerId))
+        : false;
 
-        likes_count:
-          likesArray.length,
+    return {
 
-        comment_count:
-          video.comment_count || 0
-      };
-    });
+      ...video,
+
+      likes: undefined,
+
+      liked,
+
+      following,
+
+      likes_count:
+        likesArray.length,
+
+      comment_count:
+        video.comment_count || 0
+
+    };
+
+  });
 
   // ---------------- RESPONSE ----------------
 
