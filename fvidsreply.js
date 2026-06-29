@@ -37,6 +37,154 @@ export async function postReply(req, res) {
 
     }
 
+    // ---------------- GET REPLIES ----------------
+export async function getReplies(req, res) {
+
+  try {
+
+    const commentId = req.query.commentId;
+
+    const page =
+      parseInt(req.query.page) || 1;
+
+    const limit =
+      parseInt(req.query.limit) || 5;
+
+    if (!commentId) {
+
+      return res.status(400).json({
+        success: false,
+        error: "Missing commentId"
+      });
+
+    }
+
+    const from =
+      (page - 1) * limit;
+
+    const to =
+      from + limit - 1;
+
+    // ---------------- GET REPLIES ----------------
+    const {
+
+      data: replies,
+
+      error,
+
+      count
+
+    } = await supabase
+
+      .from("comment_replies")
+
+      .select("*", {
+        count: "exact"
+      })
+
+      .eq("comment_id", commentId)
+
+      .order("created_at", {
+        ascending: false
+      })
+
+      .range(from, to);
+
+    if (error) throw error;
+
+    const userIds = [
+      ...new Set(
+        replies.map(r => r.user_id)
+      )
+    ];
+
+    // ---------------- GET USERS ----------------
+    const {
+
+      data: users,
+
+      error: usersError
+
+    } = await supabase
+
+      .from("fwebaccount")
+
+      .select("id, username, profile_pic")
+
+      .in("id", userIds);
+
+    if (usersError) throw usersError;
+
+    const userMap = {};
+
+    users.forEach(u => {
+
+      userMap[u.id] = u;
+
+    });
+
+    const formattedReplies =
+      replies.map(r => ({
+
+        id: r.id,
+
+        commentId: r.comment_id,
+
+        videoId: r.video_id,
+
+        userId: r.user_id,
+
+        username:
+          userMap[r.user_id]?.username ||
+          "Unknown",
+
+        profile_pic:
+          userMap[r.user_id]?.profile_pic ||
+          null,
+
+        text: r.reply_text,
+
+        createdAt: r.created_at,
+
+        reply_likes_count:
+          r.reply_likes_count || 0,
+
+        liked: false
+
+      }));
+
+    return res.status(200).json({
+
+      success: true,
+
+      replies: formattedReplies,
+
+      hasMore:
+        to + 1 < (count || 0)
+
+    });
+
+  }
+
+  catch (err) {
+
+    console.error(
+      "GET REPLIES ERROR:",
+      err.message
+    );
+
+    return res.status(500).json({
+
+      success: false,
+
+      error: err.message
+
+    });
+
+  }
+
+}
+
     // ---------------- INSERT REPLY ----------------
 
     const {
