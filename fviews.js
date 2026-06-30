@@ -26,17 +26,12 @@ export default async function fViews(data) {
     throw new Error("Missing viewer identity");
   }
 
-  // ---------------- CHECK LAST 24 HOURS ----------------
-
-  const since = new Date(
-    Date.now() - (24 * 60 * 60 * 1000)
-  ).toISOString();
+  // ---------------- CHECK IF VIEW ALREADY EXISTS ----------------
 
   let checkQuery = supabase
     .from("fvid_views")
     .select("id")
     .eq("video_public_id", publicId)
-    .gte("viewed_at", since)
     .limit(1);
 
   if (userId) {
@@ -74,7 +69,6 @@ export default async function fViews(data) {
       counted: false,
       views: video.views_count || 0
     };
-
   }
 
   // ---------------- INSERT VIEW ----------------
@@ -85,33 +79,34 @@ export default async function fViews(data) {
     .from("fvid_views")
     .insert({
       video_public_id: publicId,
-      user_id: userId,
-      device_id: deviceId
+      user_id: userId || null,
+      device_id: userId ? null : deviceId
     });
 
   if (insertError) {
     throw insertError;
   }
 
-  // Update count
-const {
-  data: newCount,
-  error: rpcError
-} = await supabase.rpc(
-  "increment_video_views",
-  {
-    video_id: publicId
-  }
-);
+  // ---------------- INCREMENT VIEW COUNT ----------------
 
-if (rpcError) {
-  throw rpcError;
-}
-  
+  const {
+    data: newCount,
+    error: rpcError
+  } = await supabase.rpc(
+    "increment_video_views",
+    {
+      video_id: publicId
+    }
+  );
+
+  if (rpcError) {
+    throw rpcError;
+  }
+
   return {
     success: true,
     counted: true,
     views: newCount
   };
 
-}
+    }
