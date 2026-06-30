@@ -28,6 +28,8 @@ import fvidSearchSuggestions
 import fvidsCommentLikes
   from "./fvidsCommentlikes.js";
 import { postReply, getReplies } from "./fvidsreply.js";
+import fvidsReplyLikes
+  from "./fvidsreplylikes.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -623,6 +625,32 @@ app.post("/fvids-like-comments", async (req, res) => {
 
     console.error(
       "❌ Comment like error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- REPLY LIKES ----------------
+app.post("/fvids-like-reply", async (req, res) => {
+
+  try {
+
+    const result =
+      await fvidsReplyLikes(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Reply like error:",
       err.message
     );
 
