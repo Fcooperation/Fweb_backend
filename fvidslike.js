@@ -55,15 +55,29 @@ export default async function fvidLike(req, res) {
         likes.push(uid);
 
         // Save notification/history
-        await supabase
-          .from("fvid_likes")
-          .upsert({
-            video_id: videoId,
-            owner_id: ownerId,
-            liker_id: uid
-          }, {
-            onConflict: "video_id,liker_id"
-          });
+        const {
+  error: likeInsertError
+} = await supabase
+  .from("fvid_likes")
+  .upsert(
+    {
+      video_id: videoId,
+      owner_id: ownerId,
+      liker_id: uid
+    },
+    {
+      onConflict: "video_id,liker_id"
+    }
+  );
+
+if (likeInsertError) {
+  console.error(
+    "fvid_likes insert failed:",
+    likeInsertError
+  );
+
+  throw likeInsertError;
+}
 
       }
 
@@ -75,12 +89,22 @@ export default async function fvidLike(req, res) {
 
       likes = likes.filter(id => id !== uid);
 
-      await supabase
-        .from("fvid_likes")
-        .delete()
-        .eq("video_id", videoId)
-        .eq("liker_id", uid);
+      const {
+  error: unlikeError
+} = await supabase
+  .from("fvid_likes")
+  .delete()
+  .eq("video_id", videoId)
+  .eq("liker_id", uid);
 
+if (unlikeError) {
+  console.error(
+    "fvid_likes delete failed:",
+    unlikeError
+  );
+
+  throw unlikeError;
+}
     }
 
     // ---------------- UPDATE VIDEO ----------------
