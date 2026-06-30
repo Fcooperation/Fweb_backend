@@ -81,10 +81,13 @@ if (userId && replyIds.length) {
 }
 
     const userIds = [
-      ...new Set(
-        replies.map(r => r.user_id)
-      )
-    ];
+  ...new Set([
+    ...replies.map(r => r.user_id),
+    ...replies
+      .filter(r => r.reply_user_id)
+      .map(r => r.reply_user_id)
+  ])
+];
 
     const {
 
@@ -113,31 +116,47 @@ if (userId && replyIds.length) {
     const formattedReplies =
       replies.map(r => ({
 
-        id: r.id,
+        
+  id: r.id,
 
-        commentId: r.comment_id,
+  commentId: r.comment_id,
 
-        videoId: r.video_id,
+  videoId: r.video_id,
 
-        userId: r.user_id,
+  userId: r.user_id,
 
-        username:
-          userMap[r.user_id]?.username ||
-          "Unknown",
+  username:
+    userMap[r.user_id]?.username ||
+    "Unknown",
 
-        profile_pic:
-          userMap[r.user_id]?.profile_pic ||
-          null,
+  profile_pic:
+    userMap[r.user_id]?.profile_pic ||
+    null,
 
-        text: r.reply_text,
+  text: r.reply_text,
 
-        createdAt: r.created_at,
+  createdAt: r.created_at,
 
-        reply_likes_count:
-          r.reply_likes_count || 0,
+  reply_likes_count:
+    r.reply_likes_count || 0,
 
-        liked: likedReplies.includes(r.id)
+  liked:
+    likedReplies.includes(r.id),
 
+  reply: r.reply,
+
+  replyId: r.reply_id,
+
+  replyingToUserId:
+    r.reply_user_id,
+
+  replyingToUsername:
+    r.reply_user_id
+      ? (
+          userMap[r.reply_user_id]
+            ?.username || "Unknown"
+        )
+      : null
       }));
 
     return res.status(200).json({
@@ -176,16 +195,13 @@ export async function postReply(req, res) {
   try {
 
     const {
-
-      commentId,
-
-      videoId,
-
-      userId,
-
-      replyText
-
-    } = req.body;
+  commentId,
+  videoId,
+  userId,
+  replyText,
+  reply = false,
+  replyId = null
+} = req.body;
 
     if (
       !commentId ||
@@ -201,6 +217,30 @@ export async function postReply(req, res) {
 
     }
 
+    let replyUserId = null;
+
+if (reply && replyId) {
+
+  const { data: targetReply, error } =
+  await supabase
+    .from("comment_replies")
+    .select("user_id, comment_id")
+    .eq("id", replyId)
+    .single();
+
+  if (error || !targetReply) {
+
+    return res.status(404).json({
+      success:false,
+      error:"Reply not found"
+    });
+
+  }
+
+  replyUserId = targetReply.user_id;
+
+}
+
     // ---------------- INSERT REPLY ----------------
 
     const {
@@ -212,13 +252,17 @@ export async function postReply(req, res) {
     } = await supabase
       .from("comment_replies")
       .insert([
-        {
-          comment_id: commentId,
-          video_id: videoId,
-          user_id: userId,
-          reply_text: replyText
-        }
-      ])
+{
+  comment_id: commentId,
+  video_id: videoId,
+  user_id: userId,
+  reply_text: replyText,
+
+  reply,
+  reply_id: replyId,
+  reply_user_id: replyUserId
+}
+])
       .select()
       .single();
 
@@ -274,30 +318,24 @@ export async function postReply(req, res) {
       success: true,
 
       reply: {
+  id: data.id,
+  commentId,
+  videoId,
+  userId,
 
-        id: data.id,
+  username: user?.username || "Unknown",
+  profile_pic: user?.profile_pic || null,
 
-        commentId,
+  text: data.reply_text,
+  createdAt: data.created_at,
 
-        videoId,
+  reply_likes_count: 0,
+  liked: false,
 
-        userId,
-
-        username:
-          user?.username || "Unknown",
-
-        profile_pic:
-          user?.profile_pic || null,
-
-        text: data.reply_text,
-
-        createdAt: data.created_at,
-
-        reply_likes_count: 0,
-
-        liked: false
-
-      },
+  reply,
+  replyId,
+  replyingToUserId: replyUserId
+},
 
       repliesCount:
         count || 1
