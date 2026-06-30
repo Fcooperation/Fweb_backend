@@ -19,47 +19,82 @@ export default async function fvidLike(req, res) {
       });
     }
 
-    // get current likes
-    const { data: video, error: fetchError } = await supabase
-      .from("fvids")
-      .select("likes")
-      .eq("id", videoId)
-      .single();
+    // ---------------- GET VIDEO ----------------
+
+    const { data: video, error: fetchError } =
+      await supabase
+        .from("fvids")
+        .select("likes,user_id")
+        .eq("id", videoId)
+        .single();
 
     if (fetchError) throw fetchError;
 
-    // ✅ PARSE TEXT → ARRAY
+    const ownerId = video.user_id;
+
+    // ---------------- PARSE LIKES ----------------
+
     let likes = [];
 
     try {
-      likes = video.likes ? JSON.parse(video.likes) : [];
-    } catch (e) {
+      likes = video.likes
+        ? JSON.parse(video.likes)
+        : [];
+    } catch {
       likes = [];
     }
 
     const uid = String(userId);
 
+    // ---------------- LIKE ----------------
+
     if (action === "like") {
 
       if (!likes.includes(uid)) {
+
         likes.push(uid);
+
+        // Save notification/history
+        await supabase
+          .from("fvid_likes")
+          .upsert({
+            video_id: videoId,
+            owner_id: ownerId,
+            liker_id: uid
+          }, {
+            onConflict: "video_id,liker_id"
+          });
+
       }
 
-    } else if (action === "unlike") {
+    }
+
+    // ---------------- UNLIKE ----------------
+
+    else if (action === "unlike") {
 
       likes = likes.filter(id => id !== uid);
+
+      await supabase
+        .from("fvid_likes")
+        .delete()
+        .eq("video_id", videoId)
+        .eq("liker_id", uid);
+
     }
+
+    // ---------------- UPDATE VIDEO ----------------
 
     const likesCount = likes.length;
 
-    // ✅ SAVE AS STRING (IMPORTANT)
-    const { error: updateError } = await supabase
-      .from("fvids")
-      .update({
-        likes: JSON.stringify(likes),
-        likes_count: likesCount
-      })
-      .eq("id", videoId);
+    const { error: updateError } =
+      await supabase
+        .from("fvids")
+        .update({
+          likes: JSON.stringify(likes),
+          likes_count: likesCount
+        })
+        .eq("id", videoId);
 
     if (updateError) throw updateError;
 
@@ -69,7 +104,9 @@ export default async function fvidLike(req, res) {
       likes_count: likesCount
     });
 
-  } catch (err) {
+  }
+
+  catch (err) {
 
     console.error(err);
 
@@ -77,5 +114,7 @@ export default async function fvidLike(req, res) {
       success: false,
       error: err.message
     });
+
   }
+
       }
