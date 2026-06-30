@@ -30,6 +30,7 @@ import fvidsCommentLikes
 import { postReply, getReplies } from "./fvidsreply.js";
 import fvidsReplyLikes
   from "./fvidsreplylikes.js";
+import fInbox from "./finbox.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -651,6 +652,31 @@ app.post("/fvids-like-reply", async (req, res) => {
 
     console.error(
       "❌ Reply like error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- INBOX ----------------
+app.post("/finbox", async (req, res) => {
+
+  try {
+
+    const result = await fInbox(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Inbox error:",
       err.message
     );
 
