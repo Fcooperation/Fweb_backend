@@ -123,8 +123,8 @@ profile_pic:
     )
   : false,
 
-      likes_count: video.likes_count || 0,,
-
+      likes_count: video.likes_count || 0,
+      
       comment_count:
         video.comment_count || 0
     };
