@@ -111,16 +111,24 @@ if (unlikeError) {
 
     const likesCount = likes.length;
 
-    const { error: updateError } =
-      await supabase
-        .from("fvids")
-        .update({
-          likes: JSON.stringify(likes),
-          likes_count: likesCount
-        })
-        .eq("id", videoId);
+    const {
+  data: updatedRows,
+  error: updateError
+} = await supabase
+  .from("fvids")
+  .update({
+    likes: JSON.stringify(likes),
+    likes_count: likesCount
+  })
+  .eq("id", videoId)
+  .select();
 
-    if (updateError) throw updateError;
+console.log("UPDATE RESULT:", updatedRows);
+
+if (updateError) {
+  console.error(updateError);
+  throw updateError;
+}
 
     return res.json({
       success: true,
