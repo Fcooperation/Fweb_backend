@@ -12,7 +12,7 @@ export async function getReplies(req, res) {
   try {
 
     const commentId = req.query.commentId;
-
+    const userId = req.query.userId || null;
     const page =
       parseInt(req.query.page) || 1;
 
@@ -59,6 +59,26 @@ export async function getReplies(req, res) {
       .range(from, to);
 
     if (error) throw error;
+
+    const replyIds = replies.map(r => r.id);
+
+let likedReplies = [];
+
+if (userId && replyIds.length) {
+
+  const {
+    data: likes,
+    error: likesError
+  } = await supabase
+    .from("fvid_reply_likes")
+    .select("reply_id")
+    .eq("user_id", userId)
+    .in("reply_id", replyIds);
+
+  if (likesError) throw likesError;
+
+  likedReplies = likes.map(l => l.reply_id);
+}
 
     const userIds = [
       ...new Set(
@@ -116,7 +136,7 @@ export async function getReplies(req, res) {
         reply_likes_count:
           r.reply_likes_count || 0,
 
-        liked: false
+        liked: likedReplies.includes(r.id)
 
       }));
 
