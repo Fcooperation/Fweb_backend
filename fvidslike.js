@@ -19,7 +19,48 @@ export default async function fvidLike(req, res) {
       });
     }
 
-    // get current likes
+    const uid = String(userId);
+
+    // ==========================================
+    // UPDATE fvid_likes TABLE FIRST
+    // ==========================================
+
+    if (action === "like") {
+
+      // Check if already liked
+      const { data: existingLike } = await supabase
+        .from("fvid_likes")
+        .select("id")
+        .eq("video_id", videoId)
+        .eq("user_id", uid)
+        .maybeSingle();
+
+      if (!existingLike) {
+        const { error } = await supabase
+          .from("fvid_likes")
+          .insert({
+            video_id: videoId,
+            user_id: uid
+          });
+
+        if (error) throw error;
+      }
+
+    } else if (action === "unlike") {
+
+      const { error } = await supabase
+        .from("fvid_likes")
+        .delete()
+        .eq("video_id", videoId)
+        .eq("user_id", uid);
+
+      if (error) throw error;
+    }
+
+    // ==========================================
+    // YOUR EXISTING likes COLUMN UPDATE
+    // ==========================================
+
     const { data: video, error: fetchError } = await supabase
       .from("fvids")
       .select("likes")
@@ -28,7 +69,6 @@ export default async function fvidLike(req, res) {
 
     if (fetchError) throw fetchError;
 
-    // ✅ PARSE TEXT → ARRAY
     let likes = [];
 
     try {
@@ -36,8 +76,6 @@ export default async function fvidLike(req, res) {
     } catch (e) {
       likes = [];
     }
-
-    const uid = String(userId);
 
     if (action === "like") {
 
@@ -48,11 +86,11 @@ export default async function fvidLike(req, res) {
     } else if (action === "unlike") {
 
       likes = likes.filter(id => id !== uid);
+
     }
 
     const likesCount = likes.length;
 
-    // ✅ SAVE AS STRING (IMPORTANT)
     const { error: updateError } = await supabase
       .from("fvids")
       .update({
@@ -77,5 +115,7 @@ export default async function fvidLike(req, res) {
       success: false,
       error: err.message
     });
+
   }
-}
+
+        }
