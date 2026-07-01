@@ -493,20 +493,15 @@ latestReplyReplies.map(reply => ({
   ...reply,
 
   username:
-    accountMap[reply.reply_user_id]?.username || null,
+    accountMap[reply.user_id]?.username || null,
 
   profile_pic:
-    accountMap[reply.reply_user_id]?.profile_pic || null,
+    accountMap[reply.user_id]?.profile_pic || null,
 
   video: {
-
     ...videoMap[reply.video_id],
-
-    liked:
-      likedSet.has(reply.video_id),
-
+    liked: likedSet.has(reply.video_id),
     following: true
-
   }
 
 }));
