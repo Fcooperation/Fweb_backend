@@ -174,10 +174,12 @@ if (myCommentIds.length > 0) {
     .select(`
       comment_id,
       user_id,
+      reply,
+      reply_user_id,
       video_id,
       reply_text,
       created_at
-    `)
+`)
     .in("comment_id", myCommentIds)
     .gt("created_at", lastCommentsSync)
     .neq("user_id", userId);
@@ -203,7 +205,7 @@ const {
     video_id,
     created_at
   `)
-  .eq("user_id", userId)
+  .eq("reply_user_id", userId)
   .eq("reply", true)
   .gt("created_at", lastCommentsSync);
 
@@ -353,18 +355,62 @@ const followsWithUsernames = latestFollows.map(follow => ({
   profile_pic: accountMap[follow.follower_id]?.profile_pic || null
 }));
 
+    const newestLikeActivity = [
+
+...(likes || []),
+
+...(commentLikes || [])
+
+]
+
+.sort(
+
+(a,b)=>
+
+new Date(b.created_at)-
+
+new Date(a.created_at)
+
+);
+    const newestCommentActivity = [
+
+...(comments || []),
+
+...(commentReplies || []),
+
+...(replyReplies || [])
+
+]
+
+.sort(
+
+(a,b)=>
+
+new Date(b.created_at)-
+
+new Date(a.created_at)
+
+);
+
+
     // ==========================
 // UPDATE LAST SYNC TIMES
 // ==========================
 
 const updateData = {};
 
-if (likes.length > 0) {
-  updateData.last_likes_sync = likes[0].created_at;
+if (newestLikeActivity.length > 0) {
+  updateData.last_likes_sync =
+
+newestLikeActivity[0].created_at;
 }
 
-if (comments.length > 0) {
-  updateData.last_comments_sync = comments[0].created_at;
+if (newestCommentActivity.length > 0) {
+
+updateData.last_comments_sync =
+
+newestCommentActivity[0].created_at;
+
 }
 
 if (follows.length > 0) {
@@ -409,7 +455,15 @@ latestCommentReplies.map(reply => ({
 
   type: "comment_reply",
 
-  ...reply,
+  reply: reply.reply,
+
+reply_to_user_id: reply.reply_user_id,
+
+reply_text: reply.reply_text,
+
+video_id: reply.video_id,
+
+created_at: reply.created_at,
 
   username:
     accountMap[reply.user_id]?.username || null,
@@ -456,19 +510,19 @@ latestReplyReplies.map(reply => ({
 
 }));
 
+    
     const mergedLikes = [
 
   ...likesWithUsernames,
 
   ...commentLikesWithUsers
 
-].sort(
-
-  (a, b) =>
-    new Date(b.created_at) -
-    new Date(a.created_at)
-
-);
+]
+.sort(
+(a,b)=>
+new Date(b.created_at)-new Date(a.created_at)
+)
+.slice(0,20);
     
 return {
   success: true,
@@ -488,7 +542,9 @@ mergedLikes,
 
 ...replyRepliesWithUsers
 
-].sort(
+]
+
+.sort(
 
 (a,b)=>
 
@@ -496,7 +552,9 @@ new Date(b.created_at)-
 
 new Date(a.created_at)
 
-),
+)
+
+.slice(0,20),
 
 total_comments:
 
