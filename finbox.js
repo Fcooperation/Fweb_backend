@@ -226,6 +226,9 @@ const likedSet = new Set(
 
 const latestComments = (comments || []).slice(0, 20);
 
+    const latestCommentLikes =
+  (commentLikes || []).slice(0, 20);
+
     const likedCommentIds = [
   ...new Set(
     latestCommentLikes.map(l => l.comment_id)
@@ -251,9 +254,6 @@ if (likedCommentIds.length > 0) {
 
 
 const latestFollows = (follows || []).slice(0, 20);
-
-const latestCommentLikes =
-  (commentLikes || []).slice(0, 20);
 
     const latestCommentReplies =
 (commentReplies || []).slice(0,20);
