@@ -209,8 +209,10 @@ const {
 `)
   .eq("reply_user_id", userId)
   .eq("reply", true)
+  .neq("user_id", userId);
   .gt("created_at", lastCommentsSync);
 
+    
 if (replyRepliesError) throw replyRepliesError;
     
     const { data: myLikes } = await supabase
