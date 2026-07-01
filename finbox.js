@@ -50,10 +50,9 @@ const lastFollowsSync =
     // 2. GET USER'S VIDEOS
     // ==========================
     const { data: videos, error: videosError } = await supabase
-      .from("fvids")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastLikesSync);
+  .from("fvids")
+  .select("id")
+  .eq("user_id", userId);
 
     if (videosError) throw videosError;
 
@@ -151,6 +150,38 @@ const followsWithUsernames = follows.map(follow => ({
   username: accountMap[follow.follower_id]?.username || null,
   profile_pic: accountMap[follow.follower_id]?.profile_pic || null
 }));
+
+    // ==========================
+// UPDATE LAST SYNC TIMES
+// ==========================
+
+const updateData = {};
+
+if (likes.length > 0) {
+  updateData.last_likes_sync = likes[0].created_at;
+}
+
+if (comments.length > 0) {
+  updateData.last_comments_sync = comments[0].created_at;
+}
+
+if (follows.length > 0) {
+  updateData.last_follows_sync = follows[0].created_at;
+}
+
+if (Object.keys(updateData).length > 0) {
+
+  updateData.user_id = userId;
+
+  const { error: syncError } = await supabase
+    .from("fvid_inbox_state")
+    .upsert(updateData, {
+      onConflict: "user_id"
+    });
+
+  if (syncError) throw syncError;
+
+}
     
 return {
   success: true,
