@@ -72,9 +72,11 @@ const lastFollowsSync =
     // 3. FIND LIKES FOR THOSE VIDEOS
     // ==========================
     const { data: likes, error: likesError } = await supabase
-      .from("fvid_likes")
-      .select("user_id, video_id")
-      .in("video_id", videoIds);
+  .from("fvid_likes")
+  .select("user_id, video_id")
+  .in("video_id", videoIds)
+  .gt("created_at", lastLikesSync)
+  .neq("user_id", userId);
 
     if (likesError) throw likesError;
 
@@ -92,7 +94,8 @@ if (followsError) throw followsError;
   .from("comments")
   .select("user_id, video_id, created_at")
   .in("video_id", videoIds)
-  .gt("created_at", lastCommentsSync);
+  .gt("created_at", lastCommentsSync)
+  .neq("user_id", userId);
 
 if (commentsError) throw commentsError;
     
