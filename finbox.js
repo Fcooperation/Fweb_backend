@@ -33,7 +33,7 @@ export default async function fInbox(body) {
     // ==========================
     const { data: state } = await supabase
   .from("fvid_inbox_state")
-  .select("last_likes_sync, last_follows_sync")
+  .select("last_likes_sync, last_comments_sync, last_follows_sync")
   .eq("user_id", userId)
   .single();
 
@@ -42,6 +42,9 @@ const lastLikesSync =
 
 const lastFollowsSync =
   state?.last_follows_sync || "1970-01-01T00:00:00Z";
+
+    const lastCommentsSync =
+  state?.last_comments_sync || "1970-01-01T00:00:00Z";
 
     // ==========================
     // 2. GET USER'S VIDEOS
@@ -84,11 +87,23 @@ const lastFollowsSync =
 
 if (followsError) throw followsError;
 
+    // Find Total Comment 
+    const { data: comments, error: commentsError } = await supabase
+  .from("comments")
+  .select("user_id, video_id, created_at")
+  .in("video_id", videoIds)
+  .gt("created_at", lastCommentsSync);
+
+if (commentsError) throw commentsError;
+    
 return {
   success: true,
   data: {
     total_likes: likes.length,
     likes,
+
+    total_comments: comments.length,
+    comments,
 
     total_follow: follows.length,
     follows
