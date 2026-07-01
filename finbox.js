@@ -73,7 +73,8 @@ const lastFollowsSync =
     // ==========================
     const { data: likes, error: likesError } = await supabase
   .from("fvid_likes")
-  .select("user_id, video_id")
+  .select("user_id, video_id, created_at")
+  .order("created_at", { ascending: false })
   .in("video_id", videoIds)
   .gt("created_at", lastLikesSync)
   .neq("user_id", userId);
@@ -84,6 +85,7 @@ const lastFollowsSync =
     const { data: follows, error: followsError } = await supabase
   .from("fvidsfollow")
   .select("follower_id, following_id, created_at")
+  .order("created_at", { ascending: false })
   .eq("following_id", userId)
   .gt("created_at", lastFollowsSync);
 
@@ -93,6 +95,7 @@ if (followsError) throw followsError;
     const { data: comments, error: commentsError } = await supabase
   .from("comments")
   .select("user_id, video_id, created_at")
+  .order("created_at", { ascending: false })
   .in("video_id", videoIds)
   .gt("created_at", lastCommentsSync)
   .neq("user_id", userId);
