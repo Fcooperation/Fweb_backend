@@ -51,7 +51,19 @@ const lastFollowsSync =
     // ==========================
     const { data: videos, error: videosError } = await supabase
   .from("fvids")
-  .select("id, public_id, thumbnail_url")
+  .select(`
+id,
+public_id,
+video_url,
+thumbnail_url,
+details,
+hashtags,
+user_id,
+created_at,
+likes_count,
+comment_count,
+share_count
+`)
   .eq("user_id", userId);
 
     if (videosError) throw videosError;
@@ -62,8 +74,8 @@ const lastFollowsSync =
   (videos || []).map(video => [
     video.id,
     {
-      public_id: video.public_id,
-      thumbnail_url: video.thumbnail_url
+      ...video,
+      following: true // because it's the owner's own video
     }
   ])
 );
@@ -111,6 +123,24 @@ if (followsError) throw followsError;
 
 if (commentsError) throw commentsError;
 
+    const { data: myLikes } = await supabase
+  .from("fvid_likes")
+  .select("video_id")
+  .eq("user_id", userId)
+  .in("video_id", videoIds);
+
+const likedSet = new Set(
+  (myLikes || []).map(l => l.video_id)
+);
+    const latestLikes =
+likes.slice(0, 20);
+
+const latestComments =
+comments.slice(0, 20);
+
+const latestFollows =
+follows.slice(0, 20);
+    
     // ==========================
 // GET USERNAMES
 // ==========================
@@ -118,9 +148,9 @@ if (commentsError) throw commentsError;
 // Collect unique user IDs
 const accountIds = [
   ...new Set([
-    ...likes.map(l => l.user_id),
-    ...comments.map(c => c.user_id),
-    ...follows.map(f => f.follower_id)
+    ...latestLikes.map(l => l.user_id),
+    ...latestComments.map(c => c.user_id),
+    ...latestFollows.map(f => f.follower_id)
   ])
 ];
 
@@ -141,25 +171,32 @@ if (accountIds.length > 0) {
 }
 
 // Add username and profile pic to likes
-const likesWithUsernames = likes.map(like => ({
+const likesWithUsernames =
+latestLikes.map(like => ({
   ...like,
   username: accountMap[like.user_id]?.username || null,
   profile_pic: accountMap[like.user_id]?.profile_pic || null,
-  public_id: videoMap[like.video_id]?.public_id || null,
-  thumbnail_url: videoMap[like.video_id]?.thumbnail_url || null
+  video: {
+  ...videoMap[like.video_id],
+  liked: likedSet.has(like.video_id),
+  following: true
+}
 }));
 
 // Add username and profile pics to comments
-const commentsWithUsernames = comments.map(comment => ({
+const commentsWithUsernames = latestComments.map(comment => ({
   ...comment,
   username: accountMap[comment.user_id]?.username || null,
   profile_pic: accountMap[comment.user_id]?.profile_pic || null,
-  public_id: videoMap[comment.video_id]?.public_id || null,
-  thumbnail_url: videoMap[comment.video_id]?.thumbnail_url || null
+  video: {
+  ...videoMap[comment.video_id],
+  liked: likedSet.has(comment.video_id),
+  following: true
+  }
 }));
 
 // Add username and profile pics to follows
-const followsWithUsernames = follows.map(follow => ({
+const followsWithUsernames = latestFollows.map(follow => ({
   ...follow,
   username: accountMap[follow.follower_id]?.username || null,
   profile_pic: accountMap[follow.follower_id]?.profile_pic || null
