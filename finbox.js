@@ -141,6 +141,74 @@ if (followsError) throw followsError;
 
 if (commentsError) throw commentsError;
 
+    // ==========================
+// FIND MY COMMENTS
+// ==========================
+
+const {
+  data: myComments,
+  error: myCommentsError
+} = await supabase
+  .from("comments")
+  .select("id")
+  .eq("user_id", userId);
+
+if (myCommentsError) throw myCommentsError;
+
+const myCommentIds =
+  (myComments || []).map(c => c.id);
+
+    // ==========================
+// REPLIES TO MY COMMENTS
+// ==========================
+
+let commentReplies = [];
+
+if (myCommentIds.length > 0) {
+
+  const {
+    data,
+    error
+  } = await supabase
+    .from("comment_replies")
+    .select(`
+      comment_id,
+      user_id,
+      video_id,
+      reply_text,
+      created_at
+    `)
+    .in("comment_id", myCommentIds)
+    .gt("created_at", lastCommentsSync)
+    .neq("user_id", userId);
+
+  if (error) throw error;
+
+  commentReplies = data || [];
+}
+
+    // ==========================
+// REPLIES TO MY REPLIES
+// ==========================
+
+const {
+  data: replyReplies,
+  error: replyRepliesError
+} = await supabase
+  .from("comment_replies")
+  .select(`
+    reply,
+    reply_user_id,
+    reply_text,
+    video_id,
+    created_at
+  `)
+  .eq("user_id", userId)
+  .eq("reply", true)
+  .gt("created_at", lastCommentsSync);
+
+if (replyRepliesError) throw replyRepliesError;
+    
     const { data: myLikes } = await supabase
   .from("fvid_likes")
   .select("video_id")
@@ -159,11 +227,25 @@ const latestFollows = (follows || []).slice(0, 20);
 const latestCommentLikes =
   (commentLikes || []).slice(0, 20);
 
+    const latestCommentReplies =
+(commentReplies || []).slice(0,20);
+
+const latestReplyReplies =
+(replyReplies || []).slice(0,20);
+    
     // Get video ids from comment likes
-const commentLikeVideoIds = [
-  ...new Set(
-    latestCommentLikes.map(l => l.video_id)
-  )
+const notificationVideoIds = [
+
+  ...new Set([
+
+    ...latestCommentLikes.map(l=>l.video_id),
+
+    ...latestCommentReplies.map(r=>r.video_id),
+
+    ...latestReplyReplies.map(r=>r.video_id)
+
+  ])
+
 ];
 
     const { data: commentLikeVideos, error: commentVideoError } =
@@ -182,7 +264,7 @@ likes_count,
 comment_count,
 share_count
 `)
-  .in("id", commentLikeVideoIds);
+  .in("id", notificationVideoIds);
 
 if (commentVideoError) throw commentVideoError;
 
@@ -194,12 +276,23 @@ if (commentVideoError) throw commentVideoError;
 
 // Collect unique user IDs
 const accountIds = [
-  ...new Set([
-    ...latestLikes.map(l => l.user_id),
-    ...latestComments.map(c => c.user_id),
-    ...latestFollows.map(f => f.follower_id),
-    ...latestCommentLikes.map(c => c.user_id)
-  ])
+
+...new Set([
+
+...latestLikes.map(l=>l.user_id),
+
+...latestComments.map(c=>c.user_id),
+
+...latestFollows.map(f=>f.follower_id),
+
+...latestCommentLikes.map(c=>c.user_id),
+
+...latestCommentReplies.map(r=>r.user_id),
+
+...latestReplyReplies.map(r=>r.reply_user_id)
+
+])
+
 ];
 
 let accountMap = {};
@@ -311,6 +404,58 @@ latestCommentLikes.map(like => ({
   }
 }));
 
+    const commentRepliesWithUsers =
+latestCommentReplies.map(reply => ({
+
+  type: "comment_reply",
+
+  ...reply,
+
+  username:
+    accountMap[reply.user_id]?.username || null,
+
+  profile_pic:
+    accountMap[reply.user_id]?.profile_pic || null,
+
+  video: {
+
+    ...videoMap[reply.video_id],
+
+    liked:
+      likedSet.has(reply.video_id),
+
+    following: true
+
+  }
+
+}));
+
+    const replyRepliesWithUsers =
+latestReplyReplies.map(reply => ({
+
+  type: "reply_reply",
+
+  ...reply,
+
+  username:
+    accountMap[reply.reply_user_id]?.username || null,
+
+  profile_pic:
+    accountMap[reply.reply_user_id]?.profile_pic || null,
+
+  video: {
+
+    ...videoMap[reply.video_id],
+
+    liked:
+      likedSet.has(reply.video_id),
+
+    following: true
+
+  }
+
+}));
+
     const mergedLikes = [
 
   ...likesWithUsernames,
@@ -333,8 +478,33 @@ mergedLikes.length,
     likes:
 mergedLikes,
 
-    total_comments: commentsWithUsernames.length,
-    comments: commentsWithUsernames,
+    comments:
+
+[
+
+...commentsWithUsernames,
+
+...commentRepliesWithUsers,
+
+...replyRepliesWithUsers
+
+].sort(
+
+(a,b)=>
+
+new Date(b.created_at)-
+
+new Date(a.created_at)
+
+),
+
+total_comments:
+
+commentsWithUsernames.length +
+
+commentRepliesWithUsers.length +
+
+replyRepliesWithUsers.length,
 
     total_follow: followsWithUsernames.length,
     follows: followsWithUsernames
