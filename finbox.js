@@ -89,26 +89,6 @@ share_count
       };
     }
 
-    const { data: commentLikeVideos, error: commentVideoError } =
-await supabase
-  .from("fvids")
-  .select(`
-id,
-public_id,
-video_url,
-thumbnail_url,
-details,
-hashtags,
-user_id,
-created_at,
-likes_count,
-comment_count,
-share_count
-`)
-  .in("id", commentLikeVideoIds);
-
-if (commentVideoError) throw commentVideoError;
-
     // ==========================
     // 3. FIND LIKES FOR THOSE VIDEOS
     // ==========================
@@ -185,6 +165,28 @@ const commentLikeVideoIds = [
     latestCommentLikes.map(l => l.video_id)
   )
 ];
+
+    const { data: commentLikeVideos, error: commentVideoError } =
+await supabase
+  .from("fvids")
+  .select(`
+id,
+public_id,
+video_url,
+thumbnail_url,
+details,
+hashtags,
+user_id,
+created_at,
+likes_count,
+comment_count,
+share_count
+`)
+  .in("id", commentLikeVideoIds);
+
+if (commentVideoError) throw commentVideoError;
+
+
     
     // ==========================
 // GET USERNAMES
