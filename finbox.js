@@ -33,79 +33,50 @@ export default async function fInbox(body) {
     // ==========================
     const { data: state } = await supabase
       .from("fvid_inbox_state")
-      .select("*")
+      .select("last_likes_sync")
       .eq("user_id", userId)
       .single();
 
-    const lastLikesSync = state?.last_likes_sync || "1970-01-01";
-    const lastCommentsSync = state?.last_comments_sync || "1970-01-01";
-    const lastFollowsSync = state?.last_follows_sync || "1970-01-01";
+    const lastLikesSync =
+      state?.last_likes_sync || "1970-01-01T00:00:00Z";
 
     // ==========================
-    // 2. NEW LIKES (ONLY USER RELATED)
+    // 2. GET USER'S VIDEOS
     // ==========================
-    const { data: fvidLikes } = await supabase
+    const { data: videos, error: videosError } = await supabase
+      .from("fvids")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastLikesSync);
+
+    if (videosError) throw videosError;
+
+    const videoIds = (videos || []).map(v => v.id);
+
+    if (videoIds.length === 0) {
+      return {
+        success: true,
+        data: {
+          total_likes: 0
+        }
+      };
+    }
+
+    // ==========================
+    // 3. FIND LIKES FOR THOSE VIDEOS
+    // ==========================
+    const { data: likes, error: likesError } = await supabase
       .from("fvid_likes")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastLikesSync);
+      .select("user_id, video_id")
+      .in("video_id", videoIds);
 
-    const { data: replyLikes } = await supabase
-      .from("fvid_reply_likes")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastLikesSync);
+    if (likesError) throw likesError;
 
-    const { data: commentLikes } = await supabase
-      .from("comment_likes")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastLikesSync);
-
-    const total_likes =
-      (fvidLikes?.length || 0) +
-      (replyLikes?.length || 0) +
-      (commentLikes?.length || 0);
-
-    // ==========================
-    // 3. NEW COMMENTS
-    // ==========================
-    const { data: comments } = await supabase
-      .from("comment")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastCommentsSync);
-
-    const { data: commentReplies } = await supabase
-      .from("comment_replies")
-      .select("id")
-      .eq("user_id", userId)
-      .gt("created_at", lastCommentsSync);
-
-    const total_comments =
-      (comments?.length || 0) +
-      (commentReplies?.length || 0);
-
-    // ==========================
-    // 4. NEW FOLLOWS
-    // ==========================
-    const { data: follows } = await supabase
-      .from("fvidsfollow")
-      .select("followerid")
-      .eq("user_id", userId)
-      .gt("created_at", lastFollowsSync);
-
-    const total_follow = follows?.length || 0;
-
-    // ==========================
-    // RESPONSE
-    // ==========================
     return {
       success: true,
       data: {
-        total_likes,
-        total_comments,
-        total_follow
+        total_likes: likes.length,
+        likes
       }
     };
 
@@ -118,4 +89,5 @@ export default async function fInbox(body) {
       error: err.message
     };
   }
+
 }
