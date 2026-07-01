@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-// Supabase setup
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -30,44 +29,71 @@ export default async function fInbox(body) {
   try {
 
     // ==========================
-    // LIKES (videos + replies + comment likes)
+    // 1. GET LAST SYNC STATE
     // ==========================
-    const [
-      fvidLikes,
-      replyLikes,
-      commentLikes
-    ] = await Promise.all([
-      supabase.from("fvid_likes").select("id"),
-      supabase.from("fvid_reply_likes").select("id"),
-      supabase.from("comment_likes").select("id")
-    ]);
+    const { data: state } = await supabase
+      .from("fvid_inbox_state")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    const lastLikesSync = state?.last_likes_sync || "1970-01-01";
+    const lastCommentsSync = state?.last_comments_sync || "1970-01-01";
+    const lastFollowsSync = state?.last_follows_sync || "1970-01-01";
+
+    // ==========================
+    // 2. NEW LIKES (ONLY USER RELATED)
+    // ==========================
+    const { data: fvidLikes } = await supabase
+      .from("fvid_likes")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastLikesSync);
+
+    const { data: replyLikes } = await supabase
+      .from("fvid_reply_likes")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastLikesSync);
+
+    const { data: commentLikes } = await supabase
+      .from("comment_likes")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastLikesSync);
 
     const total_likes =
-      (fvidLikes.data?.length || 0) +
-      (replyLikes.data?.length || 0) +
-      (commentLikes.data?.length || 0);
+      (fvidLikes?.length || 0) +
+      (replyLikes?.length || 0) +
+      (commentLikes?.length || 0);
 
     // ==========================
-    // COMMENTS (comments + replies)
+    // 3. NEW COMMENTS
     // ==========================
-    const [
-      comments,
-      commentReplies
-    ] = await Promise.all([
-      supabase.from("comment").select("id"),
-      supabase.from("comment_replies").select("id")
-    ]);
+    const { data: comments } = await supabase
+      .from("comment")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastCommentsSync);
+
+    const { data: commentReplies } = await supabase
+      .from("comment_replies")
+      .select("id")
+      .eq("user_id", userId)
+      .gt("created_at", lastCommentsSync);
 
     const total_comments =
-      (comments.data?.length || 0) +
-      (commentReplies.data?.length || 0);
+      (comments?.length || 0) +
+      (commentReplies?.length || 0);
 
     // ==========================
-    // FOLLOWS
+    // 4. NEW FOLLOWS
     // ==========================
     const { data: follows } = await supabase
       .from("fvidsfollow")
-      .select("followerid");
+      .select("followerid")
+      .eq("user_id", userId)
+      .gt("created_at", lastFollowsSync);
 
     const total_follow = follows?.length || 0;
 
