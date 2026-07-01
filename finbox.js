@@ -51,12 +51,22 @@ const lastFollowsSync =
     // ==========================
     const { data: videos, error: videosError } = await supabase
   .from("fvids")
-  .select("id")
+  .select("id, public_id, thumbnail_url")
   .eq("user_id", userId);
 
     if (videosError) throw videosError;
 
     const videoIds = (videos || []).map(v => v.id);
+
+    const videoMap = Object.fromEntries(
+  (videos || []).map(video => [
+    video.id,
+    {
+      public_id: video.public_id,
+      thumbnail_url: video.thumbnail_url
+    }
+  ])
+);
 
     if (videoIds.length === 0) {
       return {
@@ -134,14 +144,18 @@ if (accountIds.length > 0) {
 const likesWithUsernames = likes.map(like => ({
   ...like,
   username: accountMap[like.user_id]?.username || null,
-  profile_pic: accountMap[like.user_id]?.profile_pic || null
+  profile_pic: accountMap[like.user_id]?.profile_pic || null,
+  public_id: videoMap[like.video_id]?.public_id || null,
+  thumbnail_url: videoMap[like.video_id]?.thumbnail_url || null
 }));
 
 // Add username and profile pics to comments
 const commentsWithUsernames = comments.map(comment => ({
   ...comment,
   username: accountMap[comment.user_id]?.username || null,
-  profile_pic: accountMap[comment.user_id]?.profile_pic || null
+  profile_pic: accountMap[comment.user_id]?.profile_pic || null,
+  public_id: videoMap[comment.video_id]?.public_id || null,
+  thumbnail_url: videoMap[comment.video_id]?.thumbnail_url || null
 }));
 
 // Add username and profile pics to follows
