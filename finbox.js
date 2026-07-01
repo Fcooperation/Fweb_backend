@@ -103,7 +103,7 @@ if (followsError) throw followsError;
     // Find Total Comment 
     const { data: comments, error: commentsError } = await supabase
   .from("comments")
-  .select("user_id, video_id, comment, created_at")
+  .select("user_id, video_id, comments, created_at")
   .order("created_at", { ascending: false })
   .in("video_id", videoIds)
   .gt("created_at", lastCommentsSync)
