@@ -32,13 +32,16 @@ export default async function fInbox(body) {
     // 1. GET LAST SYNC STATE
     // ==========================
     const { data: state } = await supabase
-      .from("fvid_inbox_state")
-      .select("last_likes_sync")
-      .eq("user_id", userId)
-      .single();
+  .from("fvid_inbox_state")
+  .select("last_likes_sync, last_follows_sync")
+  .eq("user_id", userId)
+  .single();
 
-    const lastLikesSync =
-      state?.last_likes_sync || "1970-01-01T00:00:00Z";
+const lastLikesSync =
+  state?.last_likes_sync || "1970-01-01T00:00:00Z";
+
+const lastFollowsSync =
+  state?.last_follows_sync || "1970-01-01T00:00:00Z";
 
     // ==========================
     // 2. GET USER'S VIDEOS
@@ -72,13 +75,25 @@ export default async function fInbox(body) {
 
     if (likesError) throw likesError;
 
-    return {
-      success: true,
-      data: {
-        total_likes: likes.length,
-        likes
-      }
-    };
+    // Find followers
+    const { data: follows, error: followsError } = await supabase
+  .from("fvidsfollow")
+  .select("follower_id, following_id, created_at")
+  .eq("following_id", userId)
+  .gt("created_at", lastFollowsSync);
+
+if (followsError) throw followsError;
+
+return {
+  success: true,
+  data: {
+    total_likes: likes.length,
+    likes,
+
+    total_follow: follows.length,
+    follows
+  }
+};
 
   } catch (err) {
 
