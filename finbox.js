@@ -98,18 +98,65 @@ if (followsError) throw followsError;
   .neq("user_id", userId);
 
 if (commentsError) throw commentsError;
+
+    // ==========================
+// GET USERNAMES
+// ==========================
+
+// Collect unique user IDs
+const accountIds = [
+  ...new Set([
+    ...likes.map(l => l.user_id),
+    ...comments.map(c => c.user_id),
+    ...follows.map(f => f.follower_id)
+  ])
+];
+
+let accountMap = {};
+
+if (accountIds.length > 0) {
+
+  const { data: accounts, error: accountError } = await supabase
+    .from("fwebaccount")
+    .select("id, username")
+    .in("id", accountIds);
+
+  if (accountError) throw accountError;
+
+  accountMap = Object.fromEntries(
+    accounts.map(acc => [acc.id, acc])
+  );
+}
+
+// Add username to likes
+const likesWithUsernames = likes.map(like => ({
+  ...like,
+  username: accountMap[like.user_id]?.username || null
+}));
+
+// Add username to comments
+const commentsWithUsernames = comments.map(comment => ({
+  ...comment,
+  username: accountMap[comment.user_id]?.username || null
+}));
+
+// Add username to follows
+const followsWithUsernames = follows.map(follow => ({
+  ...follow,
+  username: accountMap[follow.follower_id]?.username || null
+}));
     
 return {
   success: true,
   data: {
-    total_likes: likes.length,
-    likes,
+    total_likes: likesWithUsernames.length,
+    likes: likesWithUsernames,
 
-    total_comments: comments.length,
-    comments,
+    total_comments: commentsWithUsernames.length,
+    comments: commentsWithUsernames,
 
-    total_follow: follows.length,
-    follows
+    total_follow: followsWithUsernames.length,
+    follows: followsWithUsernames
   }
 };
 
