@@ -102,6 +102,24 @@ share_count
 
     if (likesError) throw likesError;
 
+    // Comment likes 
+    const {
+  data: commentLikes,
+  error: commentLikesError
+} = await supabase
+  .from("comment_likes")
+  .select(`
+    user_id,
+    comment_user,
+    video_id,
+    created_at
+  `)
+  .eq("comment_user", userId)
+  .gt("created_at", lastLikesSync)
+  .neq("user_id", userId);
+
+if (commentLikesError) throw commentLikesError;
+    
     // Find followers
     const { data: follows, error: followsError } = await supabase
   .from("fvidsfollow")
@@ -132,14 +150,14 @@ if (commentsError) throw commentsError;
 const likedSet = new Set(
   (myLikes || []).map(l => l.video_id)
 );
-    const latestLikes =
-likes.slice(0, 20);
+    const latestLikes = (likes || []).slice(0, 20);
 
-const latestComments =
-comments.slice(0, 20);
+const latestComments = (comments || []).slice(0, 20);
 
-const latestFollows =
-follows.slice(0, 20);
+const latestFollows = (follows || []).slice(0, 20);
+
+const latestCommentLikes =
+  (commentLikes || []).slice(0, 20);
     
     // ==========================
 // GET USERNAMES
@@ -150,7 +168,8 @@ const accountIds = [
   ...new Set([
     ...latestLikes.map(l => l.user_id),
     ...latestComments.map(c => c.user_id),
-    ...latestFollows.map(f => f.follower_id)
+    ...latestFollows.map(f => f.follower_id),
+    ...latestCommentLikes.map(c => c.user_id)
   ])
 ];
 
@@ -173,6 +192,7 @@ if (accountIds.length > 0) {
 // Add username and profile pic to likes
 const likesWithUsernames =
 latestLikes.map(like => ({
+   type: "video_like",
   ...like,
   username: accountMap[like.user_id]?.username || null,
   profile_pic: accountMap[like.user_id]?.profile_pic || null,
@@ -233,12 +253,47 @@ if (Object.keys(updateData).length > 0) {
   if (syncError) throw syncError;
 
 }
+
+    const commentLikesWithUsers =
+latestCommentLikes.map(like => ({
+  ...like,
+
+  type: "comment_like",
+
+  username:
+    accountMap[like.user_id]?.username || null,
+
+  profile_pic:
+    accountMap[like.user_id]?.profile_pic || null,
+
+  video: {
+    ...videoMap[like.video_id],
+    liked: likedSet.has(like.video_id),
+    following: true
+  }
+}));
+
+    const mergedLikes = [
+
+  ...likesWithUsernames,
+
+  ...commentLikesWithUsers
+
+].sort(
+
+  (a, b) =>
+    new Date(b.created_at) -
+    new Date(a.created_at)
+
+);
     
 return {
   success: true,
   data: {
-    total_likes: likesWithUsernames.length,
-    likes: likesWithUsernames,
+    total_likes:
+mergedLikes.length,
+    likes:
+mergedLikes,
 
     total_comments: commentsWithUsernames.length,
     comments: commentsWithUsernames,
