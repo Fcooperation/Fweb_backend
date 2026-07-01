@@ -118,7 +118,7 @@ if (accountIds.length > 0) {
 
   const { data: accounts, error: accountError } = await supabase
     .from("fwebaccount")
-    .select("id, username")
+    .select("id, username, profile_pic")
     .in("id", accountIds);
 
   if (accountError) throw accountError;
@@ -128,22 +128,25 @@ if (accountIds.length > 0) {
   );
 }
 
-// Add username to likes
+// Add username and profile pic to likes
 const likesWithUsernames = likes.map(like => ({
   ...like,
-  username: accountMap[like.user_id]?.username || null
+  username: accountMap[like.user_id]?.username || null,
+  profile_pic: accountMap[like.user_id]?.profile_pic || null
 }));
 
-// Add username to comments
+// Add username and profile pics to comments
 const commentsWithUsernames = comments.map(comment => ({
   ...comment,
-  username: accountMap[comment.user_id]?.username || null
+  username: accountMap[comment.user_id]?.username || null,
+  profile_pic: accountMap[comment.user_id]?.profile_pic || null
 }));
 
-// Add username to follows
+// Add username and profile pics to follows
 const followsWithUsernames = follows.map(follow => ({
   ...follow,
-  username: accountMap[follow.follower_id]?.username || null
+  username: accountMap[follow.follower_id]?.username || null,
+  profile_pic: accountMap[follow.follower_id]?.profile_pic || null
 }));
     
 return {
