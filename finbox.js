@@ -108,12 +108,13 @@ share_count
   error: commentLikesError
 } = await supabase
   .from("comment_likes")
-  .select(`
+.select(`
     user_id,
     comment_user,
     video_id,
+    comment_id,
     created_at
-  `)
+`)
   .eq("comment_user", userId)
   .gt("created_at", lastLikesSync)
   .neq("user_id", userId);
@@ -224,6 +225,30 @@ const likedSet = new Set(
     const latestLikes = (likes || []).slice(0, 20);
 
 const latestComments = (comments || []).slice(0, 20);
+
+    const likedCommentIds = [
+  ...new Set(
+    latestCommentLikes.map(l => l.comment_id)
+  )
+];
+
+    let commentTextMap = {};
+
+if (likedCommentIds.length > 0) {
+
+  const { data: likedComments, error } = await supabase
+    .from("comments")
+    .select("id, comment_text")
+    .in("id", likedCommentIds);
+
+  if (error) throw error;
+
+  commentTextMap = Object.fromEntries(
+    likedComments.map(c => [c.id, c.comment_text])
+  );
+}
+
+
 
 const latestFollows = (follows || []).slice(0, 20);
 
@@ -351,9 +376,17 @@ const commentsWithUsernames = latestComments.map(comment => ({
 
 // Add username and profile pics to follows
 const followsWithUsernames = latestFollows.map(follow => ({
+
+  type: "follow",
+
   ...follow,
-  username: accountMap[follow.follower_id]?.username || null,
-  profile_pic: accountMap[follow.follower_id]?.profile_pic || null
+
+  username:
+    accountMap[follow.follower_id]?.username || null,
+
+  profile_pic:
+    accountMap[follow.follower_id]?.profile_pic || null
+
 }));
 
     const newestLikeActivity = [
@@ -438,6 +471,9 @@ latestCommentLikes.map(like => ({
 
   type: "comment_like",
 
+  comment_text:
+  commentTextMap[like.comment_id] || "",
+  
   username:
     accountMap[like.user_id]?.username || null,
 
