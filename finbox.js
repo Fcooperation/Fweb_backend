@@ -200,17 +200,17 @@ const {
 } = await supabase
   .from("comment_replies")
   .select(`
-  user_id,
-  reply,
-  reply_user_id,
-  reply_text,
-  video_id,
-  created_at
-`)
+    user_id,
+    reply,
+    reply_user_id,
+    reply_text,
+    video_id,
+    created_at
+  `)
   .eq("reply_user_id", userId)
   .eq("reply", true)
+  .gt("created_at", lastCommentsSync)
   .neq("user_id", userId);
-  .gt("created_at", lastCommentsSync);
 
     
 if (replyRepliesError) throw replyRepliesError;
