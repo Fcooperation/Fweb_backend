@@ -199,12 +199,13 @@ const {
 } = await supabase
   .from("comment_replies")
   .select(`
-    reply,
-    reply_user_id,
-    reply_text,
-    video_id,
-    created_at
-  `)
+  user_id,
+  reply,
+  reply_user_id,
+  reply_text,
+  video_id,
+  created_at
+`)
   .eq("reply_user_id", userId)
   .eq("reply", true)
   .gt("created_at", lastCommentsSync);
@@ -291,7 +292,7 @@ const accountIds = [
 
 ...latestCommentReplies.map(r=>r.user_id),
 
-...latestReplyReplies.map(r=>r.reply_user_id)
+...latestReplyReplies.map(r=>r.user_id)
 
 ])
 
@@ -466,10 +467,10 @@ video_id: reply.video_id,
 created_at: reply.created_at,
 
   username:
-    accountMap[reply.user_id]?.username || null,
+  accountMap[reply.user_id]?.username || null,
 
-  profile_pic:
-    accountMap[reply.user_id]?.profile_pic || null,
+profile_pic:
+  accountMap[reply.user_id]?.profile_pic || null,
 
   video: {
 
