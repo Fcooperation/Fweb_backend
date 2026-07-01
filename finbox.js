@@ -89,6 +89,26 @@ share_count
       };
     }
 
+    const { data: commentLikeVideos, error: commentVideoError } =
+await supabase
+  .from("fvids")
+  .select(`
+id,
+public_id,
+video_url,
+thumbnail_url,
+details,
+hashtags,
+user_id,
+created_at,
+likes_count,
+comment_count,
+share_count
+`)
+  .in("id", commentLikeVideoIds);
+
+if (commentVideoError) throw commentVideoError;
+
     // ==========================
     // 3. FIND LIKES FOR THOSE VIDEOS
     // ==========================
@@ -158,6 +178,13 @@ const latestFollows = (follows || []).slice(0, 20);
 
 const latestCommentLikes =
   (commentLikes || []).slice(0, 20);
+
+    // Get video ids from comment likes
+const commentLikeVideoIds = [
+  ...new Set(
+    latestCommentLikes.map(l => l.video_id)
+  )
+];
     
     // ==========================
 // GET USERNAMES
@@ -174,6 +201,15 @@ const accountIds = [
 ];
 
 let accountMap = {};
+
+    (commentLikeVideos || []).forEach(video => {
+
+  videoMap[video.id] = {
+    ...video,
+    following: true
+  };
+
+});
 
 if (accountIds.length > 0) {
 
