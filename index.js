@@ -31,6 +31,7 @@ import { postReply, getReplies } from "./fvidsreply.js";
 import fvidsReplyLikes
   from "./fvidsreplylikes.js";
 import fInbox from "./finbox.js";
+import fvidCategory from "./fvidscategory.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -103,6 +104,7 @@ app.get("/fvids", async (req, res) => {
   try {
 
     const userId = req.query.userId || null;
+    const category = req.query.category || null;
 
     // ---------------- PAGINATION ----------------
     const page =
@@ -113,6 +115,7 @@ app.get("/fvids", async (req, res) => {
 
     const videos = await fetchVideos(
       userId,
+      category,
       page,
       limit
     );
@@ -130,6 +133,7 @@ app.get("/fvids", async (req, res) => {
       success: false,
       error: err.message
     });
+
   }
 });
 
@@ -677,6 +681,31 @@ app.post("/finbox", async (req, res) => {
 
     console.error(
       "❌ Inbox error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+// ---------------- CATEGORY ----------------
+app.post("/fvidscategory", async (req, res) => {
+
+  try {
+
+    const result = await fvidCategory(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Category error:",
       err.message
     );
 

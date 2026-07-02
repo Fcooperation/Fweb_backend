@@ -7,7 +7,35 @@ const supabase = createClient(
 );
 
 // ---------------- FETCH FEED VIDEOS ----------------
-export async function fetchVideos(userId = null, page = 1, limit = 20) {
+export async function fetchVideos(
+  userId = null,
+  category = null,
+  page = 1,
+  limit = 20
+) {
+
+// ---------------- FIRST TIME CATEGORY CHECK ----------------
+
+if (userId) {
+
+  const { data: categoryRows, error: categoryError } =
+    await supabase
+      .from("user_category_scores")
+      .select("id")
+      .eq("user_id", userId)
+      .limit(1);
+
+  if (categoryError) {
+    throw new Error(categoryError.message);
+  }
+
+  if (!categoryRows || categoryRows.length === 0) {
+    return {
+      category: false
+    };
+  }
+
+}
 
   const start = (page - 1) * limit;
   const end = start + limit - 1;
@@ -66,17 +94,32 @@ if (userId) {
   );
 }
 
+  let likedMap = {};
+
+if (userId) {
+
+  const videoIds =
+    data.map(v => v.id);
+
+  const { data: likes } =
+    await supabase
+      .from("fvid_likes")
+      .select("video_id")
+      .eq("liker_id", String(userId))
+      .in("video_id", videoIds);
+
+  likedMap = Object.fromEntries(
+    (likes || []).map(row => [
+      String(row.video_id),
+      true
+    ])
+  );
+
+}
+
   const safeData = data.map(video => {
 
-    let likesArray = [];
-
-    try {
-      likesArray = video.likes
-        ? JSON.parse(video.likes)
-        : [];
-    } catch {
-      likesArray = [];
-    }
+    
 
     const uid = userId
       ? String(userId)
@@ -97,8 +140,8 @@ profile_pic:
       likes: undefined,
 
       liked: uid
-        ? likesArray.includes(uid)
-        : false,
+  ? Boolean(likedMap[String(video.id)])
+  : false,
 
       following: uid
   ? Boolean(
@@ -108,8 +151,8 @@ profile_pic:
     )
   : false,
 
-      likes_count: likesArray.length,
-
+      likes_count: video.likes_count || 0,
+      
       comment_count:
         video.comment_count || 0
     };
@@ -173,14 +216,20 @@ if (error) {
   throw new Error(error.message);
 }
 
-  let likesArray = [];
+  let liked = false;
 
-try {
-  likesArray = data.likes
-    ? JSON.parse(data.likes)
-    : [];
-} catch {
-  likesArray = [];
+if (userId) {
+
+  const { data: like } =
+    await supabase
+      .from("fvid_likes")
+      .select("id")
+      .eq("video_id", data.id)
+      .eq("liker_id", String(userId))
+      .maybeSingle();
+
+  liked = !!like;
+
 }
 
 const uid = userId
@@ -249,13 +298,11 @@ if (responses.length > 1) {
   // Hide raw likes array
   likes: undefined,
 
-  liked: uid
-    ? likesArray.includes(uid)
-    : false,
+  liked,
 
   following,
-
-  likes_count: likesArray.length,
+    
+likes_count: data.likes_count || 0,
 
   comment_count:
     data.comment_count || 0,
@@ -263,4 +310,4 @@ if (responses.length > 1) {
   views_count:
     data.views_count || 0
 };
-        }
+  }
