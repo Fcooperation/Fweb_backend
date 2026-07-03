@@ -30,7 +30,6 @@ export default async function fvidLike(req, res) {
 
     if (fetchError) throw fetchError;
 
-    const ownerId = video.user_id;
     const category = video.category;
 
     // ---------------- PARSE LIKES ----------------
@@ -60,10 +59,9 @@ export default async function fvidLike(req, res) {
   error: likeInsertError
 } = await supabase
   .from("fvid_likes")
-  .upsert(
+ .upsert(
   {
     video_id: videoId,
-    owner_id: ownerId,
     user_id: uid
   },
   {
