@@ -26,20 +26,34 @@ export default async function fvidsExplore(query) {
   if (section === "trending") {
 
     const { data, error } =
-      await supabase
-        .from("fvids")
-        .select("*")
-        .order("views_count", {
-          ascending: false
-        })
-        .order("likes_count", {
-          ascending: false
-        })
-        .range(from, to);
+  await supabase
+    .from("fvids")
+    .select("*")
+    .limit(200);
 
     if (error) {
       throw error;
     }
+
+    data.sort((a, b) => {
+
+  const scoreA =
+      (a.views_count || 0)
+    + (a.likes_count || 0) * 5
+    + (a.comment_count || 0) * 8
+    + (a.share_count || 0) * 10;
+
+  const scoreB =
+      (b.views_count || 0)
+    + (b.likes_count || 0) * 5
+    + (b.comment_count || 0) * 8
+    + (b.share_count || 0) * 10;
+
+  return scoreB - scoreA;
+
+});
+
+
 
     // ---------- Fetch uploaders ----------
 
@@ -73,8 +87,11 @@ export default async function fvidsExplore(query) {
 
     }
 
-    const items =
-      (data || []).map(video => ({
+    const pageVideos =
+  data.slice(from, to + 1);
+
+const items =
+  pageVideos.map(video => ({
 
         ...video,
 
