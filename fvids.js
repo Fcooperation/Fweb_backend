@@ -397,6 +397,7 @@ const start = (page - 1) * limit;
 const end = start + limit;
 
 return safeData.slice(start, end);
+  }
 
 // ---------------- GET SINGLE VIDEO ----------------
 
