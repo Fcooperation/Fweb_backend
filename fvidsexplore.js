@@ -259,3 +259,132 @@ return{
   };
 
 }
+
+// ---------------- CREATORS ----------------
+
+if(section === "creators"){
+
+const { data: users, error } =
+await supabase
+.from("fwebaccount")
+.select(`
+id,
+username,
+profile_pic,
+followers_count,
+following_count
+`);
+
+if(error){
+    throw error;
+}
+
+const { data: videos } =
+await supabase
+.from("fvids")
+.select(`
+user_id,
+views_count,
+likes_count
+`);
+
+  const stats = {};
+
+for(const video of videos || []){
+
+    if(!stats[video.user_id]){
+
+        stats[video.user_id] = {
+
+            views:0,
+
+            likes:0,
+
+            uploads:0
+
+        };
+
+    }
+
+    stats[video.user_id].views +=
+        video.views_count || 0;
+
+    stats[video.user_id].likes +=
+        video.likes_count || 0;
+
+    stats[video.user_id].uploads++;
+
+}
+  
+  const creators =
+(users || []).map(user=>{
+
+    const creatorStats =
+        stats[user.id] || {
+
+            views:0,
+
+            likes:0,
+
+            uploads:0
+
+        };
+
+    const score =
+
+        (user.followers_count || 0) * 5
+
+        +
+
+        creatorStats.views / 100
+
+        +
+
+        creatorStats.likes / 20
+
+        +
+
+        creatorStats.uploads * 2;
+
+    return{
+
+        id:user.id,
+
+        username:user.username,
+
+        profile_pic:user.profile_pic,
+
+        followers:
+            user.followers_count || 0,
+
+        following:
+            user.following_count || 0,
+
+        videos:
+            creatorStats.uploads,
+
+        score
+
+    };
+
+});
+
+  creators.sort((a,b)=>
+
+    b.score-a.score
+
+);
+
+  const items =
+creators.slice(from,to+1);
+
+  return{
+
+    items,
+
+    hasMore:
+        to + 1 < creators.length
+
+};
+
+}
