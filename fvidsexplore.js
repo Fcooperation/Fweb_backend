@@ -93,16 +93,16 @@ console.log("Section:", section);
 if (userId) {
 
     const { data: likes } =
-        await supabase
-        .from("fvid_likes")
-        .select("public_id")
-        .eq("user_id", userId);
+    await supabase
+    .from("fvid_likes")
+    .select("video_id")
+    .eq("user_id", userId);
 
-    likedVideos = new Set(
-        (likes || []).map(
-            like => like.public_id
-        )
-    );
+likedVideos = new Set(
+    (likes || []).map(
+        like => String(like.video_id)
+    )
+);
 
 }
 
@@ -148,7 +148,8 @@ pageVideos.map(video => ({
         ]?.profile_pic || null,
 
     liked:
-        likedVideos.has(video.public_id),
+    likedVideos.has(
+        String(video.id)
 
     following:
         followingUsers.has(
