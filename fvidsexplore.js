@@ -147,17 +147,11 @@ pageVideos.map(video => ({
             String(video.user_id)
         ]?.profile_pic || null,
 
-    liked:
-    likedVideos.has(
-        String(video.id)
-      )
+    liked: likedVideos.has(String(video.id)),
 
-    following:
-        followingUsers.has(
-            String(video.user_id)
-        ),
+following: followingUsers.has(String(video.user_id)),
 
-    likes: undefined
+likes: undefined
 
 }));
 
