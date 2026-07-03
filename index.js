@@ -695,19 +695,13 @@ app.post("/finbox", async (req, res) => {
 
 // ---------------- CATEGORY ----------------
 app.post("/fvidscategory", async (req, res) => {
-
   try {
 
-    const result = await fvidCategory(req.body);
-
-    res.json(result);
+    await fvidCategory(req, res);
 
   } catch (err) {
 
-    console.error(
-      "❌ Category error:",
-      err.message
-    );
+    console.error("❌ Category error:", err);
 
     res.status(500).json({
       success: false,
@@ -715,7 +709,6 @@ app.post("/fvidscategory", async (req, res) => {
     });
 
   }
-
 });
 
 // ------------------------------
