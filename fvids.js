@@ -37,15 +37,99 @@ if (userId) {
 
 }
 
-  const start = (page - 1) * limit;
-  const end = start + limit - 1;
+  let data = [];
 
-  const { data, error } = await supabase
+  // ---------------- GET VIEWED VIDEOS ----------------
+
+let viewedIds = [];
+
+if (userId) {
+
+  const { data: viewed } = await supabase
+    .from("fvid_views")
+    .select("video_public_id")
+    .eq("user_id", String(userId));
+
+  viewedIds = (viewed || []).map(v => v.video_public_id);
+
+}
+
+  // ---------------- GET CATEGORY SCORES ----------------
+
+let categoryScores = [];
+
+if (userId) {
+
+  const { data: scores, error } = await supabase
+    .from("user_category_scores")
+    .select("category, score")
+    .eq("user_id", String(userId))
+    .order("score", {
+      ascending: false
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  categoryScores = scores || [];
+
+}
+  // ---------------- DUPLICATE TRACKER ----------------
+
+const usedVideos = new Set();
+
+  // ---------------- CATEGORY VIDEOS ----------------
+
+for (const row of categoryScores) {
+
+  if (data.length >= 16) break;
+
+  const { data: vids, error } = await supabase
     .from("fvids")
     .select("*")
-    .range(start, end);
+    .eq("category", row.category)
+    .order("created_at", {
+      ascending: false
+    })
+    .limit(30);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!vids) continue;
+
+  const unviewed = [];
+  const viewed = [];
+
+  for (const video of vids) {
+
+    if (usedVideos.has(video.public_id)) {
+      continue;
+    }
+
+    if (viewedIds.includes(video.public_id)) {
+      viewed.push(video);
+    } else {
+      unviewed.push(video);
+    }
+
+  }
+
+  const ordered = [...unviewed, ...viewed];
+
+  for (const video of ordered) {
+
+    if (data.length >= 16) break;
+
+    usedVideos.add(video.public_id);
+
+    data.push(video);
+
+  }
+
+}
 
   // ---------------- FETCH MATCHING USERS ----------------
 
