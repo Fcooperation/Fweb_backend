@@ -7,12 +7,12 @@ const supabase = createClient(
 );
 
 export default async function fvidsExplore(query) {
-
+console.log("Full query:", query);
   const {
     section,
     page = 1
   } = query;
-
+console.log("Section:", section);
   const limit = 20;
 
   const from =
@@ -124,6 +124,63 @@ const items =
     };
 
   }
+
+
+// ---------------- CATEGORIES ----------------
+
+if(section === "categories"){
+
+const { data, error } =
+await supabase
+.from("fvids")
+.select("category");
+
+if(error){
+    throw error;
+}
+
+const counts = {};
+
+for(const video of data){
+
+    const category =
+        video.category || "Other";
+
+    counts[category] =
+        (counts[category] || 0) + 1;
+
+}
+
+const categories =
+Object.entries(counts)
+
+.map(([name,count])=>({
+
+    name,
+
+    count
+
+}))
+
+.sort((a,b)=>
+
+    b.count-a.count
+
+);
+
+const items =
+categories.slice(from,to+1);
+
+return{
+
+    items,
+
+    hasMore:
+        to + 1 < categories.length
+
+};
+
+}
 
   // ---------------- UNKNOWN SECTION ----------------
 
