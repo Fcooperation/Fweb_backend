@@ -248,18 +248,6 @@ return{
 
 }
 
-  // ---------------- UNKNOWN SECTION ----------------
-
-  return {
-
-    items: [],
-
-    hasMore: false
-
-  };
-
-}
-
 // ---------------- CREATORS ----------------
 
 if(section === "creators"){
@@ -386,5 +374,17 @@ creators.slice(from,to+1);
         to + 1 < creators.length
 
 };
+
+}
+
+    // ---------------- UNKNOWN SECTION ----------------
+
+  return {
+
+    items: [],
+
+    hasMore: false
+
+  };
 
 }
