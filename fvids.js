@@ -131,6 +131,157 @@ for (const row of categoryScores) {
 
 }
 
+  // ---------------- FOLLOWING VIDEOS ----------------
+
+if (userId && data.length < 20) {
+
+  const { data: follows } = await supabase
+    .from("fvidsfollow")
+    .select("following_id")
+    .eq("follower_id", String(userId));
+
+  const followingIds =
+    (follows || []).map(f => f.following_id);
+
+  if (followingIds.length) {
+
+    const { data: followVideos, error } =
+      await supabase
+        .from("fvids")
+        .select("*")
+        .in("user_id", followingIds)
+        .order("created_at", {
+          ascending: false
+        })
+        .limit(100);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const unviewed = [];
+    const viewed = [];
+
+    for (const video of followVideos || []) {
+
+      if (usedVideos.has(video.public_id)) {
+        continue;
+      }
+
+      if (viewedIds.includes(video.public_id)) {
+        viewed.push(video);
+      } else {
+        unviewed.push(video);
+      }
+
+    }
+
+    const ordered = [
+      ...unviewed,
+      ...viewed
+    ];
+
+    let added = 0;
+
+    for (const video of ordered) {
+
+      if (added >= 4) {
+        break;
+      }
+
+      if (data.length >= 20) {
+        break;
+      }
+
+      usedVideos.add(video.public_id);
+
+      data.push(video);
+
+      added++;
+
+    }
+
+  }
+
+}
+
+  // ---------------- EXPLORE VIDEOS ----------------
+
+if (data.length < 20) {
+
+  const { data: explore, error } =
+    await supabase
+      .from("fvids")
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      })
+      .limit(300);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const remaining = [];
+
+  for (const video of explore || []) {
+
+    if (usedVideos.has(video.public_id)) {
+      continue;
+    }
+
+    remaining.push(video);
+
+  }
+
+  for (
+    let i = remaining.length - 1;
+    i > 0;
+    i--
+  ) {
+
+    const j =
+      Math.floor(
+        Math.random() * (i + 1)
+      );
+
+    [remaining[i], remaining[j]] =
+    [remaining[j], remaining[i]];
+
+  }
+
+  const unviewed = [];
+  const viewed = [];
+
+  for (const video of remaining) {
+
+    if (viewedIds.includes(video.public_id)) {
+      viewed.push(video);
+    } else {
+      unviewed.push(video);
+    }
+
+  }
+
+  const ordered = [
+    ...unviewed,
+    ...viewed
+  ];
+
+  for (const video of ordered) {
+
+    if (data.length >= 20) {
+      break;
+    }
+
+    usedVideos.add(video.public_id);
+
+    data.push(video);
+
+  }
+
+}
+
   // ---------------- FETCH MATCHING USERS ----------------
 
   const userIds = [
@@ -242,39 +393,10 @@ profile_pic:
     };
   });
 
-  // ---------------- SHUFFLE ----------------
+const start = (page - 1) * limit;
+const end = start + limit;
 
-  function shuffle(arr) {
-    for (
-      let i = arr.length - 1;
-      i > 0;
-      i--
-    ) {
-      const j = Math.floor(
-        Math.random() * (i + 1)
-      );
-
-      [arr[i], arr[j]] =
-      [arr[j], arr[i]];
-    }
-
-    return arr;
-  }
-
-  // ---------------- UNLIKED FIRST ----------------
-
-  const unliked =
-    safeData.filter(v => !v.liked);
-
-  const liked =
-    safeData.filter(v => v.liked);
-
-  shuffle(unliked);
-  shuffle(liked);
-
-  return [...unliked, ...liked];
-}
-
+return safeData.slice(start, end);
 
 // ---------------- GET SINGLE VIDEO ----------------
 
