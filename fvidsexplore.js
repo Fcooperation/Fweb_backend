@@ -112,7 +112,7 @@ if (userId) {
 
     const { data: following } =
         await supabase
-        .from("follows")
+        .from("fvidsfollow")
         .select("following_id")
         .eq("follower_id", userId);
 
