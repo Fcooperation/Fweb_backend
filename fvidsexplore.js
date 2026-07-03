@@ -150,6 +150,7 @@ pageVideos.map(video => ({
     liked:
     likedVideos.has(
         String(video.id)
+      )
 
     following:
         followingUsers.has(
