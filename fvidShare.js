@@ -6,17 +6,21 @@ const supabase = createClient(
 );
 
 export default async function fvidShare(body) {
-  const { publicId, type } = body;
+  const {
+  publicId,
+  userId = null,
+  type
+} = body;
 
   if (!publicId) {
     throw new Error("No publicId");
   }
 
   const { data, error } = await supabase
-    .from("fvids")
-    .select("share_count")
-    .eq("public_id", publicId)
-    .maybeSingle();
+  .from("fvids")
+  .select("share_count, category")
+  .eq("public_id", publicId)
+  .maybeSingle();
 
   if (error) {
     throw error;
@@ -37,9 +41,48 @@ export default async function fvidShare(body) {
     throw updateError;
   }
 
+  // ---------------- UPDATE USER CATEGORY SCORE ----------------
+
+if (userId) {
+
+  const {
+    data: categoryRow,
+    error: categoryError
+  } = await supabase
+    .from("user_category_scores")
+    .select("score")
+    .eq("user_id", userId)
+    .eq("category", data.category)
+    .maybeSingle();
+
+  if (categoryError) {
+    throw categoryError;
+  }
+
+  if (categoryRow) {
+
+    const {
+      error: scoreError
+    } = await supabase
+      .from("user_category_scores")
+      .update({
+        score: Number(categoryRow.score) + 15,
+        last_updated: new Date().toISOString()
+      })
+      .eq("user_id", userId)
+      .eq("category", data.category);
+
+    if (scoreError) {
+      throw scoreError;
+    }
+
+  }
+
+}
+
   return {
     success: true,
     share_count: newCount,
     type
   };
-    }
+}

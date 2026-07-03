@@ -116,6 +116,79 @@ export default async function fvidFollow(data) {
     throw followError;
   }
 
+  // ---------------- GET FOLLOWED USER CATEGORY ----------------
+
+const {
+  data: latestVideo,
+  error: categoryError
+} = await supabase
+  .from("fvids")
+  .select("category")
+  .eq("user_id", followingId)
+  .order("created_at", {
+    ascending: false
+  })
+  .limit(1)
+  .maybeSingle();
+
+if (categoryError) {
+  throw categoryError;
+}
+
+// ---------------- UPDATE CATEGORY SCORE ----------------
+
+if (latestVideo?.category) {
+
+  const {
+    data: existingCategory,
+    error: existingError
+  } = await supabase
+    .from("user_category_scores")
+    .select("score")
+    .eq("user_id", followerId)
+    .eq("category", latestVideo.category)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (existingCategory) {
+
+    // Category already exists
+    const { error: updateError } = await supabase
+      .from("user_category_scores")
+      .update({
+        score: Number(existingCategory.score) + 35,
+        last_updated: new Date().toISOString()
+      })
+      .eq("user_id", followerId)
+      .eq("category", latestVideo.category);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+  } else {
+
+    // User has never interacted with this category before
+    const { error: insertError } = await supabase
+      .from("user_category_scores")
+      .insert({
+        user_id: followerId,
+        category: latestVideo.category,
+        score: 35,
+        videos_watched: 0
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+  }
+
+}
+
   // get follower account
   const {
     data: followerAccount

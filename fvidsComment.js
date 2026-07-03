@@ -39,6 +39,60 @@ export async function postComment(req, res) {
 
     if (error) throw error;
 
+// ---------------- GET VIDEO CATEGORY ----------------
+
+const {
+  data: video,
+  error: videoError
+} = await supabase
+  .from("fvids")
+  .select("category")
+  .eq("id", videoId)
+  .single();
+
+if (videoError) {
+  throw videoError;
+}
+
+    // ---------------- UPDATE CATEGORY SCORE ----------------
+
+const {
+  data: existingCategory
+} = await supabase
+  .from("user_category_scores")
+  .select("score")
+  .eq("user_id", userId)
+  .eq("category", video.category)
+  .maybeSingle();
+
+if (existingCategory) {
+
+  // Category already exists
+  await supabase
+    .from("user_category_scores")
+    .update({
+      score: Number(existingCategory.score) + 20,
+      last_updated: new Date().toISOString()
+    })
+    .eq("user_id", userId)
+    .eq("category", video.category);
+
+} else {
+
+  // First interaction with this category
+  await supabase
+    .from("user_category_scores")
+    .insert({
+      user_id: userId,
+      category: video.category,
+      score: 20,
+      videos_watched: 0,
+      last_updated: new Date().toISOString()
+    });
+
+}
+
+
     // update comment count
     const { count } = await supabase
       .from("comments")
