@@ -32,6 +32,7 @@ import fvidsReplyLikes
   from "./fvidsreplylikes.js";
 import fInbox from "./finbox.js";
 import fvidCategory from "./fvidscategory.js";
+import fvidsExplore from "./fvidsexplore.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -709,6 +710,35 @@ app.post("/fvidscategory", async (req, res) => {
     });
 
   }
+});
+
+// ------------------------------
+// FVID EXPLORE
+// ------------------------------
+app.get("/explore", async (req, res) => {
+
+  try {
+
+    const result = await fvidsExplore(
+      req.query
+    );
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ Explore error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
 });
 
 // ------------------------------
