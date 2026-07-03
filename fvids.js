@@ -340,7 +340,7 @@ if (userId) {
     await supabase
       .from("fvid_likes")
       .select("video_id")
-      .eq("liker_id", String(userId))
+      .eq("user_id", String(userId))
       .in("video_id", videoIds);
 
   likedMap = Object.fromEntries(
