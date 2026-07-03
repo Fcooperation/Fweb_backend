@@ -61,15 +61,15 @@ export default async function fvidLike(req, res) {
 } = await supabase
   .from("fvid_likes")
   .upsert(
-    {
-      video_id: videoId,
-      owner_id: ownerId,
-      liker_id: uid
-    },
-    {
-      onConflict: "video_id,liker_id"
-    }
-  );
+  {
+    video_id: videoId,
+    owner_id: ownerId,
+    user_id: uid
+  },
+  {
+    onConflict: "video_id,user_id"
+  }
+);
 
 if (likeInsertError) {
   console.error(
@@ -134,7 +134,7 @@ if (existingCategory) {
   .from("fvid_likes")
   .delete()
   .eq("video_id", videoId)
-  .eq("liker_id", uid);
+  .eq("user_id", uid);
 
 if (unlikeError) {
   console.error(
