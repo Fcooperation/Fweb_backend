@@ -202,8 +202,7 @@ for(const video of data || []){
     if(!video.hashtags) continue;
 
     const tags =
-        video.hashtags
-        .split(",");
+    video.hashtags || [];
 
     for(let tag of tags){
 
