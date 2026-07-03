@@ -182,6 +182,73 @@ return{
 
 }
 
+  // ---------------- HASHTAGS ----------------
+
+if(section === "hashtags"){
+
+const { data, error } =
+await supabase
+.from("fvids")
+.select("hashtags");
+
+if(error){
+    throw error;
+}
+
+const counts = {};
+
+for(const video of data || []){
+
+    if(!video.hashtags) continue;
+
+    const tags =
+        video.hashtags
+        .split(",");
+
+    for(let tag of tags){
+
+        tag = tag.trim();
+
+        if(!tag) continue;
+
+        counts[tag] =
+            (counts[tag] || 0) + 1;
+
+    }
+
+}
+
+const hashtags =
+Object.entries(counts)
+
+.map(([name,count])=>({
+
+    name,
+
+    count
+
+}))
+
+.sort((a,b)=>
+
+    b.count-a.count
+
+);
+
+const items =
+hashtags.slice(from,to+1);
+
+return{
+
+    items,
+
+    hasMore:
+        to + 1 < hashtags.length
+
+};
+
+}
+
   // ---------------- UNKNOWN SECTION ----------------
 
   return {
