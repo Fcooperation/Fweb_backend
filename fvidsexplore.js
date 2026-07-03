@@ -10,8 +10,9 @@ export default async function fvidsExplore(query) {
 console.log("Full query:", query);
   const {
     section,
-    page = 1
-  } = query;
+    page = 1,
+    userId = null
+} = query;
 console.log("Section:", section);
   const limit = 20;
 
@@ -87,32 +88,76 @@ console.log("Section:", section);
 
     }
 
+    let likedVideos = new Set();
+
+if (userId) {
+
+    const { data: likes } =
+        await supabase
+        .from("fvid_likes")
+        .select("public_id")
+        .eq("user_id", userId);
+
+    likedVideos = new Set(
+        (likes || []).map(
+            like => like.public_id
+        )
+    );
+
+}
+
+    let followingUsers = new Set();
+
+if (userId) {
+
+    const { data: following } =
+        await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", userId);
+
+    followingUsers = new Set(
+        (following || []).map(
+            follow => String(follow.following_id)
+        )
+    );
+
+}
+
     const pageVideos =
   data.slice(from, to + 1);
 
 const items =
-  pageVideos.map(video => ({
+pageVideos.map(video => ({
 
-        ...video,
+    ...video,
 
-        user:
-          usersMap[
+    user:
+        usersMap[
             String(video.user_id)
-          ] || null,
+        ] || null,
 
-        username:
-          usersMap[
+    username:
+        usersMap[
             String(video.user_id)
-          ]?.username || null,
+        ]?.username || null,
 
-        profile_pic:
-          usersMap[
+    profile_pic:
+        usersMap[
             String(video.user_id)
-          ]?.profile_pic || null,
+        ]?.profile_pic || null,
 
-        likes: undefined
+    liked:
+        likedVideos.has(video.public_id),
 
-      }));
+    following:
+        followingUsers.has(
+            String(video.user_id)
+        ),
+
+    likes: undefined
+
+}));
 
     return {
 
