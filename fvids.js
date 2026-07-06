@@ -14,29 +14,6 @@ export async function fetchVideos(
   limit = 20
 ) {
 
-// ---------------- FIRST TIME CATEGORY CHECK ----------------
-
-if (userId) {
-
-  const { data: categoryRows, error: categoryError } =
-    await supabase
-      .from("user_category_scores")
-      .select("id")
-      .eq("user_id", userId)
-      .limit(1);
-
-  if (categoryError) {
-    throw new Error(categoryError.message);
-  }
-
-  if (!categoryRows || categoryRows.length === 0) {
-    return {
-      category: false
-    };
-  }
-
-}
-
   let data = [];
 
   // ---------------- GET VIEWED VIDEOS ----------------
@@ -72,9 +49,49 @@ if (userId) {
     throw new Error(error.message);
   }
 
-  categoryScores = scores || [];
+  if (scores && scores.length > 0) {
+
+    // Use saved categories
+    categoryScores = scores;
+
+  } else if (category) {
+
+    // Fallback to frontend categories
+    const parsed =
+      typeof category === "string"
+        ? JSON.parse(category)
+        : category;
+
+    categoryScores = parsed.map(cat => ({
+      category: cat,
+      score: 100
+    }));
+
+  } else {
+
+    return {
+      category: false
+    };
+
+  }
 
 }
+
+  // Guest fallback
+if (!userId && category) {
+
+  const parsed =
+    typeof category === "string"
+      ? JSON.parse(category)
+      : category;
+
+  categoryScores = parsed.map(cat => ({
+    category: cat,
+    score: 100
+  }));
+
+}
+  
   // ---------------- DUPLICATE TRACKER ----------------
 
 const usedVideos = new Set();
