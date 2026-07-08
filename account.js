@@ -97,40 +97,43 @@ export default async function account(
       user.id
     );
 
+    console.log(
+      "User email:",
+      user.email
+    );
+
     // --------------------
     // GET ACCOUNT
     // --------------------
 
     const {
-  data: account,
-  error: accountError
-} =
-await supabase
-.from("fwebaccount")
-.select("*")
-.eq(
-  "email",
-  user.email
-)
-.single();
+      data: account,
+      error: accountError
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .select("*")
+    .eq(
+      "email",
+      user.email
+    )
+    .single();
 
-console.log(
-  "Error:",
-  error
-);
+    console.log(
+      "Account result:",
+      account
+    );
 
-console.log(
-  "Account result:",
-  account
-);
-
-console.log(
-  "Account error:",
-  accountError
-);
+    console.log(
+      "Account error:",
+      accountError
+    );
 
     if(
-      accountError
+      accountError ||
+      !account
     ){
 
       console.log(
