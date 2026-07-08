@@ -159,18 +159,25 @@ export default async function account(
     );
 
     return res.json({
-      success:true,
-      id:
-      account.id,
-      username:
-      account.username,
-      profile_pic:
-      account.profile_pic,
-      created_at:
-      account.created_at,
-      status:
-      account.status
-    });
+  success:true,
+
+  id:
+  account.id,
+
+  username:
+  account.username,
+
+  profile_pic:
+  account.profile_pic,
+
+  created_at:
+  account.created_at,
+
+  status:
+  user.email_confirmed_at
+  ? "active"
+  : "pending"
+});
 
   }
   catch(
