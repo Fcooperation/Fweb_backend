@@ -102,17 +102,17 @@ export default async function account(
     // --------------------
 
     const {
-  data,
-  error
+  data: account,
+  error: accountError
 } =
 await supabase
 .from("fwebaccount")
-.select("*");
-
-console.log(
-  "All accounts:",
-  data
-);
+.select("*")
+.eq(
+  "email",
+  user.email
+)
+.single();
 
 console.log(
   "Error:",
