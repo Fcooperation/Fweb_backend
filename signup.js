@@ -34,14 +34,15 @@ export default async function signup(
     );
 
     const {
-      id,
-      username,
-      firstName,
-      lastName,
-      email,
-      avatar,
-      provider
-    } = req.body;
+  id,
+  username,
+  firstName,
+  lastName,
+  email,
+  password,
+  avatar,
+  provider
+} = req.body;
 
     console.log(
       "Parsed values:",
@@ -61,24 +62,42 @@ export default async function signup(
     // --------------------
 
     if (
-      !id ||
-      !username ||
-      !email
-    ) {
+  !username ||
+  !email
+) {
 
-      console.log(
-        "❌ Validation failed"
-      );
+  console.log(
+    "❌ Validation failed"
+  );
 
-      return res
-      .status(400)
-      .json({
-        success: false,
-        message:
-          "Missing required fields"
-      });
+  return res
+  .status(400)
+  .json({
+    success: false,
+    message:
+      "Missing required fields"
+  });
 
-    }
+}
+
+if (
+  provider !== "google" &&
+  !password
+) {
+
+  console.log(
+    "❌ Password missing"
+  );
+
+  return res
+  .status(400)
+  .json({
+    success: false,
+    message:
+      "Password required"
+  });
+
+}
 
     console.log(
       "✅ Validation passed"
@@ -207,14 +226,66 @@ export default async function signup(
     }
 
     // --------------------
-    // STATUS
-    // --------------------
+// EMAIL SIGNUP
+// --------------------
 
-    const status =
-      provider ===
-      "google"
-        ? "active"
-        : "pending";
+let userId = id;
+
+if (
+  provider !== "google"
+) {
+
+  console.log(
+    "Creating Supabase auth user..."
+  );
+
+  const {
+    data: authData,
+    error: authError
+  } =
+  await supabase
+  .auth
+  .signUp({
+    email,
+    password
+  });
+
+  if (
+    authError
+  ) {
+
+    console.log(
+      "❌ Auth signup failed:"
+    );
+
+    console.log(
+      authError
+    );
+
+    return res
+    .status(500)
+    .json({
+      success: false,
+      message:
+      authError.message
+    });
+
+  }
+
+  userId =
+  authData.user.id;
+
+  console.log(
+    "✅ Verification email sent"
+  );
+
+}
+
+const status =
+  provider ===
+  "google"
+    ? "active"
+    : "pending";
 
     console.log(
       "Account status:",
@@ -240,7 +311,8 @@ export default async function signup(
     // --------------------
 
     const insertPayload = {
-      id,
+  id:
+  userId,
       username,
       full_name,
       email,
@@ -319,7 +391,7 @@ export default async function signup(
         "fai_memory"
       )
       .insert({
-        user_id: id,
+        user_id: userId,
         memory: {}
       });
 
@@ -352,10 +424,10 @@ export default async function signup(
       success: true,
 
       message:
-        status ===
-        "pending"
-          ? "Verification email sent. Please verify your email."
-          : "Account created successfully.",
+status ===
+"pending"
+? "Verification email sent to your email address."
+: "Account created successfully.",
 
       user:
         newUser
@@ -386,4 +458,4 @@ export default async function signup(
 
   }
 
-      }
+}
