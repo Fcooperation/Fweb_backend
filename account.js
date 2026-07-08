@@ -102,25 +102,33 @@ export default async function account(
     // --------------------
 
     const {
-      data:account,
-      error:accountError
-    } =
-    await supabase
-    .from(
-      "fwebaccount"
-    )
-    .select(`
-      id,
-      username,
-      profile_pic,
-      created_at,
-      status
-    `)
-    .eq(
-      "id",
-      user.id
-    )
-    .single();
+  data: account,
+  error: accountError
+} =
+await supabase
+.from("fwebaccount")
+.select(`
+  id,
+  username,
+  profile_pic,
+  created_at,
+  status
+`)
+.eq(
+  "id",
+  user.id
+)
+.maybeSingle();
+
+console.log(
+  "Account result:",
+  account
+);
+
+console.log(
+  "Account error:",
+  accountError
+);
 
     if(
       accountError
