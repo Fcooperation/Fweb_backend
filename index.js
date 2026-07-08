@@ -33,6 +33,8 @@ import fvidsReplyLikes
 import fInbox from "./finbox.js";
 import fvidCategory from "./fvidscategory.js";
 import fvidsExplore from "./fvidsexplore.js";
+import account
+from "./account.js";
 import fvidSearch from "./fvidsearch.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
@@ -145,6 +147,12 @@ app.post("/login", (req, res) => {
 
 // SIGNUP ROUTE
 app.post("/signup", signup);
+
+// ACCOUNT ROUTE
+app.get(
+  "/account",
+  account
+);
 
 // DASHBOARD ROUTE
 app.post("/dashboard", dashboard);
