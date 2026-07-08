@@ -240,15 +240,33 @@ if (
   );
 
   const {
-    data: authData,
-    error: authError
-  } =
-  await supabase
-  .auth
-  .signUp({
-    email,
-    password
-  });
+  data: authData,
+  error: authError
+} =
+await supabase
+.auth
+.signUp({
+  email,
+  password
+});
+
+console.log(
+  "Auth data:",
+  JSON.stringify(
+    authData,
+    null,
+    2
+  )
+);
+
+console.log(
+  "Auth error:",
+  JSON.stringify(
+    authError,
+    null,
+    2
+  )
+);
 
   if (
     authError
@@ -258,10 +276,7 @@ if (
       "❌ Auth signup failed:"
     );
 
-    console.log(
-      authError
-    );
-
+    
     return res
     .status(500)
     .json({
