@@ -1,183 +1,245 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-// Supabase setup (same style as login)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase =
+  createClient(
+    supabaseUrl,
+    supabaseKey
+  );
 
-export default async function signup(req, res) {
+export default async function signup(
+  req,
+  res
+) {
+
   try {
-    const body = req.body;
-    const action = body.action;
 
-    const email = body.email;
-    const password = body.password;
+    const {
+      id,
+      username,
+      firstName,
+      lastName,
+      email,
+      avatar,
+      provider
+    } = req.body;
 
     // --------------------
-    // SIGNUP
+    // VALIDATION
     // --------------------
-    if (action === "signup") {
-      const { username, full_name, secret } = body;
 
-      if (!email || !password || !username || !full_name || !secret) {
-        return res.status(400).json({ error: "Please provide all required fields" });
-      }
+    if (
+      !id ||
+      !username ||
+      !email
+    ) {
 
-      // Check if email exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from("fwebaccount")
-        .select("*")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error(checkError);
-        return res.status(500).json({ error: "Error checking email" });
-      }
-
-      if (existingUser) {
-        return res.status(409).json({ error: "Email already exists. Please login." });
-      }
-
-      // Generate unique ID
-      let uniqueId;
-
-      while (true) {
-        uniqueId = Math.floor(Math.random() * 1e15);
-
-        const { data: idCheck } = await supabase
-          .from("fwebaccount")
-          .select("id")
-          .eq("id", uniqueId)
-          .maybeSingle();
-
-        if (!idCheck) break;
-      }
-
-      // Insert user
-      const { data: newUser, error: insertError } = await supabase
-        .from("fwebaccount")
-        .insert([
-          {
-            id: uniqueId,
-            username,
-            full_name,
-            email,
-            password_hash: password,
-            secret,
-            status: "active"
-          }
-        ])
-        .select()
-        .maybeSingle();
-
-      if (insertError || !newUser) {
-  console.error(insertError);
-  return res.status(500).json({ error: "Failed to create account" });
-}
-
-// --------------------
-// CREATE FAI MEMORY ROW
-// --------------------
-const { error: memoryError } = await supabase
-  .from("fai_memory")
-  .insert({
-    user_id: newUser.id,   // IMPORTANT: must match FAI userId
-    memory: {}
-  });
-
-if (memoryError) {
-  console.log("⚠️ FAI memory init failed:", memoryError.message);
-} else {
-  console.log("✅ FAI memory initialized for:", newUser.id);
-}
-
-      return res.json({
-        status: "success",
-        message: "Account created successfully. You can now login.",
-        user: newUser
+      return res
+      .status(400)
+      .json({
+        success: false,
+        message:
+        "Missing required fields"
       });
+
     }
 
     // --------------------
-    // FORGOT PASSWORD (STEP 1)
+    // CHECK EMAIL
     // --------------------
-    if (action === "forgetpassword") {
-      if (!email) return res.status(400).json({ error: "Email is required" });
 
-      const { data, error } = await supabase
-        .from("fwebaccount")
-        .select("*")
-        .eq("email", email)
-        .maybeSingle();
+    const {
+      data: existingEmail
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .select(
+      "id"
+    )
+    .eq(
+      "email",
+      email
+    )
+    .maybeSingle();
 
-      if (error || !data) {
-        return res.status(404).json({ error: "Email not found" });
-      }
+    if (
+      existingEmail
+    ) {
 
-      return res.json({
-        message: "Email exists. Please enter your secret code."
+      return res
+      .status(409)
+      .json({
+        success: false,
+        message:
+        "Email already exists"
       });
+
     }
 
     // --------------------
-    // VERIFY SECRET
+    // CHECK USERNAME
     // --------------------
-    if (action === "verifysecret") {
-      const { secret } = body;
 
-      if (!email || !secret) {
-        return res.status(400).json({ error: "Email and secret are required" });
-      }
+    const {
+      data: existingUsername
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .select(
+      "id"
+    )
+    .eq(
+      "username",
+      username
+    )
+    .maybeSingle();
 
-      const { data, error } = await supabase
-        .from("fwebaccount")
-        .select("*")
-        .eq("email", email)
-        .maybeSingle();
+    if (
+      existingUsername
+    ) {
 
-      if (error || !data) {
-        return res.status(404).json({ error: "Account not found" });
-      }
-
-      if (data.secret !== secret) {
-        return res.status(401).json({ error: "Secret code does not match" });
-      }
-
-      return res.json({ message: "Secret verified" });
-    }
-
-    // --------------------
-    // CHANGE PASSWORD
-    // --------------------
-    if (action === "changepassword") {
-      const { new_password } = body;
-
-      if (!email || !new_password) {
-        return res.status(400).json({ error: "Email and new password required" });
-      }
-
-      const { data, error } = await supabase
-        .from("fwebaccount")
-        .update({ password_hash: new_password })
-        .eq("email", email)
-        .select()
-        .maybeSingle();
-
-      if (error || !data) {
-        return res.status(500).json({ error: "Failed to update password" });
-      }
-
-      return res.json({
-        message: "Password changed successfully"
+      return res
+      .status(409)
+      .json({
+        success: false,
+        message:
+        "Username already taken"
       });
+
     }
 
-    return res.status(400).json({ error: "No valid action provided" });
+    // --------------------
+    // STATUS
+    // --------------------
 
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+    const status =
+      provider ===
+      "google"
+      ? "active"
+      : "pending";
+
+    // --------------------
+    // FULL NAME
+    // --------------------
+
+    const full_name =
+      `${firstName || ""}
+      ${lastName || ""}`
+      .trim();
+
+    // --------------------
+    // INSERT ACCOUNT
+    // --------------------
+
+    const {
+      data: newUser,
+      error: insertError
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .insert([
+      {
+        id,
+        username,
+        full_name,
+        email,
+        status,
+        profile_pic:
+          avatar || null
+      }
+    ])
+    .select()
+    .single();
+
+    if (
+      insertError
+    ) {
+
+      console.error(
+        insertError
+      );
+
+      return res
+      .status(500)
+      .json({
+        success: false,
+        message:
+        "Failed to create account"
+      });
+
+    }
+
+    // --------------------
+    // CREATE FAI MEMORY
+    // --------------------
+
+    const {
+      error:
+      memoryError
+    } =
+    await supabase
+    .from(
+      "fai_memory"
+    )
+    .insert({
+      user_id:
+      id,
+      memory: {}
+    });
+
+    if (
+      memoryError
+    ) {
+
+      console.log(
+        "⚠️ FAI memory init failed:",
+        memoryError.message
+      );
+
+    }
+
+    return res.json({
+
+      success: true,
+
+      message:
+      status ===
+      "pending"
+      ? "Verification email sent. Please verify your email."
+      : "Account created successfully.",
+
+      user:
+      newUser
+
+    });
+
   }
-    }
+
+  catch (
+    err
+  ) {
+
+    console.error(
+      err
+    );
+
+    return res
+    .status(500)
+    .json({
+      success: false,
+      message:
+      err.message
+    });
+
+  }
+
+      }
