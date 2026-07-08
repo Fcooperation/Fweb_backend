@@ -119,7 +119,7 @@ export default async function account(
       "email",
       user.email
     )
-    .maybesingle();
+    .single();
 
     console.log(
       "Account result:",
