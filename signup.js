@@ -243,11 +243,13 @@ if (
   data: authData,
   error: authError
 } =
-await supabase
-.auth
-.signUp({
+await supabase.auth.signUp({
   email,
-  password
+  password,
+  options: {
+    emailRedirectTo:
+      "https://fcooperation.vercel.app/verified.html"
+  }
 });
 
 console.log(
