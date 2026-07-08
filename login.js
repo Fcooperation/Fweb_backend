@@ -1,89 +1,193 @@
-import { createClient } from "@supabase/supabase-js";
-import 'dotenv/config';
+import {
+  createClient
+}
+from "@supabase/supabase-js";
 
-// Supabase setup
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+import "dotenv/config";
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase =
+createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-export default async function login(req, res) {
-  try {
-    const { email, password } = req.body;
+export default async function login(
+  req,
+  res
+){
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Missing email or password" });
+  try{
+
+    console.log(
+      "\n========== LOGIN REQUEST =========="
+    );
+
+    const {
+      email,
+      password
+    } = req.body;
+
+    console.log(
+      "Email:",
+      email
+    );
+
+    // --------------------
+    // VALIDATION
+    // --------------------
+
+    if(
+      !email ||
+      !password
+    ){
+
+      return res
+      .status(400)
+      .json({
+        success:false,
+        message:
+        "Email and password required"
+      });
+
     }
 
-    // Fetch account
-    const { data, error } = await supabase
-      .from("fwebaccount")
-      .select("*")
-      .eq("email", email)
-      .single();
+    // --------------------
+    // LOGIN WITH SUPABASE
+    // --------------------
 
-    if (error || !data) {
-      return res.status(404).json({ error: "Account not found" });
-    }
-
-    // Check password
-    if (data.password_hash !== password) {
-      return res.status(401).json({ error: "Invalid password" });
-    }
-
-    // Status handling
-    const nowUTC = new Date();
-    let responseStatus = data.status;
-
-    if (data.status === "suspended") {
-      const suspendedUntil = data.suspended_until
-        ? new Date(data.suspended_until)
-        : null;
-
-      if (suspendedUntil && suspendedUntil <= nowUTC) {
-        await supabase
-          .from("fwebaccount")
-          .update({ status: "active" })
-          .eq("email", email);
-
-        responseStatus = "active";
-      }
-    }
-
-    // -----------------------------
-    // GET CHAT USERS FROM fchat_messages FIELD
-    // -----------------------------
-    let chatUsers = [];
-
-    if (data.fchat_messages) {
-      const ids = data.fchat_messages
-        .toString()
-        .split(/[,\\s]+/)
-        .filter(Boolean);
-
-      if (ids.length > 0) {
-        const { data: users } = await supabase
-          .from("fwebaccount")
-          .select("id, username, profile_pic")
-          .in("id", ids);
-
-        chatUsers = users || [];
-      }
-    }
-
-    // -----------------------------
-    // SAFE USER (REMOVE PASSWORD)
-    // -----------------------------
-    const { password_hash, ...safeUser } = data;
-
-    return res.json({
-      message: "Login successful",
-      status: responseStatus,
-      user: safeUser,
-      chatUsers
+    const {
+      data,
+      error
+    } =
+    await supabase
+    .auth
+    .signInWithPassword({
+      email,
+      password
     });
 
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+    if(
+      error
+    ){
+
+      console.log(
+        "❌ Login failed"
+      );
+
+      console.log(
+        error
+      );
+
+      return res
+      .status(401)
+      .json({
+        success:false,
+        message:
+        error.message
+      });
+
+    }
+
+    console.log(
+      "✅ Login successful"
+    );
+
+    const user =
+      data.user;
+
+    const session =
+      data.session;
+
+    // --------------------
+    // GET ACCOUNT DETAILS
+    // --------------------
+
+    const {
+      data: account,
+      error: accountError
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .select(`
+      username,
+      profile_pic,
+      status
+    `)
+    .eq(
+      "email",
+      email
+    )
+    .single();
+
+    if(
+      accountError
+    ){
+
+      console.log(
+        "⚠️ Account lookup failed"
+      );
+
+      console.log(
+        accountError
+      );
+
+    }
+
+    return res.json({
+
+      success:true,
+
+      message:
+      "Login successful",
+
+      access_token:
+      session.access_token,
+
+      refresh_token:
+      session.refresh_token,
+
+      user:{
+        id:
+        user.id,
+
+        email:
+        user.email,
+
+        username:
+        account?.username || null,
+
+        profile_pic:
+        account?.profile_pic || null,
+
+        status:
+        account?.status || null
+      }
+
+    });
+
   }
-          }
+  catch(
+    err
+  ){
+
+    console.log(
+      "💥 LOGIN CRASHED"
+    );
+
+    console.log(
+      err
+    );
+
+    return res
+    .status(500)
+    .json({
+      success:false,
+      message:
+      err.message
+    });
+
+  }
+
+        }
