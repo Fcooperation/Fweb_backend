@@ -171,7 +171,15 @@ app.get(
 );
 
 // DASHBOARD ROUTE
-app.post("/dashboard", dashboard);
+app.post(
+  "/dashboard",
+  upload.single(
+    "profile_pic"
+  ),
+  (req,res)=>{
+    dashboard(req,res);
+  }
+);
 
 // ADMIN ROUTE
 app.post("/admin", async (req, res) => {
