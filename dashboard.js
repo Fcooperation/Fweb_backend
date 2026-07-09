@@ -101,23 +101,152 @@ export default async function dashboard(
       user.email
     );
 
+    const action =
+  req.body.action;
+
+    // --------------------
+// UPDATE DETAILS
+// --------------------
+
+if(
+  action ===
+  "update_details"
+){
+
+  const {
+    username,
+    full_name,
+    password
+  } = req.body;
+
+  const updates = {};
+
+  if(
+    username
+  ){
+
+    updates.username =
+    username;
+
+  }
+
+  if(
+    full_name
+  ){
+
+    updates.full_name =
+    full_name;
+
+  }
+
+  // Update account table
+  if(
+    Object.keys(
+      updates
+    ).length > 0
+  ){
+
+    const {
+      error:updateError
+    } =
+    await supabase
+    .from(
+      "fwebaccount"
+    )
+    .update(
+      updates
+    )
+    .eq(
+      "email",
+      user.email
+    );
+
+    if(
+      updateError
+    ){
+
+      console.log(
+        updateError
+      );
+
+      return res
+      .status(500)
+      .json({
+        success:false,
+        message:
+        "Failed to update account"
+      });
+
+    }
+
+  }
+
+  // Update password if provided
+  if(
+    password
+  ){
+
+    const {
+      error:passwordError
+    } =
+    await supabase
+    .auth
+    .admin
+    .updateUserById(
+      user.id,
+      {
+        password
+      }
+    );
+
+    if(
+      passwordError
+    ){
+
+      console.log(
+        passwordError
+      );
+
+      return res
+      .status(500)
+      .json({
+        success:false,
+        message:
+        "Failed to update password"
+      });
+
+    }
+
+  }
+
+  return res.json({
+
+    success:true,
+
+    message:
+    "Account updated successfully"
+
+  });
+
+}
+
     // --------------------
     // CHECK FILE
     // --------------------
 
     if(
-      !req.file
-    ){
+  !req.file
+){
 
-      return res
-      .status(400)
-      .json({
-        success:false,
-        message:
-        "No image uploaded"
-      });
+  return res
+  .status(400)
+  .json({
+    success:false,
+    message:
+    "No action provided"
+  });
 
-    }
+}
 
     console.log(
       "Uploading to Cloudinary..."
