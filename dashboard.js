@@ -230,13 +230,17 @@ if(
 
 }
 
-    if(
+if(
   action ===
   "delete_account"
 ){
 
+  // --------------------
+  // DELETE ACCOUNT TABLE
+  // --------------------
+
   const {
-    error
+    error: accountError
   } =
   await supabase
   .from(
@@ -249,23 +253,67 @@ if(
   );
 
   if(
-    error
+    accountError
   ){
+
+    console.log(
+      accountError
+    );
 
     return res
     .status(500)
     .json({
       success:false,
       message:
-      "Failed to delete account"
+      "Failed to delete account data"
     });
 
   }
 
+  // --------------------
+  // DELETE AUTH USER
+  // --------------------
+
+  const {
+    error: authError
+  } =
+  await supabase
+  .auth
+  .admin
+  .deleteUser(
+    user.id
+  );
+
+  if(
+    authError
+  ){
+
+    console.log(
+      authError
+    );
+
+    return res
+    .status(500)
+    .json({
+      success:false,
+      message:
+      "Account data deleted but failed to remove auth user"
+    });
+
+  }
+
+  console.log(
+    "✅ Account deleted:",
+    user.email
+  );
+
   return res.json({
+
     success:true,
+
     message:
-    "Account deleted"
+    "Account deleted successfully"
+
   });
 
 }
