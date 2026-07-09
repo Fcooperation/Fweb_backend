@@ -230,6 +230,47 @@ if(
 
 }
 
+    if(
+  action ===
+  "delete_account"
+){
+
+  const {
+    error
+  } =
+  await supabase
+  .from(
+    "fwebaccount"
+  )
+  .delete()
+  .eq(
+    "email",
+    user.email
+  );
+
+  if(
+    error
+  ){
+
+    return res
+    .status(500)
+    .json({
+      success:false,
+      message:
+      "Failed to delete account"
+    });
+
+  }
+
+  return res.json({
+    success:true,
+    message:
+    "Account deleted"
+  });
+
+}
+    
+
     // --------------------
     // CHECK FILE
     // --------------------
