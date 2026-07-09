@@ -261,8 +261,6 @@ app.post("/train", async (req, res) => {
   }
 });
 
-const upload = multer({ storage: multer.memoryStorage() }); // in-memory upload
-
 // ------------------------------
 // Pretrain route
 // ------------------------------
