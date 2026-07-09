@@ -38,6 +38,8 @@ from "./account.js";
 import fvidSearch from "./fvidsearch.js";
 import verifyEmail
   from "./verifyemail.js";
+import forgotPassword
+  from "./forgotpassword.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -154,6 +156,12 @@ app.post("/signup", signup);
 app.post(
   "/verifyemail",
   verifyEmail
+);
+
+// FORGOT PASSWORD
+app.post(
+  "/forgot-password",
+  forgotPassword
 );
 
 // ACCOUNT ROUTE
