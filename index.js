@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import multer
+from "multer";
 import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
 import signup from "./signup.js";
@@ -46,6 +48,11 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+const upload =
+multer({
+  dest:"uploads/"
+});
 
 // ------------------------------
 // Logging middleware
