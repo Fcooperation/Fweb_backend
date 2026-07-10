@@ -122,13 +122,47 @@ if(
   const updates = {};
 
   if(
+  username
+){
+
+  const {
+    data: existingUser
+  } =
+  await supabase
+  .from(
+    "fwebaccount"
+  )
+  .select(
+    "id"
+  )
+  .eq(
+    "username",
     username
+  )
+  .neq(
+    "email",
+    user.email
+  )
+  .maybeSingle();
+
+  if(
+    existingUser
   ){
 
-    updates.username =
-    username;
+    return res
+    .status(409)
+    .json({
+      success:false,
+      message:
+      "Username already taken"
+    });
 
   }
+
+  updates.username =
+  username;
+
+}
 
   if(
     full_name
@@ -185,6 +219,21 @@ if(
   if(
     password
   ){
+
+    if(
+  password &&
+  password.length < 6
+){
+
+  return res
+  .status(400)
+  .json({
+    success:false,
+    message:
+    "Password must be at least 6 characters"
+  });
+
+    }
 
     const {
       error:passwordError
