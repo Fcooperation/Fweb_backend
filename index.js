@@ -49,9 +49,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const upload =
-multer({
-  dest:"uploads/"
+const upload = multer({
+  storage: multer.memoryStorage()
 });
 
 // ------------------------------
