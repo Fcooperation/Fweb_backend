@@ -106,7 +106,7 @@ export default async function account(
     // GET ACCOUNT
     // --------------------
 
-    const {
+    let {
       data: account,
       error: accountError
     } =
@@ -132,27 +132,119 @@ export default async function account(
     );
 
     if(
-      accountError ||
-      !account
-    ){
+  !account
+){
 
-      console.log(
-        "❌ Account fetch failed"
-      );
+  console.log(
+    "No local account found."
+  );
 
-      console.log(
-        accountError
-      );
+  console.log(
+    "Creating Google account..."
+  );
 
-      return res
-      .status(404)
-      .json({
-        success:false,
-        message:
-        "Account not found"
-      });
+  const provider =
+  user.app_metadata
+  ?.provider;
 
-    }
+  // Only auto-create for Google users
+  if(
+    provider !==
+    "google"
+  ){
+
+    return res
+    .status(404)
+    .json({
+      success:false,
+      message:
+      "Account not found"
+    });
+
+  }
+
+  const username =
+  (
+    user.user_metadata
+    ?.name ||
+    user.email
+    .split("@")[0]
+  )
+  .toLowerCase()
+  .replaceAll(
+    " ",
+    ""
+  ) +
+  Math.floor(
+    Math.random() * 1000
+  );
+
+  const {
+    data:newAccount,
+    error:createError
+  } =
+  await supabase
+  .from(
+    "fwebaccount"
+  )
+  .insert({
+
+    id:
+    user.id,
+
+    email:
+    user.email,
+
+    username,
+
+    full_name:
+    user.user_metadata
+    ?.full_name ||
+
+    user.user_metadata
+    ?.name ||
+
+    "",
+
+    profile_pic:
+    user.user_metadata
+    ?.avatar_url ||
+
+    null,
+
+    status:
+    "active"
+
+  })
+  .select()
+  .single();
+
+  if(
+    createError
+  ){
+
+    console.log(
+      createError
+    );
+
+    return res
+    .status(500)
+    .json({
+      success:false,
+      message:
+      "Failed to create account"
+    });
+
+  }
+
+  account =
+  newAccount;
+
+  console.log(
+    "Google account created."
+  );
+
+}
 
     console.log(
       "✅ Account loaded"
