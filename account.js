@@ -159,6 +159,7 @@ export default async function account(
     );
 
     return res.json({
+
   success:true,
 
   id:
@@ -166,6 +167,15 @@ export default async function account(
 
   username:
   account.username,
+
+  full_name:
+  account.full_name,
+
+  email:
+  user.email,
+
+  provider:
+  user.app_metadata.provider,
 
   profile_pic:
   account.profile_pic,
