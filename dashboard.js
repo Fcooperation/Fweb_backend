@@ -394,31 +394,38 @@ if(
     // UPLOAD TO CLOUDINARY
     // --------------------
 
-    const upload =
-    await cloudinary
-    .uploader
-    .upload(
-      req.file.path,
+    const uploadResult =
+await new Promise((resolve, reject) => {
+
+  const stream =
+    cloudinary.uploader.upload_stream(
       {
-        folder:
-        "fweb/profile_pics",
+        folder: "fweb/profile_pics",
+        public_id: user.id,
+        overwrite: true,
+        resource_type: "image"
+      },
+      (error, result) => {
 
-        public_id:
-        user.id,
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
 
-        overwrite:true,
-
-        resource_type:
-        "image"
       }
     );
+
+  stream.end(req.file.buffer);
+
+});
 
     console.log(
       "Cloudinary upload complete"
     );
 
     const imageUrl =
-    upload.secure_url;
+uploadResult.secure_url;
 
     // --------------------
     // SAVE URL TO SUPABASE
