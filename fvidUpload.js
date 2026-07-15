@@ -49,19 +49,6 @@ export default async function fvidUpload(req, res) {
           {
             resource_type: "video",
             folder: "fvids",
-
-            eager: [
-              {
-                width: 1280,
-                height: 720,
-                crop: "limit",
-                fps: 30,
-                video_codec: "h264",
-                bitrate: "1000k",
-                audio_codec: "aac",
-                format: "mp4"
-              }
-            ]
           },
           (error, result) => {
             if (error) reject(error);
@@ -73,17 +60,20 @@ export default async function fvidUpload(req, res) {
 
     console.log("CLOUDINARY VIDEO RESULT:", result);
 
-    const eagerVideo = result?.eager?.[0];
-
-    if (!eagerVideo?.secure_url) {
-      return res.json({
-        success: false,
-        error: "Video compression failed",
-        debug: result
-      });
-    }
-
-    const compressedUrl = eagerVideo.secure_url;
+    const compressedUrl = cloudinary.url(
+  result.public_id,
+  {
+    resource_type: "video",
+    secure: true,
+    transformation: [
+      {
+        quality: "auto:eco",
+        fetch_format: "auto",
+        width: 480
+      }
+    ]
+  }
+);
 
     // ================================
     // 2. UPLOAD THUMBNAIL TO CLOUDINARY
