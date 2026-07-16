@@ -189,10 +189,8 @@ app.post(
 );
 
 // ADD USER ROUTE 
-app.post(
-  "/add-user",
-  addUser
-);
+app.get("/add-user", addUser);
+app.post("/add-user", addUser);
 
 // ADMIN ROUTE
 app.post("/admin", async (req, res) => {
