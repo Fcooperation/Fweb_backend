@@ -70,6 +70,9 @@ if (
         id => id !== myId
       );
 
+let sentRequests = [];
+let friends = [];
+
   const {
     data: users,
     error: usersError
@@ -88,6 +91,49 @@ if (
   if (usersError) {
     throw usersError;
   }
+  
+  // Get pending requests I sent
+if (myId) {
+
+  const {
+    data: requests
+  } = await supabase
+    .from("friend_request")
+    .select(`
+      friend_id
+    `)
+    .eq(
+      "user_id",
+      myId
+    )
+    .eq(
+      "accepted",
+      false
+    );
+
+  sentRequests =
+    requests || [];
+
+}
+
+if (myId) {
+
+  const {
+    data: contactRows
+  } = await supabase
+    .from("fchat_contact")
+    .select(`
+      friend_id
+    `)
+    .eq(
+      "user_id",
+      myId
+    );
+
+  friends =
+    contactRows || [];
+
+}
 
   const userMap = {};
 
@@ -118,8 +164,25 @@ if (
             ]?.profile_pic,
 
           status_text:
-            user.status_text ||
-            "Hey there! I'm using FCHAT 👋"
+  user.status_text ||
+  "Hey there! I'm using FCHAT 👋",
+
+fchat:
+  true,
+
+request_sent:
+  sentRequests.some(
+    r =>
+      r.friend_id ===
+      user.user_id
+  ),
+
+already_friends:
+  friends.some(
+    f =>
+      f.friend_id ===
+      user.user_id
+  )
         })
       );
 
@@ -142,6 +205,10 @@ if (
 
   const query =
     req.query.q || "";
+    
+    const myId =
+  req.query.userId ||
+  null;
 
   if (!query.trim()) {
     return res.json({
@@ -249,10 +316,24 @@ const {
     null,
 
   broadcast:
-    fchatMap[
+  fchatMap[
+    user.id
+  ]?.broadcast ||
+  false,
+
+request_sent:
+  sentRequests.some(
+    r =>
+      r.friend_id ===
       user.id
-    ]?.broadcast ||
-    false
+  ),
+
+already_friends:
+  friends.some(
+    f =>
+      f.friend_id ===
+      user.id
+  )
 })
     )
   });
