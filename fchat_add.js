@@ -208,10 +208,6 @@ const {
   .in(
     "user_id",
     userIds
-  )
-  .eq(
-    "broadcast",
-    true
   );
 
   const fchatMap = {};
@@ -228,33 +224,36 @@ const {
 
   return res.json({
     success:true,
-    users:
-  users
-    .filter(
-      user =>
-        fchatUsers?.some(
-          f =>
-            f.user_id === user.id
-        )
-    )
-    .map(
+   users:
+  users.map(
       user => ({
-        id:
-          user.id,
+  id:
+    user.id,
 
-        username:
-          user.username,
+  username:
+    user.username,
 
-        profile_pic:
-          user.profile_pic,
+  profile_pic:
+    user.profile_pic,
 
-        status_text:
-          fchatMap[
-            user.id
-          ]?.status_text ||
+  fchat:
+    !!fchatMap[
+      user.id
+    ],
 
-          "Hey there! I'm using FCHAT 👋"
-      })
+  status_text:
+    fchatMap[
+      user.id
+    ]?.status_text ||
+
+    null,
+
+  broadcast:
+    fchatMap[
+      user.id
+    ]?.broadcast ||
+    false
+})
     )
   });
 
