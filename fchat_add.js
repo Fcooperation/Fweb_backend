@@ -1,17 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-const supabaseUrl =
-  process.env.SUPABASE_URL;
-
-const supabaseKey =
-  process.env.SUPABASE_KEY;
-
-const supabase =
-  createClient(
-    supabaseUrl,
-    supabaseKey
-  );
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 export default async function addUser(
   req,
@@ -20,46 +13,142 @@ export default async function addUser(
 
   try {
 
+    // ---------------- GET USERS ----------------
+    if (req.method === "GET") {
+
+      const {
+        data: users,
+        error
+      } = await supabase
+        .from("fwebaccount")
+        .select(`
+          id,
+          username,
+          profile_pic
+        `)
+        .order(
+          "username",
+          {
+            ascending: true
+          }
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      // get fchat info
+      const userIds =
+        users.map(
+          u => u.id
+        );
+
+      const {
+        data: fchatUsers
+      } = await supabase
+        .from("fchat")
+        .select(`
+          user_id,
+          status_text
+        `)
+        .in(
+          "user_id",
+          userIds
+        );
+
+      const fchatMap = {};
+
+      fchatUsers?.forEach(
+        user => {
+
+          fchatMap[
+            user.user_id
+          ] = user;
+
+        }
+      );
+
+      const formatted =
+        users.map(
+          user => ({
+
+            id:
+              user.id,
+
+            username:
+              user.username,
+
+            profile_pic:
+              user.profile_pic,
+
+            status_text:
+              fchatMap[
+                user.id
+              ]?.status_text ||
+
+              "Hey there! I'm using FCHAT 👋"
+
+          })
+        );
+
+      return res.json({
+        success: true,
+        users: formatted
+      });
+
+    }
+
+    // ---------------- ADD USER ----------------
     const {
-      userId,
-      friendId
+      senderId,
+      receiverId
     } = req.body;
 
-    // validation
-    if (!userId || !friendId) {
+    if (
+      !senderId ||
+      !receiverId
+    ) {
+
       return res.status(400).json({
         success: false,
-        error: "Missing userId or friendId"
+        error:
+          "Missing senderId or receiverId"
       });
+
     }
 
-    // prevent sending request to self
-    if (userId === friendId) {
+    if (
+      senderId === receiverId
+    ) {
+
       return res.status(400).json({
         success: false,
-        error: "You cannot add yourself"
+        error:
+          "You cannot add yourself"
       });
+
     }
 
-    // check existing request
     const {
       data: existing
     } = await supabase
       .from("friend_request")
       .select("id")
       .or(
-        `and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`
+`and(user_id.eq.${senderId},friend_id.eq.${receiverId}),and(user_id.eq.${receiverId},friend_id.eq.${senderId})`
       )
       .maybeSingle();
 
     if (existing) {
+
       return res.status(409).json({
         success: false,
-        error: "Friend request already exists"
+        error:
+          "Friend request already exists"
       });
+
     }
 
-    // insert request
     const {
       data,
       error
@@ -67,11 +156,18 @@ export default async function addUser(
       .from("friend_request")
       .insert([
         {
-          user_id: userId,
-          friend_id: friendId,
-          accepted: false,
+          user_id:
+            senderId,
+
+          friend_id:
+            receiverId,
+
+          accepted:
+            false,
+
           created_at:
-            new Date().toISOString()
+            new Date()
+              .toISOString()
         }
       ])
       .select()
@@ -81,7 +177,7 @@ export default async function addUser(
       throw error;
     }
 
-    return res.status(200).json({
+    return res.json({
       success: true,
       request: data
     });
@@ -89,13 +185,14 @@ export default async function addUser(
   } catch (err) {
 
     console.error(
-      "ADD USER ERROR:",
+      "FCHAT ADD ERROR:",
       err
     );
 
     return res.status(500).json({
       success: false,
-      error: err.message
+      error:
+        err.message
     });
 
   }
