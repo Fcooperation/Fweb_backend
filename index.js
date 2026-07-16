@@ -43,6 +43,7 @@ import verifyEmail
 import forgotPassword
   from "./forgotpassword.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
+import addUser from "./fchat_add.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -185,6 +186,12 @@ app.post(
   (req,res)=>{
     dashboard(req,res);
   }
+);
+
+// ADD USER ROUTE 
+app.post(
+  "/add-user",
+  addUser
 );
 
 // ADMIN ROUTE
