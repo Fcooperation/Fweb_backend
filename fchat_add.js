@@ -150,20 +150,42 @@ if (
     });
   }
 
-  const {
-    data: users,
-    error
-  } = await supabase
+  let searchQuery =
+  supabase
     .from("fwebaccount")
     .select(`
       id,
       username,
       profile_pic
     `)
-    .or(
-      `username.ilike.%${query}%,id.eq.${query}`
-    )
     .limit(20);
+
+const uuidRegex =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+if (
+  uuidRegex.test(query)
+) {
+
+  searchQuery =
+    searchQuery.or(
+      `username.ilike.%${query}%,id.eq.${query}`
+    );
+
+} else {
+
+  searchQuery =
+    searchQuery.ilike(
+      "username",
+      `%${query}%`
+    );
+
+}
+
+const {
+  data: users,
+  error
+} = await searchQuery;
 
   if (error) {
     throw error;
