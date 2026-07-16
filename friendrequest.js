@@ -185,7 +185,7 @@ export default async function friendRequest(
         error
       } = await supabase
         .from(
-          "fchat_contact"
+          "fchat_contacts"
         )
         .insert([
           {
