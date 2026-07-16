@@ -189,10 +189,18 @@ app.post(
 );
 
 // ADD USER ROUTE 
-app.get("/add-user", addUser);
-app.post("/add-user", addUser);
+app.get(
+  "/add-user",
+  addUser
+);
+
 app.get(
   "/add-user/search",
+  addUser
+);
+
+app.post(
+  "/add-user",
   addUser
 );
 

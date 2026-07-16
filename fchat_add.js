@@ -13,8 +13,11 @@ export default async function addUser(
 
   try {
 
-  // ---------------- GET USERS ----------------
-if (req.method === "GET") {
+ // ---------------- GET USERS ----------------
+if (
+  req.method === "GET" &&
+  !req.query.q
+) {
 
   const page =
     parseInt(req.query.page) || 1;
@@ -134,7 +137,7 @@ if (req.method === "GET") {
 // ---------------- SEARCH USERS ----------------
 if (
   req.method === "GET" &&
-  req.path === "/add-user/search"
+  req.query.q
 ) {
 
   const query =
@@ -172,17 +175,22 @@ if (
     );
 
   const {
-    data: fchatUsers
-  } = await supabase
-    .from("fchat")
-    .select(`
-      user_id,
-      status_text
-    `)
-    .in(
-      "user_id",
-      userIds
-    );
+  data: fchatUsers
+} = await supabase
+  .from("fchat")
+  .select(`
+    user_id,
+    status_text,
+    broadcast
+  `)
+  .in(
+    "user_id",
+    userIds
+  )
+  .eq(
+    "broadcast",
+    true
+  );
 
   const fchatMap = {};
 
@@ -198,7 +206,16 @@ if (
 
   return res.json({
     success:true,
-    users: users.map(
+    users:
+  users
+    .filter(
+      user =>
+        fchatUsers?.some(
+          f =>
+            f.user_id === user.id
+        )
+    )
+    .map(
       user => ({
         id:
           user.id,
@@ -213,6 +230,7 @@ if (
           fchatMap[
             user.id
           ]?.status_text ||
+
           "Hey there! I'm using FCHAT 👋"
       })
     )
