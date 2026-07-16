@@ -121,7 +121,7 @@ if (myId) {
   const {
     data: contactRows
   } = await supabase
-    .from("fchat_contact")
+    .from("fchat_contacts")
     .select(`
       friend_id
     `)
@@ -237,7 +237,7 @@ if (myId) {
   const {
     data: contactRows
   } = await supabase
-    .from("fchat_contact")
+    .from("fchat_contacts")
     .select(`
       friend_id
     `)
