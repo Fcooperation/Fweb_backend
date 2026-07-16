@@ -44,6 +44,8 @@ import forgotPassword
   from "./forgotpassword.js";
 import { fchat_send_message } from "./fchat_send_message.js";// import the main FCHAT handler
 import addUser from "./fchat_add.js";
+import friendRequest
+from "./friendrequest.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -202,6 +204,22 @@ app.get(
 app.post(
   "/add-user",
   addUser
+);
+
+// FRIEND REQUESTS
+app.get(
+  "/friend-request",
+  friendRequest
+);
+
+app.post(
+  "/friend-request/accept",
+  friendRequest
+);
+
+app.post(
+  "/friend-request/reject",
+  friendRequest
 );
 
 // ADMIN ROUTE
