@@ -13,90 +13,212 @@ export default async function addUser(
 
   try {
 
-    // ---------------- GET USERS ----------------
-    if (req.method === "GET") {
+  // ---------------- GET USERS ----------------
+if (req.method === "GET") {
 
-      const {
-        data: users,
-        error
-      } = await supabase
-        .from("fwebaccount")
-        .select(`
-          id,
-          username,
-          profile_pic
-        `)
-        .order(
-          "username",
-          {
-            ascending: true
-          }
-        );
+  const page =
+    parseInt(req.query.page) || 1;
 
-      if (error) {
-        throw error;
-      }
+  const limit =
+    parseInt(req.query.limit) || 20;
 
-      // get fchat info
-      const userIds =
-        users.map(
-          u => u.id
-        );
+  const myId =
+    req.query.userId || null;
 
-      const {
-        data: fchatUsers
-      } = await supabase
-        .from("fchat")
-        .select(`
-          user_id,
-          status_text
-        `)
-        .in(
-          "user_id",
-          userIds
-        );
+  const from =
+    (page - 1) * limit;
 
-      const fchatMap = {};
+  const to =
+    from + limit - 1;
 
-      fchatUsers?.forEach(
-        user => {
+  // Get broadcast users only
+  const {
+    data: fchatUsers,
+    error,
+    count
+  } = await supabase
+    .from("fchat")
+    .select(`
+      user_id,
+      status_text,
+      broadcast
+    `,{
+      count:"exact"
+    })
+    .eq(
+      "broadcast",
+      true
+    )
+    .range(
+      from,
+      to
+    );
 
-          fchatMap[
-            user.user_id
-          ] = user;
+  if (error) {
+    throw error;
+  }
 
-        }
+  const userIds =
+    fchatUsers
+      .map(
+        u => u.user_id
+      )
+      .filter(
+        id => id !== myId
       );
 
-      const formatted =
-        users.map(
-          user => ({
+  const {
+    data: users,
+    error: usersError
+  } = await supabase
+    .from("fwebaccount")
+    .select(`
+      id,
+      username,
+      profile_pic
+    `)
+    .in(
+      "id",
+      userIds
+    );
 
-            id:
-              user.id,
+  if (usersError) {
+    throw usersError;
+  }
 
-            username:
-              user.username,
+  const userMap = {};
 
-            profile_pic:
-              user.profile_pic,
+  users.forEach(user => {
 
-            status_text:
-              fchatMap[
-                user.id
-              ]?.status_text ||
+    userMap[user.id] = user;
 
-              "Hey there! I'm using FCHAT 👋"
+  });
 
-          })
-        );
+  const formatted =
+    fchatUsers
+      .filter(
+        u => u.user_id !== myId
+      )
+      .map(
+        user => ({
+          id:
+            user.user_id,
 
-      return res.json({
-        success: true,
-        users: formatted
-      });
+          username:
+            userMap[
+              user.user_id
+            ]?.username,
+
+          profile_pic:
+            userMap[
+              user.user_id
+            ]?.profile_pic,
+
+          status_text:
+            user.status_text ||
+            "Hey there! I'm using FCHAT 👋"
+        })
+      );
+
+  return res.json({
+    success: true,
+    users: formatted,
+    page,
+    hasMore:
+      to + 1 <
+      (count || 0)
+  });
+
+}
+
+// ---------------- SEARCH USERS ----------------
+if (
+  req.method === "GET" &&
+  req.path === "/add-user/search"
+) {
+
+  const query =
+    req.query.q || "";
+
+  if (!query.trim()) {
+    return res.json({
+      success: true,
+      users: []
+    });
+  }
+
+  const {
+    data: users,
+    error
+  } = await supabase
+    .from("fwebaccount")
+    .select(`
+      id,
+      username,
+      profile_pic
+    `)
+    .or(
+      `username.ilike.%${query}%,id.eq.${query}`
+    )
+    .limit(20);
+
+  if (error) {
+    throw error;
+  }
+
+  const userIds =
+    users.map(
+      u => u.id
+    );
+
+  const {
+    data: fchatUsers
+  } = await supabase
+    .from("fchat")
+    .select(`
+      user_id,
+      status_text
+    `)
+    .in(
+      "user_id",
+      userIds
+    );
+
+  const fchatMap = {};
+
+  fchatUsers?.forEach(
+    user => {
+
+      fchatMap[
+        user.user_id
+      ] = user;
 
     }
+  );
+
+  return res.json({
+    success:true,
+    users: users.map(
+      user => ({
+        id:
+          user.id,
+
+        username:
+          user.username,
+
+        profile_pic:
+          user.profile_pic,
+
+        status_text:
+          fchatMap[
+            user.id
+          ]?.status_text ||
+          "Hey there! I'm using FCHAT 👋"
+      })
+    )
+  });
+
+}
 
     // ---------------- ADD USER ----------------
     const {
