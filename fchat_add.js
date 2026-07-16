@@ -209,6 +209,46 @@ if (
     const myId =
   req.query.userId ||
   null;
+  
+  let sentRequests = [];
+let friends = [];
+
+if (myId) {
+
+  const {
+    data: requests
+  } = await supabase
+    .from("friend_request")
+    .select(`
+      friend_id
+    `)
+    .eq(
+      "user_id",
+      myId
+    )
+    .eq(
+      "accepted",
+      false
+    );
+
+  sentRequests =
+    requests || [];
+
+  const {
+    data: contactRows
+  } = await supabase
+    .from("fchat_contact")
+    .select(`
+      friend_id
+    `)
+    .eq(
+      "user_id",
+      myId
+    );
+
+  friends =
+    contactRows || [];
+}
 
   if (!query.trim()) {
     return res.json({
