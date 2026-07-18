@@ -46,6 +46,8 @@ import { fchat_send_message } from "./fchat_send_message.js";// import the main 
 import addUser from "./fchat_add.js";
 import friendRequest
 from "./friendrequest.js";
+import fchat
+from "./fchat.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -220,6 +222,12 @@ app.post(
 app.post(
   "/friend-request/reject",
   friendRequest
+);
+
+// FCHAT CONTACTS
+app.get(
+  "/fchat/contacts",
+  fchat
 );
 
 // ADMIN ROUTE
