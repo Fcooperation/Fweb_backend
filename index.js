@@ -11,7 +11,6 @@ import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
 import { fetchFAI } from "./fai.js";
 import { runFTrainer } from "./ftrainer.js";
-import { handleFChat } from "./fchat.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
 import { postComment, getComments } from "./fvidsComment.js";
@@ -356,23 +355,6 @@ app.post("/logs", async (req, res) => {
   }
 });
 
-// ------------------------------
-// FCHAT main route
-// ------------------------------
-app.post("/fchat", async (req, res) => {
-  if (!req.body || !req.body.action) {
-    return res.status(400).json({ error: "Missing 'action' in request body" });
-  }
-
-  try {
-    // Forward the entire JSON body to fchat.js
-    const result = await handleFChat(req.body);
-    res.json(result); // send back whatever fchat.js returns
-  } catch (err) {
-    console.error("❌ FCHAT error:", err.message);
-    res.status(500).json({ error: "Internal server error", details: err.message });
-  }
-});
 
 // FCHAT SEND MESSAGE ROUTE
 app.post("/fchat_send_message", async (req, res) => {
