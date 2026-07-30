@@ -47,6 +47,8 @@ import friendRequest
 from "./friendrequest.js";
 import fchat
 from "./fchat.js";
+import sendMessage
+from "./send-message.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -227,6 +229,35 @@ app.post(
 app.get(
   "/fchat/contacts",
   fchat
+);
+
+// SEND CHAT MESSAGE
+app.post(
+  "/send-message",
+  async (req, res) => {
+
+    try {
+
+      const result =
+        await sendMessage(req.body);
+
+      res.json(result);
+
+    } catch (err) {
+
+      console.error(
+        "❌ Send message error:",
+        err.message
+      );
+
+      res.status(500).json({
+        success: false,
+        error: err.message
+      });
+
+    }
+
+  }
 );
 
 // ADMIN ROUTE
