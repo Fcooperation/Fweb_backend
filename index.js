@@ -49,6 +49,8 @@ import fchat
 from "./fchat.js";
 import sendMessage
 from "./send-message.js";
+import receiveMessages
+from "./receive-messages.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -247,6 +249,36 @@ app.post(
 
       console.error(
         "❌ Send message error:",
+        err.message
+      );
+
+      res.status(500).json({
+        success: false,
+        error: err.message
+      });
+
+    }
+
+  }
+);
+
+// RECEIVING LOGIC 
+// RECEIVE CHAT MESSAGES
+app.post(
+  "/receive-messages",
+  async (req, res) => {
+
+    try {
+
+      const result =
+        await receiveMessages(req.body);
+
+      res.json(result);
+
+    } catch (err) {
+
+      console.error(
+        "❌ Receive messages error:",
         err.message
       );
 
