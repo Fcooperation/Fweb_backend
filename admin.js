@@ -182,6 +182,53 @@ if (action === "get_universities") {
 
 }
 
+// -------------------------
+// GET COURSES
+// -------------------------
+if (action === "get_courses") {
+
+  const { university } = body;
+
+  if (!university) {
+    return {
+      success: false,
+      error: "Missing university"
+    };
+  }
+
+  const { data, error } =
+    await supabase
+      .from("fchatstudy")
+      .select("course")
+      .eq("university", university);
+
+  if (error) {
+
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+
+  }
+
+  const courses = [
+    ...new Set(
+      data
+        .map(row => row.course)
+        .filter(Boolean)
+    )
+  ];
+
+  return {
+    success: true,
+    university,
+    courses
+  };
+
+}
+
 
 // -------------------------
 // UNKNOWN ACTION
