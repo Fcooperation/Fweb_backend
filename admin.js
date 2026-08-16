@@ -133,22 +133,62 @@ return {
     };
   }
 
-  // -------------------------
-  // RETURN QUIZ DATA
-  // -------------------------
+// -------------------------
+// RETURN QUIZ DATA
+// -------------------------
+return {
+  success: true,
+  course,
+  total: data.length,
+  questions: data
+};
+
+}
+
+
+// -------------------------
+// GET UNIVERSITIES
+// -------------------------
+if (action === "get_universities") {
+
+  const { data, error } =
+    await supabase
+      .from("fchatstudy")
+      .select("university");
+
+  if (error) {
+
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+
+  }
+
+  const universities = [
+    ...new Set(
+      data
+        .map(row => row.university)
+        .filter(Boolean)
+    )
+  ];
+
   return {
     success: true,
-    course,
-    total: data.length,
-    questions: data
+    universities
   };
-  }
+
+}
+
 
 // -------------------------
 // UNKNOWN ACTION
 // -------------------------
 return {
-success: false,
-error: "Unknown action"
+  success: false,
+  error: "Unknown action"
 };
+
 }
