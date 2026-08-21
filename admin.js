@@ -97,24 +97,26 @@ return {
   if (action === "get_quiz") {
 
   const {
-    course,
-    count
-  } = body;
+  university,
+  course,
+  count
+} = body;
 
-  if (!course) {
-    return {
-      success: false,
-      error: "Missing course"
-    };
-  }
+  if (!university || !course) {
+  return {
+    success: false,
+    error: "Missing university or course"
+  };
+}
 
   // -------------------------
   // BUILD QUERY
   // -------------------------
   let query = supabase
-    .from("fchatstudy")
-    .select("*")
-    .eq("course", course);
+  .from("fchatstudy")
+  .select("*")
+  .eq("university", university)
+  .eq("course", course);
 
   // -------------------------
   // LIMIT QUESTIONS
