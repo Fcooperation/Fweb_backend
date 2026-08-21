@@ -232,6 +232,69 @@ if (action === "get_courses") {
 
 }
 
+// -------------------------
+// ADD XP TO ACCOUNT
+// -------------------------
+if (action === "add_xp") {
+
+  const {
+    user_id,
+    xp
+  } = body;
+
+  if (!user_id || !xp) {
+    return {
+      success: false,
+      error: "Missing user_id or xp"
+    };
+  }
+
+  const { data: account, error: fetchError } =
+    await supabase
+      .from("fwebaccount")
+      .select("xp")
+      .eq("id", user_id)
+      .single();
+
+  if (fetchError) {
+    console.error(fetchError);
+
+    return {
+      success: false,
+      error: fetchError.message
+    };
+  }
+
+  const currentXP = account.xp || 0;
+  const newXP = currentXP + Number(xp);
+
+  const { data, error } =
+    await supabase
+      .from("fwebaccount")
+      .update({
+        xp: newXP
+      })
+      .eq("id", user_id)
+      .select("id, xp")
+      .single();
+
+  if (error) {
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+
+  return {
+    success: true,
+    message: "XP added",
+    xp_added: Number(xp),
+    total_xp: data.xp
+  };
+
+}
 
 // -------------------------
 // UNKNOWN ACTION
