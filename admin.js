@@ -18,13 +18,13 @@ const { action } = body;
 if (action === "add_study_question") {
 
 const {
-
   id,
   university,
   course,
   question,
   options,
   answer,
+  formula,
   explanation,
   difficulty,
   topic,
@@ -54,15 +54,16 @@ const { data, error } =
   await supabase
     .from("fchatstudy")
     .insert([
-      {
-        id,
-        university,
-        course,
-        question,
-        options,
-        answer,
-        explanation,
-        difficulty,
+{
+  id,
+  university,
+  course,
+  question,
+  options,
+  answer,
+  formula,
+  explanation,
+  difficulty,
         topic,
         type,
         year,
