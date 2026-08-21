@@ -1,0 +1,463 @@
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #f5f7fa;
+  text-align: center;
+}
+
+/* SETUP BOX */
+#setup-box {
+  margin: 50px auto;
+  width: 90%;
+  max-width: 400px;
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* ROWS */
+.row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+/* BUTTONS */
+button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 10px;
+  background: #1d9bf0;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* COUNT DISPLAY */
+#count, #time {
+  min-width: 80px;
+  font-weight: bold;
+}
+
+/* LOADING */
+#loading {
+  margin-top: 100px;
+}
+
+.dots {
+  font-size: 40px;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0% {opacity: 0.2;}
+  50% {opacity: 1;}
+  100% {opacity: 0.2;}
+}
+
+.hidden {
+  display: none;
+}
+/* QUIZ UI */
+#quiz-ui {
+  padding: 15px;
+}
+
+/* TIMER */
+#timer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-weight: bold;
+}
+
+/* RED TIMER */
+#timer.red {
+  color: red;
+}
+
+/* SUBMIT */
+#submit-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: red;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* QUESTION */
+#question-box {
+  margin-top: 60px;
+  background: white;
+  padding: 15px;
+  border-radius: 12px;
+}
+
+/* OPTIONS */
+.option {
+  margin: 10px 0;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* SELECTED */
+.option.selected {
+  border-color: #1d9bf0;
+  background: #e8f4ff;
+}
+
+/* CIRCLE CHECK */
+.circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #1d9bf0;
+}
+
+.option.selected .circle {
+  background: #1d9bf0;
+}
+
+/* NAV */
+#nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+/* QUESTION STYLE */
+.question-text {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  color: #111;
+}
+
+/* OPTION TEXT */
+.option-text {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* OPTION BOX IMPROVEMENT */
+.option {
+  background: white;
+  border: 1px solid #ddd;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: 0.2s;
+}
+
+/* SELECTED STATE */
+.option.selected {
+  border: 2px solid #1d9bf0;
+  background: #eaf4ff;
+}
+
+/* -------------------------
+   HINT
+------------------------- */
+
+#hint-container {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: auto;
+  margin: 0;
+
+  z-index: 2;
+}
+
+#hint-btn {
+  border: none;
+  background: #1d9bf0;
+  color: white;
+
+  padding: 8px 24px;
+  border-radius: 20px;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  position: relative;
+  z-index: 3;
+}
+
+#hint-btn:active {
+  transform: scale(0.96);
+}
+
+#hint-dropdown {
+  position: absolute;
+
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: min(360px, 90vw);
+
+  background: white;
+  border-radius: 14px;
+
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
+
+  overflow: hidden;
+
+  z-index: 4;
+}
+
+#hint-dropdown.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.hint-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 15px 16px;
+
+  border-bottom: 1px solid #eee;
+
+  cursor: pointer;
+}
+
+.hint-item:last-child {
+  border-bottom: none;
+}
+
+.hint-item:active {
+  background: #f5f5f5;
+}
+
+.hint-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.hint-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.hint-cost {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d9bf0;
+}
+
+/* -------------------------
+   HINT MODAL
+------------------------- */
+
+.hint-modal {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  z-index: 1000;
+
+  box-sizing: border-box;
+}
+
+.hint-modal.hidden {
+  display: none !important;
+}
+
+/* MODAL BOX */
+
+.hint-modal-box {
+  width: min(500px, 100%);
+
+  max-height: 75vh;
+
+  background: white;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.25);
+
+  overflow: hidden;
+
+  animation: hintAppear 0.2s ease;
+}
+
+@keyframes hintAppear {
+
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+}
+
+/* HEADER */
+
+.hint-modal-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 16px 18px;
+
+  border-bottom: 1px solid #eee;
+}
+
+.hint-modal-header h3 {
+  margin: 0;
+
+  font-size: 18px;
+
+  color: #111;
+}
+
+/* CLOSE BUTTON */
+
+.hint-close {
+  width: 34px;
+  height: 34px;
+
+  padding: 0;
+
+  border-radius: 50%;
+
+  background: #f1f3f5;
+
+  color: #333;
+
+  font-size: 24px;
+
+  line-height: 34px;
+
+  cursor: pointer;
+}
+
+.hint-close:active {
+  transform: scale(0.92);
+}
+
+/* CONTENT */
+
+.hint-modal-content {
+
+  padding: 20px;
+
+  max-height: calc(75vh - 70px);
+
+  overflow-y: auto;
+
+  text-align: left;
+
+  font-size: 16px;
+
+  line-height: 1.6;
+
+  color: #222;
+
+  white-space: pre-wrap;
+
+  word-wrap: break-word;
+}
+
+/* FORMULA */
+
+.hint-formula {
+  background: #f5f9ff;
+
+  border-left: 4px solid #1d9bf0;
+
+  padding: 14px;
+
+  border-radius: 8px;
+
+  font-size: 17px;
+
+  font-weight: 700;
+
+  margin-bottom: 15px;
+}
+
+/* EXPLANATION */
+
+.hint-explanation {
+  background: #f8f8f8;
+
+  padding: 14px;
+
+  border-radius: 8px;
+}
+
+/* -------------------------
+   EXTRA TIME INDICATOR
+------------------------- */
+
+#timer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+
+  font-weight: bold;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#timer-value {
+  display: inline-block;
+}
+
+#extra-time-indicator {
+  color: #1d9bf0;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transform: translateY(3px);
+
+  transition:
+    opacity 0.8s ease,
+    transform 0.8s ease;
+}
+
+#extra-time-indicator.show {
+  opacity: 1;
+  transform: translateY(0);
+}

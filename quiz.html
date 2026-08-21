@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Setup</title>
+<link rel="stylesheet" href="quiz.css">
+<link rel="icon" type="image/png" href="/favicon.png">
+</head>
+
+<body>
+
+<!-- SETUP BOX -->
+<div id="setup-box">
+
+  <h2>Quiz Setup</h2>
+
+  <!-- QUESTION SELECT -->
+  <div class="row">
+    <button id="minus">-</button>
+
+    <div id="count">1</div>
+
+    <button id="plus">+</button>
+
+    <button id="max">MAX</button>
+  </div>
+
+  <!-- TIME SELECT -->
+  <div class="row">
+    <button id="minus-time">-</button>
+
+    <div id="time">60 sec</div>
+
+    <button id="plus-time">+</button>
+  </div>
+
+  <button id="start-btn">Get Started</button>
+
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loading" class="hidden">
+  <div class="dots">...</div>
+</div>
+
+<!-- QUIZ AREA (blank for now) -->
+<div id="quiz-area"></div>
+
+<!-- QUIZ UI -->
+<div id="quiz-ui" class="hidden">
+
+<!-- HINT -->
+<div id="hint-container">
+
+  <button id="hint-btn">
+    Hint
+  </button>
+
+  <div id="hint-dropdown" class="hidden">
+
+   <div id="hint-dropdown" class="hidden">
+
+  <div class="hint-item" id="formula-hint">
+
+    <div class="hint-info">
+      <span class="hint-title">Formula</span>
+    </div>
+
+    <span class="hint-cost">20 XP</span>
+
+  </div>
+
+
+  <div class="hint-item" id="explanation-hint">
+
+    <div class="hint-info">
+      <span class="hint-title">Explanation</span>
+    </div>
+
+    <span class="hint-cost">100 XP</span>
+
+  </div>
+
+
+  <div class="hint-item" id="time-hint">
+
+    <div class="hint-info">
+      <span class="hint-title">
+        Extra 10 seconds
+      </span>
+    </div>
+
+    <span class="hint-cost">
+      5 XP
+    </span>
+
+  </div>
+
+</div>
+<
+
+<!-- HINT MODAL -->
+<div id="hint-modal" class="hint-modal hidden">
+
+  <div class="hint-modal-box">
+
+    <div class="hint-modal-header">
+      <h3 id="hint-modal-title">Hint</h3>
+
+      <button id="hint-close" class="hint-close">
+        ×
+      </button>
+    </div>
+
+    <div id="hint-modal-content" class="hint-modal-content">
+    </div>
+
+  </div>
+
+</div>
+
+  <!-- TOP BAR -->
+  <div id="quiz-top">
+
+   <div id="timer">
+  <span id="timer-value">60</span>
+  <span id="extra-time-indicator">+10 sec</span>
+</div>
+
+    <button id="submit-btn">Submit</button>
+
+  </div>
+
+  <!-- QUESTION BOX -->
+  <div id="question-box">
+    <div id="q-number"></div>
+    <div id="q-text"></div>
+  </div>
+
+  <!-- OPTIONS -->
+  <div id="options"></div>
+
+  <!-- NAV BUTTONS -->
+  <div id="nav">
+    <button id="prev">Prev</button>
+    <button id="next">Next</button>
+  </div>
+
+</div>
+
+<script src="quiz.js"></script>
+</body>
+</html>
