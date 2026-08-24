@@ -297,6 +297,96 @@ if (action === "add_xp") {
 }
 
 // -------------------------
+// DEDUCT XP FROM ACCOUNT
+// -------------------------
+if (action === "deduct_xp") {
+
+  const {
+    user_id,
+    amount
+  } = body;
+
+  if (!user_id || !amount) {
+    return {
+      success: false,
+      error: "Missing user_id or amount"
+    };
+  }
+
+  const deduction = Number(amount);
+
+  if (!Number.isFinite(deduction) || deduction <= 0) {
+    return {
+      success: false,
+      error: "Invalid XP amount"
+    };
+  }
+
+  const { data: account, error: fetchError } =
+    await supabase
+      .from("fwebaccount")
+      .select("xp")
+      .eq("id", user_id)
+      .single();
+
+  if (fetchError) {
+
+    console.error(fetchError);
+
+    return {
+      success: false,
+      error: fetchError.message
+    };
+
+  }
+
+  const currentXP = Number(account.xp) || 0;
+
+  // Not enough XP
+  if (currentXP < deduction) {
+
+    return {
+      success: false,
+      error: "Not enough XP",
+      current_xp: currentXP,
+      required_xp: deduction
+    };
+
+  }
+
+  const newXP = currentXP - deduction;
+
+  const { data, error } =
+    await supabase
+      .from("fwebaccount")
+      .update({
+        xp: newXP
+      })
+      .eq("id", user_id)
+      .select("id, xp")
+      .single();
+
+  if (error) {
+
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+
+  }
+
+  return {
+    success: true,
+    message: "XP deducted",
+    xp_deducted: deduction,
+    total_xp: data.xp
+  };
+
+}
+
+// -------------------------
 // UNKNOWN ACTION
 // -------------------------
 return {
