@@ -9,7 +9,9 @@ import dashboard from "./dashboard.js";
 import admin from "./admin.js";
 import { fetchImages } from "./fimages.js"; // new
 import { fetchVideos } from "./fvids.js";   // new
-import { fetchFAI } from "./fai.js";
+import {
+  fetchFAIStream
+} from "./fai.js";
 import { runFTrainer } from "./ftrainer.js";
 import fvidLike from "./fvidslike.js";
 import fvidUpload from "./fvidUpload.js";
@@ -329,25 +331,52 @@ app.get("/fai", async (req, res) => {
 });
 
 app.post("/fai", async (req, res) => {
-  const { userId, messages, prompt } = req.body;
+
+  const {
+    userId,
+    messages,
+    prompt
+  } = req.body;
 
   if (!prompt) {
-    return res.status(400).json({ error: "No prompt provided" });
+
+    return res
+      .status(400)
+      .json({
+        error: "No prompt provided"
+      });
+
   }
 
   try {
-    const result = await fetchFAI({
+
+    await fetchFAIStream({
       userId,
       messages,
-      prompt
+      prompt,
+      res
     });
 
-    res.json(result);
-
   } catch (err) {
-    console.error("❌ FAI POST error:", err.message);
-    res.status(500).json({ error: "FAI failed", details: err.message });
+
+    console.error(
+      "❌ FAI STREAM ERROR:",
+      err.message
+    );
+
+    if (!res.headersSent) {
+
+      return res
+        .status(500)
+        .json({
+          error: "FAI failed",
+          details: err.message
+        });
+
+    }
+
   }
+
 });
 
 // ------------------------------
