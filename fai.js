@@ -124,33 +124,53 @@ ${prompt}
       // ------------------------------
       if (userId) {
 
-        const updatedMemory = await generateMemoryUpdate({
-          userId,
-          prompt,
-          answer,
-          oldMemory: userMemory
-        });
+        // Return answer immediately
+const response = {
+  answer,
+  model,
+  userId
+};
 
-        if (updatedMemory) {
-          const { error } = await supabase
-  .from("fai_memory")
-.update({
-  memory: updatedMemory
-})
-.eq("user_id", userId)
-.select();
+// Update memory in background
+if (userId) {
 
-          if (error) {
-            console.log("❌ Supabase save error:", error.message);
-          }
-        }
-      }
+  generateMemoryUpdate({
+    userId,
+    prompt,
+    answer,
+    oldMemory: userMemory
+  })
+  .then(async updatedMemory => {
 
-      return {
-        answer,
-        model,
-        userId
-      };
+    if (!updatedMemory) return;
+
+    const { error } = await supabase
+      .from("fai_memory")
+      .update({
+        memory: updatedMemory
+      })
+      .eq("user_id", userId);
+
+    if (error) {
+      console.log(
+        "❌ Supabase save error:",
+        error.message
+      );
+    }
+
+  })
+  .catch(err => {
+
+    console.log(
+      "⚠️ Background memory update failed:",
+      err.message
+    );
+
+  });
+
+}
+
+return response;
 
     } catch (err) {
       console.error(`❌ FAI ERROR (${model}):`, err.message);
