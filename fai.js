@@ -119,19 +119,20 @@ ${prompt}
 
       if (!answer) continue;
 
-      // ------------------------------
-      // 5. UPDATE MEMORY ONLY IF userId EXISTS
-      // ------------------------------
-      if (userId) {
+ // ------------------------------
+// 5. RETURN ANSWER IMMEDIATELY
+// ------------------------------
 
-        // Return answer immediately
 const response = {
   answer,
   model,
   userId
 };
 
-// Update memory in background
+// ------------------------------
+// UPDATE MEMORY IN BACKGROUND
+// ------------------------------
+
 if (userId) {
 
   generateMemoryUpdate({
@@ -152,10 +153,12 @@ if (userId) {
       .eq("user_id", userId);
 
     if (error) {
+
       console.log(
         "❌ Supabase save error:",
         error.message
       );
+
     }
 
   })
