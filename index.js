@@ -330,54 +330,69 @@ app.get("/fai", async (req, res) => {
   }
 });
 
-app.post("/fai", async (req, res) => {
+app.post(
+  "/fai",
+  upload.single("file"),
+  async (req, res) => {
 
-  const {
-    userId,
-    messages,
-    prompt
-  } = req.body;
+    const {
+      userId,
+      prompt
+    } = req.body;
 
-  if (!prompt) {
+    if (!prompt) {
 
-    return res
-      .status(400)
-      .json({
+      return res.status(400).json({
         error: "No prompt provided"
       });
 
-  }
+    }
 
-  try {
+    let messages = [];
 
-    await fetchFAIStream({
-      userId,
-      messages,
-      prompt,
-      res
-    });
+    try {
 
-  } catch (err) {
+      messages =
+        req.body.messages
+          ? JSON.parse(req.body.messages)
+          : [];
 
-    console.error(
-      "❌ FAI STREAM ERROR:",
-      err.message
-    );
+    } catch (err) {
 
-    if (!res.headersSent) {
+      messages = [];
 
-      return res
-        .status(500)
-        .json({
+    }
+
+    try {
+
+      await fetchFAIStream({
+        userId,
+        messages,
+        prompt,
+        file: req.file || null,
+        res
+      });
+
+    } catch (err) {
+
+      console.error(
+        "❌ FAI STREAM ERROR:",
+        err.message
+      );
+
+      if (!res.headersSent) {
+
+        return res.status(500).json({
           error: "FAI failed",
           details: err.message
         });
 
+      }
+
     }
 
   }
-
-});
+);
 
 // ------------------------------
 // Training route

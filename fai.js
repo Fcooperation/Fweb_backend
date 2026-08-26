@@ -216,6 +216,7 @@ export async function fetchFAIStream({
   userId,
   messages = [],
   prompt,
+  file = null,
   res
 }) {
 
@@ -270,6 +271,59 @@ export async function fetchFAIStream({
       null,
       2
     );
+    
+    // ------------------------------
+// BUILD GEMINI CONTENT
+// ------------------------------
+
+const parts = [];
+
+// Written prompt
+parts.push({
+  text: `
+You are FAI, a helpful study assistant inside the FCOOPERATION AI system.
+
+RULES:
+- Do NOT introduce yourself unless asked
+- Do NOT repeat "I am FAI"
+- Be natural, helpful, and student-friendly
+- Use memory when relevant
+
+USER MEMORY:
+${memoryText}
+
+CHAT HISTORY:
+${context}
+
+USER MESSAGE:
+${prompt}
+
+If an image/file is attached:
+- Inspect it carefully.
+- Use the attached content as additional context.
+- If the user's written message refers to the attachment, answer based on both.
+- If the attachment contains a question, diagram, table, formula, handwritten work, or study material, explain it clearly.
+- Do not ignore the user's written instructions just because an attachment exists.
+`.trim()
+});
+
+// ------------------------------
+// ATTACHED FILE
+// ------------------------------
+
+if (file) {
+
+  const base64Data =
+    file.buffer.toString("base64");
+
+  parts.push({
+    inline_data: {
+      mime_type: file.mimetype,
+      data: base64Data
+    }
+  });
+
+}
 
   // ------------------------------
   // SSE HEADERS
@@ -316,38 +370,15 @@ export async function fetchFAIStream({
 
             body: JSON.stringify({
 
-              contents: [
+  contents: [
 
-                {
-                  parts: [
+    {
+      parts
+    }
 
-                    {
-                      text: `
-You are FAI, a helpful study assistant inside the FCOOPERATION AI system.
+  ]
 
-RULES:
-- Do NOT introduce yourself unless asked
-- Do NOT repeat "I am FAI"
-- Be natural, helpful, and student-friendly
-- Use memory when relevant
-
-USER MEMORY:
-${memoryText}
-
-CHAT HISTORY:
-${context}
-
-USER MESSAGE:
-${prompt}
-                      `.trim()
-                    }
-
-                  ]
-                }
-
-              ]
-
-            })
+})
           }
         );
 
