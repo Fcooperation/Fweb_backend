@@ -15,8 +15,11 @@ const MODELS = [
   "gemini-3.1-pro-preview"
 ];
 
-// 🎨 Image generation
-const IMAGE_MODEL = "gemini-3.1-flash-image";
+// 🎨 Image generation models
+const IMAGE_MODELS = [
+  "gemini-2.5-flash-image",
+  "gemini-3.1-flash-image"
+];
 
 // ------------------------------
 // Supabase setup
@@ -265,151 +268,192 @@ async function generateFAIImage({
   const API_KEY =
     process.env.GEMINI_API_KEY;
 
-  try {
+  for (const imageModel of IMAGE_MODELS) {
 
-    const response =
-      await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`,
-        {
-          method: "POST",
+    try {
 
-          headers: {
-            "Content-Type":
-              "application/json",
+      console.log(
+        `🎨 Trying image model: ${imageModel}`
+      );
 
-            "X-goog-api-key":
-              API_KEY
-          },
+      const response =
+        await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent`,
+          {
+            method: "POST",
 
-          body: JSON.stringify({
+            headers: {
+              "Content-Type":
+                "application/json",
 
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `
+              "X-goog-api-key":
+                API_KEY
+            },
+
+            body: JSON.stringify({
+
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `
 Create an educational visual based on the user's request.
 
 The visual should be:
+
 - Clear
 - Useful for learning
 - Easy for a student to understand
-- Visually accurate
-- Not unnecessarily complicated
+- Scientifically/academically accurate
+- Clean and well organized
+- Suitable for a student studying the topic
+- Include labels when the user asks for a diagram
+- Avoid unnecessary decorative elements
 
 User request:
 ${prompt}
-                    `.trim()
-                  }
-                ]
+                      `.trim()
+                    }
+                  ]
+                }
+              ],
+
+              generationConfig: {
+                responseModalities: ["IMAGE"]
               }
-            ],
 
-            generationConfig: {
-              responseModalities: ["IMAGE"]
-            }
+            })
+          }
+        );
 
-          })
-        }
-      );
+      // ------------------------------
+      // MODEL FAILED
+      // ------------------------------
 
-    if (!response.ok) {
+      if (!response.ok) {
 
-      const errorText =
-        await response.text();
+        const errorText =
+          await response.text();
+
+        console.log(
+          `❌ ${imageModel} image error:`,
+          errorText
+        );
+
+        // Try next image model
+        continue;
+      }
+
+      // ------------------------------
+      // READ RESPONSE
+      // ------------------------------
+
+      const data =
+        await response.json();
+
+      const parts =
+        data
+          ?.candidates?.[0]
+          ?.content?.parts || [];
+
+      const imagePart =
+        parts.find(
+          part => part.inlineData
+        );
+
+      if (
+        !imagePart ||
+        !imagePart.inlineData
+      ) {
+
+        console.log(
+          `⚠️ ${imageModel} returned no image.`
+        );
+
+        continue;
+      }
+
+      const imageData =
+        imagePart.inlineData.data;
+
+      const mimeType =
+        imagePart.inlineData.mimeType ||
+        "image/png";
 
       console.log(
-        "❌ Nano Banana error:",
-        errorText
+        `✅ Image generated with ${imageModel}`
       );
 
-      throw new Error(
-        `Image generation failed: ${response.status}`
+      // ------------------------------
+      // SSE HEADERS
+      // ------------------------------
+
+      res.setHeader(
+        "Content-Type",
+        "text/event-stream"
       );
 
+      res.setHeader(
+        "Cache-Control",
+        "no-cache"
+      );
+
+      res.setHeader(
+        "Connection",
+        "keep-alive"
+      );
+
+      res.flushHeaders();
+
+      // ------------------------------
+      // SEND IMAGE
+      // ------------------------------
+
+      res.write(
+        `data: ${JSON.stringify({
+          type: "image",
+          data: imageData,
+          mimeType,
+          model: imageModel
+        })}\n\n`
+      );
+
+      // ------------------------------
+      // DONE
+      // ------------------------------
+
+      res.write(
+        `data: ${JSON.stringify({
+          type: "done"
+        })}\n\n`
+      );
+
+      res.end();
+
+      return true;
+
+    } catch (err) {
+
+      console.error(
+        `❌ IMAGE GENERATION ERROR (${imageModel}):`,
+        err.message
+      );
+
+      // Try next image model
+      continue;
     }
-
-    const data =
-      await response.json();
-
-    const parts =
-      data
-        ?.candidates?.[0]
-        ?.content?.parts || [];
-
-    const imagePart =
-      parts.find(
-        part => part.inlineData
-      );
-
-    if (
-      !imagePart ||
-      !imagePart.inlineData
-    ) {
-
-      throw new Error(
-        "Nano Banana returned no image."
-      );
-
-    }
-
-    const imageData =
-      imagePart.inlineData.data;
-
-    const mimeType =
-      imagePart.inlineData.mimeType ||
-      "image/png";
-
-    /* ------------------------------
-       SEND IMAGE TO FRONTEND
-    ------------------------------ */
-
-    res.setHeader(
-      "Content-Type",
-      "text/event-stream"
-    );
-
-    res.setHeader(
-      "Cache-Control",
-      "no-cache"
-    );
-
-    res.setHeader(
-      "Connection",
-      "keep-alive"
-    );
-
-    res.flushHeaders();
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "image",
-        data: imageData,
-        mimeType
-      })}\n\n`
-    );
-
-    res.write(
-      `data: ${JSON.stringify({
-        type: "done"
-      })}\n\n`
-    );
-
-    res.end();
-
-    return true;
-
-  } catch (err) {
-
-    console.error(
-      "❌ IMAGE GENERATION ERROR:",
-      err.message
-    );
-
-    return false;
 
   }
 
+  // ------------------------------
+  // ALL IMAGE MODELS FAILED
+  // ------------------------------
+
+  console.log(
+    "❌ All image generation models failed."
+  );
+
+  return false;
 }
 
 // ------------------------------
@@ -435,6 +479,8 @@ let userMemory = {};
 
 if (isImageRequest(prompt)) {
 
+  console.log("🎨 IMAGE REQUEST DETECTED");
+
   const generated =
     await generateFAIImage({
       prompt,
@@ -445,8 +491,28 @@ if (isImageRequest(prompt)) {
     return;
   }
 
-  // If image generation fails,
-  // continue into normal FAI.
+  console.log(
+    "❌ ALL IMAGE MODELS FAILED"
+  );
+
+  res.setHeader(
+    "Content-Type",
+    "text/event-stream"
+  );
+
+  res.flushHeaders();
+
+  res.write(
+    `data: ${JSON.stringify({
+      type: "error",
+      message:
+        "FAI detected an image request, but all image generation models are currently unavailable."
+    })}\n\n`
+  );
+
+  res.end();
+
+  return;
 }
 
   // ------------------------------
