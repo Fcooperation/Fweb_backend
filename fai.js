@@ -2,18 +2,22 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 const MODELS = [
-  // 🔥 Primary (best balance of intelligence + speed)
+  // 🔥 Primary text model
   "gemini-3.5-flash",
 
-  // ⚡ Fast fallback (cheap + reliable)
+  // ⚡ Fast fallback
   "gemini-3.1-flash-lite",
 
-  // 🧠 Strong reasoning / memory extraction
+  // 🧠 Strong reasoning fallback
   "gemini-2.5-flash",
 
-  // 🧠 Advanced reasoning (slowest but smartest fallback)
+  // 🧠 Advanced reasoning fallback
   "gemini-3.1-pro-preview"
 ];
+
+// 🎨 Image generation
+const IMAGE_MODEL = "gemini-3.1-flash-image";
+
 // ------------------------------
 // Supabase setup
 // ------------------------------
@@ -41,6 +45,47 @@ function limitWords(text, maxWords = 300) {
   return words
     .slice(0, maxWords)
     .join(" ") + "...";
+}
+
+// ------------------------------
+// IMAGE REQUEST DETECTOR
+// ------------------------------
+
+function isImageRequest(prompt) {
+
+  if (!prompt) return false;
+
+  const text =
+    String(prompt)
+      .toLowerCase()
+      .trim();
+
+  const imagePatterns = [
+
+    /\bgenerate\s+(an?\s+)?image\b/,
+    /\bgenerate\s+(an?\s+)?picture\b/,
+    /\bcreate\s+(an?\s+)?image\b/,
+    /\bcreate\s+(an?\s+)?picture\b/,
+    /\bmake\s+(an?\s+)?image\b/,
+    /\bmake\s+(an?\s+)?picture\b/,
+    /\bdraw\s+(an?\s+)?image\b/,
+    /\bdraw\s+(an?\s+)?picture\b/,
+    /\bdraw\s+me\b/,
+    /\bshow\s+me\s+(an?\s+)?diagram\b/,
+    /\bgenerate\s+(an?\s+)?diagram\b/,
+    /\bcreate\s+(an?\s+)?diagram\b/,
+    /\bmake\s+(an?\s+)?diagram\b/,
+    /\bvisuali[sz]e\b/,
+    /\bvisual\s+of\b/,
+    /\billustration\s+of\b/,
+    /\bgenerate\s+an?\s+illustration\b/
+
+  ];
+
+  return imagePatterns.some(
+    pattern => pattern.test(text)
+  );
+
 }
 
 // ------------------------------
@@ -209,6 +254,165 @@ return response;
 }
 
 // ------------------------------
+// GENERATE IMAGE WITH NANO BANANA
+// ------------------------------
+
+async function generateFAIImage({
+  prompt,
+  res
+}) {
+
+  const API_KEY =
+    process.env.GEMINI_API_KEY;
+
+  try {
+
+    const response =
+      await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "X-goog-api-key":
+              API_KEY
+          },
+
+          body: JSON.stringify({
+
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `
+Create an educational visual based on the user's request.
+
+The visual should be:
+- Clear
+- Useful for learning
+- Easy for a student to understand
+- Visually accurate
+- Not unnecessarily complicated
+
+User request:
+${prompt}
+                    `.trim()
+                  }
+                ]
+              }
+            ],
+
+            generationConfig: {
+              responseModalities: ["IMAGE"]
+            }
+
+          })
+        }
+      );
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+      console.log(
+        "❌ Nano Banana error:",
+        errorText
+      );
+
+      throw new Error(
+        `Image generation failed: ${response.status}`
+      );
+
+    }
+
+    const data =
+      await response.json();
+
+    const parts =
+      data
+        ?.candidates?.[0]
+        ?.content?.parts || [];
+
+    const imagePart =
+      parts.find(
+        part => part.inlineData
+      );
+
+    if (
+      !imagePart ||
+      !imagePart.inlineData
+    ) {
+
+      throw new Error(
+        "Nano Banana returned no image."
+      );
+
+    }
+
+    const imageData =
+      imagePart.inlineData.data;
+
+    const mimeType =
+      imagePart.inlineData.mimeType ||
+      "image/png";
+
+    /* ------------------------------
+       SEND IMAGE TO FRONTEND
+    ------------------------------ */
+
+    res.setHeader(
+      "Content-Type",
+      "text/event-stream"
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "no-cache"
+    );
+
+    res.setHeader(
+      "Connection",
+      "keep-alive"
+    );
+
+    res.flushHeaders();
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: "image",
+        data: imageData,
+        mimeType
+      })}\n\n`
+    );
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: "done"
+      })}\n\n`
+    );
+
+    res.end();
+
+    return true;
+
+  } catch (err) {
+
+    console.error(
+      "❌ IMAGE GENERATION ERROR:",
+      err.message
+    );
+
+    return false;
+
+  }
+
+}
+
+// ------------------------------
 // FAI STREAM
 // ------------------------------
 
@@ -220,9 +424,30 @@ export async function fetchFAIStream({
   res
 }) {
 
-  const API_KEY = process.env.GEMINI_API_KEY;
+  const API_KEY =
+  process.env.GEMINI_API_KEY;
 
-  let userMemory = {};
+let userMemory = {};
+
+/* ------------------------------
+   IMAGE GENERATION
+------------------------------ */
+
+if (isImageRequest(prompt)) {
+
+  const generated =
+    await generateFAIImage({
+      prompt,
+      res
+    });
+
+  if (generated) {
+    return;
+  }
+
+  // If image generation fails,
+  // continue into normal FAI.
+}
 
   // ------------------------------
   // LOAD MEMORY
