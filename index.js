@@ -340,13 +340,13 @@ app.post(
       prompt
     } = req.body;
 
-    if (!prompt) {
+    if (!prompt && !req.file) {
 
-      return res.status(400).json({
-        error: "No prompt provided"
-      });
+  return res.status(400).json({
+    error: "Please provide a question or upload a file"
+  });
 
-    }
+}
 
     let messages = [];
 
