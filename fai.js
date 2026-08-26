@@ -65,23 +65,23 @@ function isImageRequest(prompt) {
 
   const imagePatterns = [
 
-    /\bgenerate\s+(an?\s+)?image\b/,
-    /\bgenerate\s+(an?\s+)?picture\b/,
-    /\bcreate\s+(an?\s+)?image\b/,
-    /\bcreate\s+(an?\s+)?picture\b/,
-    /\bmake\s+(an?\s+)?image\b/,
-    /\bmake\s+(an?\s+)?picture\b/,
-    /\bdraw\s+(an?\s+)?image\b/,
-    /\bdraw\s+(an?\s+)?picture\b/,
-    /\bdraw\s+me\b/,
-    /\bshow\s+me\s+(an?\s+)?diagram\b/,
-    /\bgenerate\s+(an?\s+)?diagram\b/,
-    /\bcreate\s+(an?\s+)?diagram\b/,
-    /\bmake\s+(an?\s+)?diagram\b/,
+    // Generate / create / make
+    /\b(generate|create|make|draw|produce)\b.*\b(image|picture|diagram|illustration|visual|chart|figure)\b/,
+
+    // "show me ..."
+    /\b(show|give)\s+me\b.*\b(image|picture|diagram|illustration|visual|chart|figure)\b/,
+
+    // "visualize ..."
     /\bvisuali[sz]e\b/,
-    /\bvisual\s+of\b/,
-    /\billustration\s+of\b/,
-    /\bgenerate\s+an?\s+illustration\b/
+
+    // Explicit image requests
+    /\b(image|picture|diagram|illustration|visual|chart|figure)\s+of\b/,
+
+    // Common natural phrasing
+    /\b(draw|generate|create|make)\b.*\bfor\s+me\b/,
+
+    // Study-specific visual requests
+    /\b(show|draw|illustrate|visualize)\b.*\b(how|what|structure|process|cycle|system)\b/
 
   ];
 
