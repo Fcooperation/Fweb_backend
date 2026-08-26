@@ -473,6 +473,9 @@ export async function fetchFAIStream({
 
 let userMemory = {};
 
+console.log("📝 FAI PROMPT:", prompt);
+console.log("🖼️ IS IMAGE REQUEST:", isImageRequest(prompt));
+
 /* ------------------------------
    IMAGE GENERATION
 ------------------------------ */
