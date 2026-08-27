@@ -2,25 +2,18 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 const MODELS = [
-  // 🔥 Primary text model
+  // 🔥 Primary (best balance of intelligence + speed)
   "gemini-3.5-flash",
 
-  // ⚡ Fast fallback
+  // ⚡ Fast fallback (cheap + reliable)
   "gemini-3.1-flash-lite",
 
-  // 🧠 Strong reasoning fallback
+  // 🧠 Strong reasoning / memory extraction
   "gemini-2.5-flash",
 
-  // 🧠 Advanced reasoning fallback
+  // 🧠 Advanced reasoning (slowest but smartest fallback)
   "gemini-3.1-pro-preview"
 ];
-
-// 🎨 Image generation models
-const IMAGE_MODELS = [
-  "gemini-2.5-flash-image",
-  "gemini-3.1-flash-image"
-];
-
 // ------------------------------
 // Supabase setup
 // ------------------------------
@@ -48,47 +41,6 @@ function limitWords(text, maxWords = 300) {
   return words
     .slice(0, maxWords)
     .join(" ") + "...";
-}
-
-// ------------------------------
-// IMAGE REQUEST DETECTOR
-// ------------------------------
-
-function isImageRequest(prompt) {
-
-  if (!prompt) return false;
-
-  const text =
-    String(prompt)
-      .toLowerCase()
-      .trim();
-
-  const imagePatterns = [
-
-    // Generate / create / make
-    /\b(generate|create|make|draw|produce)\b.*\b(image|picture|diagram|illustration|visual|chart|figure)\b/,
-
-    // "show me ..."
-    /\b(show|give)\s+me\b.*\b(image|picture|diagram|illustration|visual|chart|figure)\b/,
-
-    // "visualize ..."
-    /\bvisuali[sz]e\b/,
-
-    // Explicit image requests
-    /\b(image|picture|diagram|illustration|visual|chart|figure)\s+of\b/,
-
-    // Common natural phrasing
-    /\b(draw|generate|create|make)\b.*\bfor\s+me\b/,
-
-    // Study-specific visual requests
-    /\b(show|draw|illustrate|visualize)\b.*\b(how|what|structure|process|cycle|system)\b/
-
-  ];
-
-  return imagePatterns.some(
-    pattern => pattern.test(text)
-  );
-
 }
 
 // ------------------------------
@@ -257,206 +209,6 @@ return response;
 }
 
 // ------------------------------
-// GENERATE IMAGE WITH NANO BANANA
-// ------------------------------
-
-async function generateFAIImage({
-  prompt,
-  res
-}) {
-
-  const API_KEY =
-    process.env.GEMINI_API_KEY;
-
-  for (const imageModel of IMAGE_MODELS) {
-
-    try {
-
-      console.log(
-        `🎨 Trying image model: ${imageModel}`
-      );
-
-      const response =
-        await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              "X-goog-api-key":
-                API_KEY
-            },
-
-            body: JSON.stringify({
-
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: `
-Create an educational visual based on the user's request.
-
-The visual should be:
-
-- Clear
-- Useful for learning
-- Easy for a student to understand
-- Scientifically/academically accurate
-- Clean and well organized
-- Suitable for a student studying the topic
-- Include labels when the user asks for a diagram
-- Avoid unnecessary decorative elements
-
-User request:
-${prompt}
-                      `.trim()
-                    }
-                  ]
-                }
-              ],
-
-              generationConfig: {
-                responseModalities: ["IMAGE"]
-              }
-
-            })
-          }
-        );
-
-      // ------------------------------
-      // MODEL FAILED
-      // ------------------------------
-
-      if (!response.ok) {
-
-        const errorText =
-          await response.text();
-
-        console.log(
-          `❌ ${imageModel} image error:`,
-          errorText
-        );
-
-        // Try next image model
-        continue;
-      }
-
-      // ------------------------------
-      // READ RESPONSE
-      // ------------------------------
-
-      const data =
-        await response.json();
-
-      const parts =
-        data
-          ?.candidates?.[0]
-          ?.content?.parts || [];
-
-      const imagePart =
-        parts.find(
-          part => part.inlineData
-        );
-
-      if (
-        !imagePart ||
-        !imagePart.inlineData
-      ) {
-
-        console.log(
-          `⚠️ ${imageModel} returned no image.`
-        );
-
-        continue;
-      }
-
-      const imageData =
-        imagePart.inlineData.data;
-
-      const mimeType =
-        imagePart.inlineData.mimeType ||
-        "image/png";
-
-      console.log(
-        `✅ Image generated with ${imageModel}`
-      );
-
-      // ------------------------------
-      // SSE HEADERS
-      // ------------------------------
-
-      res.setHeader(
-        "Content-Type",
-        "text/event-stream"
-      );
-
-      res.setHeader(
-        "Cache-Control",
-        "no-cache"
-      );
-
-      res.setHeader(
-        "Connection",
-        "keep-alive"
-      );
-
-      res.flushHeaders();
-
-      // ------------------------------
-      // SEND IMAGE
-      // ------------------------------
-
-      res.write(
-        `data: ${JSON.stringify({
-          type: "image",
-          data: imageData,
-          mimeType,
-          model: imageModel
-        })}\n\n`
-      );
-
-      // ------------------------------
-      // DONE
-      // ------------------------------
-
-      res.write(
-        `data: ${JSON.stringify({
-          type: "done"
-        })}\n\n`
-      );
-
-      res.end();
-
-      return true;
-
-    } catch (err) {
-
-      console.error(
-        `❌ IMAGE GENERATION ERROR (${imageModel}):`,
-        err.message
-      );
-
-      // Try next image model
-      continue;
-    }
-
-  }
-
-  // ------------------------------
-  // ALL IMAGE MODELS FAILED
-  // ------------------------------
-
-  console.log(
-    "❌ All image generation models failed."
-  );
-
-  return false;
-}
-
-// ------------------------------
 // FAI STREAM
 // ------------------------------
 
@@ -468,55 +220,9 @@ export async function fetchFAIStream({
   res
 }) {
 
-  const API_KEY =
-  process.env.GEMINI_API_KEY;
+  const API_KEY = process.env.GEMINI_API_KEY;
 
-let userMemory = {};
-
-console.log("📝 FAI PROMPT:", prompt);
-console.log("🖼️ IS IMAGE REQUEST:", isImageRequest(prompt));
-
-/* ------------------------------
-   IMAGE GENERATION
------------------------------- */
-
-if (isImageRequest(prompt)) {
-
-  console.log("🎨 IMAGE REQUEST DETECTED");
-
-  const generated =
-    await generateFAIImage({
-      prompt,
-      res
-    });
-
-  if (generated) {
-    return;
-  }
-
-  console.log(
-    "❌ ALL IMAGE MODELS FAILED"
-  );
-
-  res.setHeader(
-    "Content-Type",
-    "text/event-stream"
-  );
-
-  res.flushHeaders();
-
-  res.write(
-    `data: ${JSON.stringify({
-      type: "error",
-      message:
-        "FAI detected an image request, but all image generation models are currently unavailable."
-    })}\n\n`
-  );
-
-  res.end();
-
-  return;
-}
+  let userMemory = {};
 
   // ------------------------------
   // LOAD MEMORY
