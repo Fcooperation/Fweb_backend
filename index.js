@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
-import multer
-from "multer";
+import multer from "multer";
 import { handleSearch } from "./fcrawler.js";
 import login from "./login.js";
 import signup from "./signup.js";
@@ -53,6 +52,8 @@ import sendMessage
 from "./send-message.js";
 import receiveMessages
 from "./receive-messages.js";
+import pastQuestion from "./past-question.js";
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -307,6 +308,49 @@ app.post("/admin", async (req, res) => {
     });
   }
 });
+
+// ------------------------------
+// FSTUDY PAST QUESTIONS
+// ------------------------------
+app.post(
+  "/past-question",
+  upload.array("images", 20),
+  async (req, res) => {
+
+    try {
+
+      const result =
+        await pastQuestion(
+          req,
+          res
+        );
+
+      // Only send JSON if the handler
+      // hasn't already sent a response
+      if (!res.headersSent) {
+        res.json(result);
+      }
+
+    } catch (err) {
+
+      console.error(
+        "❌ Past question error:",
+        err.message
+      );
+
+      if (!res.headersSent) {
+
+        res.status(500).json({
+          success: false,
+          error: err.message
+        });
+
+      }
+
+    }
+
+  }
+);
 
 // ------------------------------
 // Global error handlers
