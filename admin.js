@@ -601,6 +601,108 @@ if (action === "retrieve_notes_topics") {
   };
 
 }
+
+// -------------------------
+// RETRIEVE FSTUDY NOTE
+// -------------------------
+if (action === "retrieve_note") {
+
+const {
+university,
+course,
+topic
+} = body;
+
+// -------------------------
+// VALIDATE
+// -------------------------
+
+if (
+!university ||
+!course ||
+!topic
+) {
+
+return {
+  success: false,
+  error:
+    "Missing university, course or topic"
+};
+
+}
+
+// -------------------------
+// FIND NOTE
+// -------------------------
+
+const {
+data: note,
+error: noteError
+} =
+await supabase
+.from("fstudy_notes")
+.select("*")
+.eq("university", university)
+.eq("course", course)
+.eq("topic", topic)
+.limit(1)
+.single();
+
+if (noteError) {
+
+console.error(noteError);
+
+return {
+  success: false,
+  error: noteError.message
+};
+
+}
+
+// -------------------------
+// GET SECTIONS
+// -------------------------
+
+const {
+data: sections,
+error: sectionError
+} =
+await supabase
+.from("fstudy_note_sections")
+.select("*")
+.eq("note_id", note.id)
+.order("section_order", {
+ascending: true
+});
+
+if (sectionError) {
+
+console.error(sectionError);
+
+return {
+  success: false,
+  error: sectionError.message
+};
+
+}
+
+// -------------------------
+// RETURN NOTE
+// -------------------------
+
+return {
+
+success: true,
+
+note,
+
+sections:
+  sections || []
+
+};
+
+}
+
 // -------------------------
 // UNKNOWN ACTION
 // -------------------------
