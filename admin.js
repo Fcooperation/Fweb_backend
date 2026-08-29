@@ -143,6 +143,10 @@ return {
   success: true,
   course,
   total: data.length,
+  exam_question_count:
+    Number(data[0]?.exam_question_count) || 35,
+  exam_time_limit:
+    Number(data[0]?.exam_time_limit) || 25,
   questions: data
 };
 
