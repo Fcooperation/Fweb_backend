@@ -391,6 +391,140 @@ if (action === "deduct_xp") {
 }
 
 // -------------------------
+// UPLOAD FSTUDY NOTE
+// -------------------------
+if (action === "upload_notes") {
+
+  const {
+    id,
+    university,
+    course,
+    title,
+    topic,
+    uploaded_by,
+    sections
+  } = body;
+
+
+  // -------------------------
+  // VALIDATE NOTE
+  // -------------------------
+
+  if (
+    !id ||
+    !university ||
+    !course ||
+    !title ||
+    !uploaded_by
+  ) {
+    return {
+      success: false,
+      error: "Missing required note fields"
+    };
+  }
+
+
+  if (
+    !Array.isArray(sections) ||
+    sections.length === 0
+  ) {
+    return {
+      success: false,
+      error: "Note must contain at least one section"
+    };
+  }
+
+
+  // -------------------------
+  // INSERT NOTE
+  // -------------------------
+
+  const { data: note, error: noteError } =
+    await supabase
+      .from("fstudy_notes")
+      .insert([
+        {
+          id,
+          university,
+          course,
+          title,
+          topic,
+          uploaded_by
+        }
+      ])
+      .select()
+      .single();
+
+
+  if (noteError) {
+
+    console.error(noteError);
+
+    return {
+      success: false,
+      error: noteError.message
+    };
+
+  }
+
+
+  // -------------------------
+  // PREPARE SECTIONS
+  // -------------------------
+
+  const sectionRows =
+    sections.map((section, index) => ({
+      note_id: id,
+      title: section.title,
+      content: section.content,
+      section_order:
+        Number(section.section_order) || index + 1
+    }));
+
+
+  // -------------------------
+  // INSERT SECTIONS
+  // -------------------------
+
+  const { data: insertedSections, error: sectionError } =
+    await supabase
+      .from("fstudy_note_sections")
+      .insert(sectionRows)
+      .select();
+
+
+  if (sectionError) {
+
+    console.error(sectionError);
+
+    // Remove the note if sections failed
+    await supabase
+      .from("fstudy_notes")
+      .delete()
+      .eq("id", id);
+
+    return {
+      success: false,
+      error: sectionError.message
+    };
+
+  }
+
+
+  // -------------------------
+  // SUCCESS
+  // -------------------------
+
+  return {
+    success: true,
+    message: "Note uploaded successfully",
+    note,
+    sections: insertedSections
+  };
+
+}
+
+// -------------------------
 // UNKNOWN ACTION
 // -------------------------
 return {
