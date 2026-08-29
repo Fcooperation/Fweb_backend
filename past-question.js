@@ -1,3 +1,14 @@
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+const supabase = createClient(
+  supabaseUrl,
+  supabaseKey
+);
+
+
 export default async function pastQuestion(req, res) {
 
   const {
@@ -5,13 +16,10 @@ export default async function pastQuestion(req, res) {
     course
   } = req.body;
 
-  const images =
-    req.files || [];
 
-
-  // ------------------------------
+  // ==============================
   // VALIDATION
-  // ------------------------------
+  // ==============================
 
   if (!university) {
 
@@ -21,6 +29,7 @@ export default async function pastQuestion(req, res) {
     };
 
   }
+
 
   if (!course) {
 
@@ -32,21 +41,123 @@ export default async function pastQuestion(req, res) {
   }
 
 
-  // ------------------------------
-  // IMAGE INFORMATION
-  // ------------------------------
+  // ==============================
+  // GET ALL QUESTIONS
+  // ==============================
 
-  const imageInfo =
-    images.map(file => ({
-      name: file.originalname,
-      type: file.mimetype,
-      size: file.size
-    }));
+  const {
+    data,
+    error
+  } = await supabase
+    .from("fchatstudy")
+    .select("*")
+    .eq("university", university)
+    .eq("course", course)
+    .order("year", {
+      ascending: false
+    })
+    .order("question_number", {
+      ascending: true
+    });
 
 
-  // ------------------------------
-  // TEMPORARY RESPONSE
-  // ------------------------------
+  // ==============================
+  // DATABASE ERROR
+  // ==============================
+
+  if (error) {
+
+    console.error(
+      "❌ Past question error:",
+      error
+    );
+
+    return {
+      success: false,
+      error: error.message
+    };
+
+  }
+
+
+  // ==============================
+  // NO QUESTIONS
+  // ==============================
+
+  if (!data || data.length === 0) {
+
+    return {
+      success: true,
+      university,
+      course,
+      total: 0,
+      years: [],
+      questions: []
+    };
+
+  }
+
+
+  // ==============================
+  // GROUP QUESTIONS BY YEAR
+  // ==============================
+
+  const grouped = {};
+
+
+  data.forEach(question => {
+
+    const year =
+      question.year || "Unknown Year";
+
+
+    if (!grouped[year]) {
+
+      grouped[year] = [];
+
+    }
+
+
+    grouped[year].push(question);
+
+  });
+
+
+  // ==============================
+  // CONVERT GROUPED DATA
+  // ==============================
+
+  const years =
+    Object.keys(grouped)
+      .sort((a, b) => {
+
+        if (
+          a === "Unknown Year"
+        ) return 1;
+
+        if (
+          b === "Unknown Year"
+        ) return -1;
+
+        return Number(b) - Number(a);
+
+      })
+      .map(year => ({
+
+        year,
+
+        question_count:
+          grouped[year].length,
+
+        questions:
+          grouped[year]
+
+      }));
+
+
+  // ==============================
+  // RESPONSE
+  // ==============================
 
   return {
 
@@ -56,7 +167,13 @@ export default async function pastQuestion(req, res) {
 
     course,
 
-    images: imageInfo
+    total:
+      data.length,
+
+    years,
+
+    questions:
+      data
 
   };
 
