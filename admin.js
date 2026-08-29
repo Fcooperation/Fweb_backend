@@ -403,7 +403,7 @@ if (action === "upload_notes") {
     topic,
     uploaded_by,
     sections
-  } = body;
+  } = body.note || {};
 
 
   // -------------------------
@@ -411,7 +411,6 @@ if (action === "upload_notes") {
   // -------------------------
 
   if (
-    !id ||
     !university ||
     !course ||
     !title ||
@@ -436,6 +435,15 @@ if (action === "upload_notes") {
 
 
   // -------------------------
+  // GENERATE ID
+  // -------------------------
+
+  const noteId =
+    id ||
+    crypto.randomUUID();
+
+
+  // -------------------------
   // INSERT NOTE
   // -------------------------
 
@@ -444,7 +452,7 @@ if (action === "upload_notes") {
       .from("fstudy_notes")
       .insert([
         {
-          id,
+          id: noteId,
           university,
           course,
           title,
@@ -474,11 +482,19 @@ if (action === "upload_notes") {
 
   const sectionRows =
     sections.map((section, index) => ({
-      note_id: id,
-      title: section.title,
-      content: section.content,
+
+      note_id: noteId,
+
+      title:
+        section.title,
+
+      content:
+        section.content,
+
       section_order:
-        Number(section.section_order) || index + 1
+        Number(section.section_order) ||
+        index + 1
+
     }));
 
 
@@ -486,7 +502,10 @@ if (action === "upload_notes") {
   // INSERT SECTIONS
   // -------------------------
 
-  const { data: insertedSections, error: sectionError } =
+  const {
+    data: insertedSections,
+    error: sectionError
+  } =
     await supabase
       .from("fstudy_note_sections")
       .insert(sectionRows)
@@ -497,11 +516,13 @@ if (action === "upload_notes") {
 
     console.error(sectionError);
 
-    // Remove the note if sections failed
+
+    // Remove note if sections failed
     await supabase
       .from("fstudy_notes")
       .delete()
-      .eq("id", id);
+      .eq("id", noteId);
+
 
     return {
       success: false,
