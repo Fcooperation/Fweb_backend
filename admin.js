@@ -545,6 +545,62 @@ if (action === "upload_notes") {
 
 }
 
+//Retrieve Notes
+if (action === "retrieve_notes_topics") {
+
+  const {
+    university,
+    course
+  } = body;
+
+
+  if (!university || !course) {
+
+    return {
+      success: false,
+      error: "Missing university or course"
+    };
+
+  }
+
+
+  const { data, error } =
+    await supabase
+      .from("fstudy_notes")
+      .select("topic")
+      .eq("university", university)
+      .eq("course", course);
+
+
+  if (error) {
+
+    console.error(error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+
+  }
+
+
+  const topics = [
+    ...new Set(
+      data
+        .map(row => row.topic)
+        .filter(Boolean)
+    )
+  ];
+
+
+  return {
+    success: true,
+    university,
+    course,
+    topics
+  };
+
+}
 // -------------------------
 // UNKNOWN ACTION
 // -------------------------
