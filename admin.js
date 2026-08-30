@@ -743,7 +743,7 @@ if (action === "retrieve_past_questions") {
     error
   } =
     await supabase
-      .from("past_questions")
+      .from("fchatstudy")
       .select("*")
       .eq(
         "university",
