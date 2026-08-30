@@ -816,9 +816,9 @@ if (action === "translate_section") {
     } = body;
 
 
-    // -------------------------
-    // VALIDATE
-    // -------------------------
+    /* =========================
+       VALIDATE
+    ========================= */
 
     if (
       !text ||
@@ -834,9 +834,9 @@ if (action === "translate_section") {
     }
 
 
-    // -------------------------
-    // TRANSLATION PROMPT
-    // -------------------------
+    /* =========================
+       TRANSLATION PROMPT
+    ========================= */
 
     const prompt = `
 You are a professional translator for FSTUDY.
@@ -868,9 +868,9 @@ ${text}
 `;
 
 
-    // -------------------------
-    // GEMINI
-    // -------------------------
+    /* =========================
+       GEMINI
+    ========================= */
 
     const result =
       await geminiModel.generateContent(
@@ -884,6 +884,10 @@ ${text}
         .trim();
 
 
+    /* =========================
+       CHECK RESULT
+    ========================= */
+
     if (!translation) {
 
       throw new Error(
@@ -893,15 +897,16 @@ ${text}
     }
 
 
-    // -------------------------
-    // SUCCESS
-    // -------------------------
+    /* =========================
+       SUCCESS
+    ========================= */
 
     return {
 
       success: true,
 
-      translation
+      translation:
+        translation
 
     };
 
