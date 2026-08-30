@@ -53,6 +53,7 @@ from "./send-message.js";
 import receiveMessages
 from "./receive-messages.js";
 import pastQuestion from "./past-question.js";
+import { generateFAIImage } from "./fai-generate-image.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -264,6 +265,43 @@ app.post(
 
   }
 );
+
+// ------------------------------
+// FAI IMAGE GENERATION
+// ------------------------------
+app.post("/fai/generate-image", async (req, res) => {
+
+  try {
+
+    const { prompt } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({
+        success: false,
+        error: "Image prompt is required"
+      });
+    }
+
+    const result =
+      await generateFAIImage(prompt);
+
+    res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ FAI image generation error:",
+      err.message
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
 
 // RECEIVING LOGIC 
 // RECEIVE CHAT MESSAGES
