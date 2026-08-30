@@ -703,18 +703,21 @@ sections:
 
 }
 
-// Retrieve past questions
-if (
-  action ===
-  "retrieve_past_questions"
-) {
+// -------------------------
+// RETRIEVE PAST QUESTIONS
+// -------------------------
+if (action === "retrieve_past_questions") {
 
   const {
     university,
     course,
     year
-  } = req.body;
+  } = body;
 
+
+  // -------------------------
+  // VALIDATE
+  // -------------------------
 
   if (
     !university ||
@@ -722,17 +725,18 @@ if (
     !year
   ) {
 
-    return res.json({
-
+    return {
       success: false,
-
       error:
         "University, course and year are required."
-
-    });
+    };
 
   }
 
+
+  // -------------------------
+  // GET QUESTIONS
+  // -------------------------
 
   const {
     data,
@@ -761,28 +765,40 @@ if (
       );
 
 
+  // -------------------------
+  // DATABASE ERROR
+  // -------------------------
+
   if (error) {
 
-    return res.json({
+    console.error(error);
 
+    return {
       success: false,
-
-      error:
-        error.message
-
-    });
+      error: error.message
+    };
 
   }
 
 
-  return res.json({
+  // -------------------------
+  // SUCCESS
+  // -------------------------
 
+  return {
     success: true,
+
+    university,
+    course,
+    year,
+
+    total:
+      data ? data.length : 0,
 
     questions:
       data || []
 
-  });
+  };
 
 }
 
