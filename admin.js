@@ -703,6 +703,89 @@ sections:
 
 }
 
+// Retrieve past questions
+if (
+  action ===
+  "retrieve_past_questions"
+) {
+
+  const {
+    university,
+    course,
+    year
+  } = req.body;
+
+
+  if (
+    !university ||
+    !course ||
+    !year
+  ) {
+
+    return res.json({
+
+      success: false,
+
+      error:
+        "University, course and year are required."
+
+    });
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from("past_questions")
+      .select("*")
+      .eq(
+        "university",
+        university
+      )
+      .eq(
+        "course",
+        course
+      )
+      .eq(
+        "year",
+        year
+      )
+      .order(
+        "question_number",
+        {
+          ascending: true
+        }
+      );
+
+
+  if (error) {
+
+    return res.json({
+
+      success: false,
+
+      error:
+        error.message
+
+    });
+
+  }
+
+
+  return res.json({
+
+    success: true,
+
+    questions:
+      data || []
+
+  });
+
+}
+
 // -------------------------
 // UNKNOWN ACTION
 // -------------------------
