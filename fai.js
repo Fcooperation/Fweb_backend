@@ -369,15 +369,15 @@ if (file) {
             },
 
             body: JSON.stringify({
+    contents: [
+        {
+            parts
+        }
+    ],
 
-  contents: [
-
-    {
-      parts
+    generationConfig: {
+        maxOutputTokens: 32768
     }
-
-  ]
-
 })
           }
         );
