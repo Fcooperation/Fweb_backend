@@ -12,7 +12,7 @@ export async function generateFAIImage(prompt) {
     throw new Error("Image prompt is required");
   }
 
-  // Initialize the SDK for Google AI Studio (Not Enterprise/Vertex AI)
+  // Initialize the SDK for Google AI Studio
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   try {
@@ -20,10 +20,11 @@ export async function generateFAIImage(prompt) {
       -----------------------------------------
       GENERATE CONTENT WITH IMAGE MODALITY
       -----------------------------------------
-      We instruct the model to produce an image modality response.
+      We use the updated gemini-3.6-flash model, which allows
+      image modality generations on the standard free tier.
     */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: "gemini-3.6-flash", 
       contents: `Generate an image matching this description: ${prompt}`,
       config: {
         // Enforce that the model outputs raw image data bytes
@@ -67,7 +68,7 @@ export async function generateFAIImage(prompt) {
       mime_type: "image/jpeg",
       answer: `I generated a brand new image matching "${prompt}" using Gemini.`,
       gemini: {
-        model: "gemini-2.5-flash-image",
+        model: "gemini-3.6-flash",
       },
     };
   } catch (error) {
