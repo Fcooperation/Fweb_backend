@@ -82,34 +82,25 @@ export async function generateFAIImage(
       mode = "edit";
 
 
-      /*
-        Try to detect the image type.
-
-        If the uploaded image is PNG,
-        JPEG, WEBP, etc., use the correct
-        MIME type instead of always saying PNG.
-      */
-
-      let imageMimeType =
-        "image/png";
+      // Detect image type
+      let imageMimeType = "image/png";
+      let extension = "png";
 
 
-      /*
-        Detect common image formats
-        from their binary signatures.
-      */
-
+      // JPEG
       if (
         imageInput[0] === 0xFF &&
         imageInput[1] === 0xD8 &&
         imageInput[2] === 0xFF
       ) {
 
-        imageMimeType =
-          "image/jpeg";
+        imageMimeType = "image/jpeg";
+        extension = "jpg";
 
       }
 
+
+      // PNG
       else if (
         imageInput[0] === 0x89 &&
         imageInput[1] === 0x50 &&
@@ -117,11 +108,13 @@ export async function generateFAIImage(
         imageInput[3] === 0x47
       ) {
 
-        imageMimeType =
-          "image/png";
+        imageMimeType = "image/png";
+        extension = "png";
 
       }
 
+
+      // WEBP
       else if (
         imageInput[0] === 0x52 &&
         imageInput[1] === 0x49 &&
@@ -129,8 +122,8 @@ export async function generateFAIImage(
         imageInput[3] === 0x46
       ) {
 
-        imageMimeType =
-          "image/webp";
+        imageMimeType = "image/webp";
+        extension = "webp";
 
       }
 
@@ -147,20 +140,14 @@ export async function generateFAIImage(
       form.append(
         "input_image_0",
         imageBlob,
-        `input.${
-          imageMimeType === "image/jpeg"
-            ? "jpg"
-            : imageMimeType === "image/webp"
-              ? "webp"
-              : "png"
-        }`
+        `input.${extension}`
       );
 
     }
 
 
     // =====================================================
-    // IMAGE GENERATION
+    // GENERATION
     // =====================================================
 
     else {
@@ -198,7 +185,7 @@ export async function generateFAIImage(
 
 
     // =====================================================
-    // CLOUDFLARE ERROR
+    // CLOUDFLARE HTTP ERROR
     // =====================================================
 
     if (!response.ok) {
@@ -220,132 +207,73 @@ export async function generateFAIImage(
 
 
     // =====================================================
-    // GET RESPONSE CONTENT TYPE
+    // CLOUDFLARE RETURNS JSON
     // =====================================================
 
-    const responseContentType =
-      response.headers.get(
-        "content-type"
-      ) || "";
+    const cloudflareData =
+      await response.json();
 
 
-    /*
-      Cloudflare image models should return
-      binary image data.
-
-      If Cloudflare unexpectedly returns JSON,
-      don't turn that JSON into a fake image.
-    */
+    // =====================================================
+    // CHECK CLOUDFLARE RESULT
+    // =====================================================
 
     if (
-      responseContentType.includes(
-        "application/json"
-      )
+      !cloudflareData ||
+      !cloudflareData.result
     ) {
-
-      const jsonText =
-        await response.text();
 
       console.error(
-        "❌ Cloudflare returned JSON instead of an image:",
-        jsonText
+        "❌ Invalid Cloudflare response:",
+        cloudflareData
       );
-
-      let cloudflareError =
-        jsonText;
-
-      try {
-
-        const json =
-          JSON.parse(jsonText);
-
-        cloudflareError =
-          json?.errors?.[0]?.message ||
-          json?.message ||
-          jsonText;
-
-      } catch {
-        // Keep original response
-      }
 
       throw new Error(
-        `Cloudflare returned JSON instead of an image: ${cloudflareError}`
+        "Cloudflare returned an invalid image response."
       );
 
     }
 
-
-    // =====================================================
-    // IMAGE RESPONSE
-    // =====================================================
-
-    const imageBuffer =
-      Buffer.from(
-        await response.arrayBuffer()
-      );
-
-
-    if (!imageBuffer.length) {
-
-      throw new Error(
-        "Cloudflare returned an empty image"
-      );
-
-    }
-
-
-    // =====================================================
-    // DETERMINE IMAGE TYPE
-    // =====================================================
-
-    let mimeType =
-      "image/png";
-
-
-    /*
-      Use Cloudflare's content type only
-      if it is actually an image.
-    */
-
-    if (
-      responseContentType.startsWith(
-        "image/"
-      )
-    ) {
-
-      mimeType =
-        responseContentType
-          .split(";")[0]
-          .trim();
-
-    }
-
-
-    // =====================================================
-    // CONVERT IMAGE TO BASE64
-    // =====================================================
 
     const base64Image =
-      imageBuffer.toString(
-        "base64"
+      cloudflareData.result.image;
+
+
+    if (
+      !base64Image ||
+      typeof base64Image !== "string"
+    ) {
+
+      console.error(
+        "❌ Cloudflare image missing:",
+        cloudflareData
       );
 
+      throw new Error(
+        "Cloudflare did not return an image."
+      );
+
+    }
+
+
+    // =====================================================
+    // CREATE BROWSER DATA URL
+    // =====================================================
 
     /*
-      IMPORTANT:
+      FLUX.2 Klein returns JPEG Base64.
 
-      This creates a valid browser image
-      data URL:
+      Cloudflare gives us:
 
-      data:image/png;base64,...
+      /9j/4AAQSkZJRg...
 
-      or
+      The browser needs:
 
-      data:image/jpeg;base64,...
+      data:image/jpeg;base64,/9j/4AAQSkZJRg...
     */
 
     const dataUrl =
-      `data:${mimeType};base64,${base64Image}`;
+      `data:image/jpeg;base64,${base64Image}`;
 
 
     // =====================================================
@@ -371,7 +299,7 @@ export async function generateFAIImage(
         dataUrl,
 
       mime_type:
-        mimeType,
+        "image/jpeg",
 
       answer:
         mode === "edit"
@@ -380,13 +308,7 @@ export async function generateFAIImage(
 
       cloudflare: {
         model:
-          MODEL,
-
-        content_type:
-          responseContentType,
-
-        image_size:
-          imageBuffer.length
+          MODEL
       }
 
     };
@@ -398,7 +320,6 @@ export async function generateFAIImage(
       "❌ FAI Image Error:",
       error
     );
-
 
     throw new Error(
       error?.message ||
