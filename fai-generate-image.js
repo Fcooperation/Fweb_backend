@@ -1,78 +1,62 @@
 import "dotenv/config";
-import { GoogleGenAI, Modality } from "@google/genai";
 
 export async function generateFAIImage(prompt) {
-  const API_KEY = process.env.GEMINI_API_KEY;
+  const ACCESS_TOKEN = process.env.HF_ACCESS_TOKEN;
 
-  if (!API_KEY) {
-    throw new Error("GEMINI_API_KEY is missing from .env");
+  if (!ACCESS_TOKEN) {
+    throw new Error("HF_ACCESS_TOKEN is missing from .env");
   }
 
   if (!prompt) {
     throw new Error("Image prompt is required");
   }
 
-  // Initialize the SDK for Google AI Studio
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  // Target a highly stable open-source text-to-image endpoint
+  const MODEL_URL = "https://huggingface.co";
 
   try {
-    /*
-      -----------------------------------------
-      GENERATE CONTENT WITH IMAGE MODALITY
-      -----------------------------------------
-      We use the updated gemini-3.6-flash model, which allows
-      image modality generations on the standard free tier.
-    */
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash", 
-      contents: `Generate an image matching this description: ${prompt}`,
-      config: {
-        // Enforce that the model outputs raw image data bytes
-        responseModalities: [Modality.IMAGE],
+    const response = await fetch(MODEL_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ inputs: prompt }),
     });
 
-    /*
-      -----------------------------------------
-      CHECK & EXTRACT INLINE IMAGE BYTES
-      -----------------------------------------
-    */
-    const candidate = response.candidates?.[0];
-    const parts = candidate?.content?.parts;
-
-    if (!parts || parts.length === 0) {
-      throw new Error("Gemini returned an empty response layout.");
+    // Check if the server is still booting up the model ("Cold Start")
+    if (response.status === 503) {
+      console.warn("⚠️ Hugging Face model is warming up... Retrying soon.");
+      throw new Error("AI model is currently loading into memory. Please try again in a few seconds.");
     }
 
-    // Locate the part containing the inline image data bytes
-    const imagePart = parts.find((part) => part.inlineData);
-
-    if (!imagePart || !imagePart.inlineData?.data) {
-      throw new Error("Gemini completed the request but did not include image bytes.");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Hugging Face API error:", errorText);
+      throw new Error("Hugging Face failed to process your image request.");
     }
 
-    // The SDK returns image data directly as a base64 string
-    const base64ImageBytes = imagePart.inlineData.data;
-    const dataUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
+    // Hugging Face returns raw binary data directly instead of JSON strings
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString("base64");
+    
+    const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
-    /*
-      -----------------------------------------
-      RETURN RESPONSE SCHEMA FOR FRONTEND
-      -----------------------------------------
-    */
     return {
       success: true,
-      provider: "gemini",
+      provider: "huggingface",
       image: dataUrl,
       imageUrl: dataUrl,
       mime_type: "image/jpeg",
-      answer: `I generated a brand new image matching "${prompt}" using Gemini.`,
-      gemini: {
-        model: "gemini-3.6-flash",
-      },
+      answer: `I generated a brand new image matching "${prompt}" using Hugging Face.`,
+      huggingface: {
+        model: "stable-diffusion-2-1",
+      }
     };
+
   } catch (error) {
-    console.error("❌ Gemini Image Generation error:", error);
-    throw new Error(error?.message || "Gemini image generation failed");
+    console.error("❌ Image Generation Exception:", error);
+    throw new Error(error?.message || "Hugging Face processing failed");
   }
 }
