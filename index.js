@@ -54,6 +54,7 @@ import receiveMessages
 from "./receive-messages.js";
 import pastQuestion from "./past-question.js";
 import { generateFAIImage } from "./fai-generate-image.js";
+import { getFAIModels } from "./fai-models.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -314,6 +315,36 @@ app.post(
 
   }
 );
+
+// ------------------------------
+// FAI AVAILABLE MODELS
+// ------------------------------
+
+app.get("/fai-models", async (req, res) => {
+
+  try {
+
+    console.log("🔎 Checking Cloudflare AI models...");
+
+    const result = await getFAIModels();
+
+    return res.json(result);
+
+  } catch (err) {
+
+    console.error(
+      "❌ FAI models error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
 
 // RECEIVING LOGIC 
 // RECEIVE CHAT MESSAGES
