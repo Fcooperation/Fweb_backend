@@ -1,16 +1,12 @@
 import "dotenv/config";
-
-const PIXABAY_API_URL =
-  "https://pixabay.com/api/";
+import { GoogleGenAI } from "@google/genai";
 
 export async function generateFAIImage(prompt) {
-
-  const API_KEY =
-    process.env.PIXABAY_API_KEY;
+  const API_KEY = process.env.GEMINI_API_KEY;
 
   if (!API_KEY) {
     throw new Error(
-      "PIXABAY_API_KEY is missing from .env"
+      "GEMINI_API_KEY is missing from .env"
     );
   }
 
@@ -22,125 +18,72 @@ export async function generateFAIImage(prompt) {
 
   /*
     -----------------------------------------
-    SEARCH PIXABAY
+    INITIALIZE GEMINI SDK
     -----------------------------------------
   */
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  const params = new URLSearchParams({
+  try {
+    /*
+      -----------------------------------------
+      GENERATE IMAGE WITH GEMINI 2.5 FLASH
+      -----------------------------------------
+    */
+    const response = await ai.models.generateImages({
+      model: "gemini-2.5-flash-image",
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+        outputMimeType: "image/jpeg",
+        aspectRatio: "1:1", // Options: "1:1", "3:4", "4:3", "16:9"
+      },
+    });
 
-    key: API_KEY,
-
-    q: prompt,
-
-    image_type: "photo",
-
-    safesearch: "true",
-
-    per_page: "20",
-
-    page: "1"
-
-  });
-
-  const response =
-    await fetch(
-      `${PIXABAY_API_URL}?${params.toString()}`
-    );
-
-  const data =
-    await response.json();
-
-  if (!response.ok) {
-
-    console.error(
-      "❌ Pixabay API error:",
-      data
-    );
-
-    throw new Error(
-      data?.error ||
-      "Pixabay image search failed"
-    );
-  }
-
-  /*
-    -----------------------------------------
-    CHECK RESULTS
-    -----------------------------------------
-  */
-
-  if (
-    !data.hits ||
-    !data.hits.length
-  ) {
-
-    throw new Error(
-      "No suitable image was found on Pixabay."
-    );
-  }
-
-  /*
-    -----------------------------------------
-    PICK BEST RESULT
-    -----------------------------------------
-
-    Pixabay returns several images.
-
-    We use the first result for now.
-  */
-
-  const image =
-    data.hits[0];
-
-  const imageUrl =
-    image.largeImageURL ||
-    image.webformatURL;
-
-  if (!imageUrl) {
-
-    throw new Error(
-      "Pixabay returned an image without a usable URL."
-    );
-  }
-
-  /*
-    -----------------------------------------
-    RETURN IMAGE
-    -----------------------------------------
-  */
-
-  return {
-
-    success: true,
-
-    provider: "pixabay",
-
-    image: imageUrl,
-
-    imageUrl: imageUrl,
-
-    mime_type: "image/jpeg",
-
-    answer:
-      `I found an image matching "${prompt}" on Pixabay.`,
-
-    pixabay: {
-
-      id: image.id,
-
-      tags: image.tags,
-
-      pageURL: image.pageURL,
-
-      previewURL: image.previewURL,
-
-      webformatURL: image.webformatURL,
-
-      largeImageURL:
-        image.largeImageURL
-
+    /*
+      -----------------------------------------
+      CHECK RESULTS
+      -----------------------------------------
+    */
+    const generatedImages = response.generatedImages;
+    if (!generatedImages || generatedImages.length === 0) {
+      throw new Error(
+        "Gemini failed to generate an image for this prompt."
+      );
     }
 
-  };
+    /*
+      -----------------------------------------
+      PROCESS IMAGE DATA
+      -----------------------------------------
+      Gemini returns the image as raw base64 bytes. 
+      We format it into a Data URL so your frontend <img> tag 
+      can render it instantly without needing a hosted URL link.
+    */
+    const base64ImageBytes = generatedImages[0].image.imageBytes;
+    const dataUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
 
+    /*
+      -----------------------------------------
+      RETURN IMAGE (Matching Frontend Expectation)
+      -----------------------------------------
+    */
+    return {
+      success: true,
+      provider: "gemini",
+      image: dataUrl,       // Base64 string directly usable in src="..."
+      imageUrl: dataUrl,    // Kept for frontend structural consistency
+      mime_type: "image/jpeg",
+      answer: `I generated a brand new image matching "${prompt}" using Gemini.`,
+      gemini: {
+        model: "gemini-2.5-flash-image",
+        aspectRatio: "1:1",
+      }
+    };
+
+  } catch (error) {
+    console.error("❌ Gemini Image Generation error:", error);
+    throw new Error(
+      error?.message || "Gemini image generation failed"
+    );
+  }
 }
