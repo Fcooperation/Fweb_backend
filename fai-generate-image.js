@@ -1,89 +1,77 @@
 import "dotenv/config";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
 export async function generateFAIImage(prompt) {
   const API_KEY = process.env.GEMINI_API_KEY;
 
   if (!API_KEY) {
-    throw new Error(
-      "GEMINI_API_KEY is missing from .env"
-    );
+    throw new Error("GEMINI_API_KEY is missing from .env");
   }
 
   if (!prompt) {
-    throw new Error(
-      "Image prompt is required"
-    );
+    throw new Error("Image prompt is required");
   }
 
-  /*
-    -----------------------------------------
-    INITIALIZE GEMINI SDK
-    -----------------------------------------
-  */
+  // Initialize the SDK for Google AI Studio (Not Enterprise/Vertex AI)
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   try {
     /*
       -----------------------------------------
-      GENERATE IMAGE WITH GEMINI 2.5 FLASH
+      GENERATE CONTENT WITH IMAGE MODALITY
       -----------------------------------------
+      We instruct the model to produce an image modality response.
     */
-    const response = await ai.models.generateImages({
+    const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
-      prompt: prompt,
+      contents: `Generate an image matching this description: ${prompt}`,
       config: {
-        numberOfImages: 1,
-        outputMimeType: "image/jpeg",
-        aspectRatio: "1:1", // Options: "1:1", "3:4", "4:3", "16:9"
+        // Enforce that the model outputs raw image data bytes
+        responseModalities: [Modality.IMAGE],
       },
     });
 
     /*
       -----------------------------------------
-      CHECK RESULTS
+      CHECK & EXTRACT INLINE IMAGE BYTES
       -----------------------------------------
     */
-    const generatedImages = response.generatedImages;
-    if (!generatedImages || generatedImages.length === 0) {
-      throw new Error(
-        "Gemini failed to generate an image for this prompt."
-      );
+    const candidate = response.candidates?.[0];
+    const parts = candidate?.content?.parts;
+
+    if (!parts || parts.length === 0) {
+      throw new Error("Gemini returned an empty response layout.");
     }
 
-    /*
-      -----------------------------------------
-      PROCESS IMAGE DATA
-      -----------------------------------------
-      Gemini returns the image as raw base64 bytes. 
-      We format it into a Data URL so your frontend <img> tag 
-      can render it instantly without needing a hosted URL link.
-    */
-    const base64ImageBytes = generatedImages[0].image.imageBytes;
+    // Locate the part containing the inline image data bytes
+    const imagePart = parts.find((part) => part.inlineData);
+
+    if (!imagePart || !imagePart.inlineData?.data) {
+      throw new Error("Gemini completed the request but did not include image bytes.");
+    }
+
+    // The SDK returns image data directly as a base64 string
+    const base64ImageBytes = imagePart.inlineData.data;
     const dataUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
 
     /*
       -----------------------------------------
-      RETURN IMAGE (Matching Frontend Expectation)
+      RETURN RESPONSE SCHEMA FOR FRONTEND
       -----------------------------------------
     */
     return {
       success: true,
       provider: "gemini",
-      image: dataUrl,       // Base64 string directly usable in src="..."
-      imageUrl: dataUrl,    // Kept for frontend structural consistency
+      image: dataUrl,
+      imageUrl: dataUrl,
       mime_type: "image/jpeg",
       answer: `I generated a brand new image matching "${prompt}" using Gemini.`,
       gemini: {
         model: "gemini-2.5-flash-image",
-        aspectRatio: "1:1",
-      }
+      },
     };
-
   } catch (error) {
     console.error("❌ Gemini Image Generation error:", error);
-    throw new Error(
-      error?.message || "Gemini image generation failed"
-    );
+    throw new Error(error?.message || "Gemini image generation failed");
   }
 }
