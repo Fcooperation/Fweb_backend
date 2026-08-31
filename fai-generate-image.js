@@ -3,14 +3,11 @@ import "dotenv/config";
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 
-// Supports both text-to-image and img2img editing
-const MODEL = "@cf/runwayml/stable-diffusion-v1-5-img2img";
+// FLUX.2 Klein 4B
+// Supports both image generation and image editing
+const MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
 
 export async function generateFAIImage(prompt, imageInput = null) {
-
-  // =====================================================
-  // ENVIRONMENT
-  // =====================================================
 
   if (!ACCOUNT_ID) {
     throw new Error(
@@ -33,22 +30,15 @@ export async function generateFAIImage(prompt, imageInput = null) {
     let mode = "generate";
 
     // =====================================================
-    // CLOUDFLARE REQUEST BODY
+    // REQUEST BODY
     // =====================================================
 
     const body = {
-      prompt: prompt.trim(),
-
-      width: 768,
-      height: 768,
-
-      num_steps: 20,
-
-      guidance: 7.5
+      prompt: prompt.trim()
     };
 
     // =====================================================
-    // EDIT EXISTING IMAGE
+    // IMAGE EDITING
     // =====================================================
 
     if (imageInput) {
@@ -63,18 +53,13 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
       mode = "edit";
 
-      // Cloudflare's img2img API accepts base64
       body.image_b64 =
         imageInput.toString("base64");
-
-      // 0 = preserve original strongly
-      // 1 = transform strongly
-      body.strength = 0.65;
 
     }
 
     // =====================================================
-    // GENERATE NEW IMAGE
+    // IMAGE GENERATION
     // =====================================================
 
     else {
@@ -86,7 +71,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
     }
 
     // =====================================================
-    // CLOUDFLARE WORKERS AI REST API
+    // CLOUDFLARE WORKERS AI
     // =====================================================
 
     const url =
@@ -107,7 +92,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
     });
 
     // =====================================================
-    // ERROR HANDLING
+    // ERROR
     // =====================================================
 
     if (!response.ok) {
@@ -153,7 +138,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
       `data:${mimeType};base64,${base64Image}`;
 
     // =====================================================
-    // FAI RESPONSE
+    // RESPONSE
     // =====================================================
 
     return {
