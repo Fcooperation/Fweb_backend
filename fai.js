@@ -255,7 +255,7 @@ export async function fetchFAIStream({
   userId,
   messages = [],
   prompt,
-  file = null,
+  files = [],
   res
 }) {
 
@@ -386,20 +386,35 @@ If an image/file is attached:
 });
 
 // ------------------------------
-// ATTACHED FILE
+// ATTACHED FILES / IMAGES
 // ------------------------------
 
-if (file) {
+if (Array.isArray(files)) {
 
-  const base64Data =
-    file.buffer.toString("base64");
+  for (const file of files) {
 
-  parts.push({
-    inline_data: {
-      mime_type: file.mimetype,
-      data: base64Data
+    if (!file?.buffer) {
+      continue;
     }
-  });
+
+    const base64Data =
+      file.buffer.toString("base64");
+
+    parts.push({
+
+      inline_data: {
+
+        mime_type:
+          file.mimetype,
+
+        data:
+          base64Data
+
+      }
+
+    });
+
+  }
 
 }
 
