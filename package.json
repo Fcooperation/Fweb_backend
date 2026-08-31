@@ -26,8 +26,9 @@
     "ffmpeg-static": "^5.2.0",
     "ws": "^8.18.0",
     "dotenv": "^16.4.5",
-    "algoliasearch": "^5.40.0"
-    
+    "algoliasearch": "^5.40.0",
+    "@google/genai": "^0.1.1"
+
 },
   "devDependencies": {
     "nodemon": "^3.1.0"
