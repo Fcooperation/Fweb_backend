@@ -1,69 +1,146 @@
 import "dotenv/config";
 
-const IMAGE_MODEL = "gemini-3.1-flash-image";
+const PIXABAY_API_URL =
+  "https://pixabay.com/api/";
 
 export async function generateFAIImage(prompt) {
-  const API_KEY = process.env.GEMINI_API_KEY;
+
+  const API_KEY =
+    process.env.PIXABAY_API_KEY;
 
   if (!API_KEY) {
-    throw new Error("GEMINI_API_KEY is missing");
+    throw new Error(
+      "PIXABAY_API_KEY is missing from .env"
+    );
   }
 
   if (!prompt) {
-    throw new Error("Image prompt is required");
+    throw new Error(
+      "Image prompt is required"
+    );
   }
 
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/interactions",
-    {
-      method: "POST",
+  /*
+    -----------------------------------------
+    SEARCH PIXABAY
+    -----------------------------------------
+  */
 
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": API_KEY
-      },
+  const params = new URLSearchParams({
 
-      body: JSON.stringify({
-        model: IMAGE_MODEL,
+    key: API_KEY,
 
-        input: prompt,
+    q: prompt,
 
-        response_format: {
-          type: "image",
-          aspect_ratio: "1:1",
-          image_size: "1K"
-        }
-      })
-    }
-  );
+    image_type: "photo",
 
-  const data = await response.json();
+    safesearch: "true",
+
+    per_page: "20",
+
+    page: "1"
+
+  });
+
+  const response =
+    await fetch(
+      `${PIXABAY_API_URL}?${params.toString()}`
+    );
+
+  const data =
+    await response.json();
 
   if (!response.ok) {
+
     console.error(
-      "❌ Image generation error:",
+      "❌ Pixabay API error:",
       data
     );
 
     throw new Error(
-      data?.error?.message ||
-      "Image generation failed"
+      data?.error ||
+      "Pixabay image search failed"
     );
   }
 
-  const image = data?.output_image;
+  /*
+    -----------------------------------------
+    CHECK RESULTS
+    -----------------------------------------
+  */
 
-  if (!image?.data) {
+  if (
+    !data.hits ||
+    !data.hits.length
+  ) {
+
     throw new Error(
-      "Image model returned no image"
+      "No suitable image was found on Pixabay."
     );
   }
+
+  /*
+    -----------------------------------------
+    PICK BEST RESULT
+    -----------------------------------------
+
+    Pixabay returns several images.
+
+    We use the first result for now.
+  */
+
+  const image =
+    data.hits[0];
+
+  const imageUrl =
+    image.largeImageURL ||
+    image.webformatURL;
+
+  if (!imageUrl) {
+
+    throw new Error(
+      "Pixabay returned an image without a usable URL."
+    );
+  }
+
+  /*
+    -----------------------------------------
+    RETURN IMAGE
+    -----------------------------------------
+  */
 
   return {
+
     success: true,
-    model: IMAGE_MODEL,
-    mime_type:
-      image.mime_type || "image/png",
-    image: image.data
+
+    provider: "pixabay",
+
+    image: imageUrl,
+
+    imageUrl: imageUrl,
+
+    mime_type: "image/jpeg",
+
+    answer:
+      `I found an image matching "${prompt}" on Pixabay.`,
+
+    pixabay: {
+
+      id: image.id,
+
+      tags: image.tags,
+
+      pageURL: image.pageURL,
+
+      previewURL: image.previewURL,
+
+      webformatURL: image.webformatURL,
+
+      largeImageURL:
+        image.largeImageURL
+
+    }
+
   };
+
 }
