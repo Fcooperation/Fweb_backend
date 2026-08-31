@@ -3,8 +3,6 @@ import "dotenv/config";
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 
-// FLUX.2 Klein 4B
-// Supports both image generation and image editing
 const MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
 
 export async function generateFAIImage(prompt, imageInput = null) {
@@ -30,12 +28,25 @@ export async function generateFAIImage(prompt, imageInput = null) {
     let mode = "generate";
 
     // =====================================================
-    // REQUEST BODY
+    // MULTIPART FORM
     // =====================================================
 
-    const body = {
-      prompt: prompt.trim()
-    };
+    const form = new FormData();
+
+    form.append(
+      "prompt",
+      prompt.trim()
+    );
+
+    form.append(
+      "width",
+      "1024"
+    );
+
+    form.append(
+      "height",
+      "1024"
+    );
 
     // =====================================================
     // IMAGE EDITING
@@ -43,7 +54,9 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
     if (imageInput) {
 
-      console.log("🖼️ FAI image editing requested");
+      console.log(
+        "🖼️ FAI image editing requested"
+      );
 
       if (!Buffer.isBuffer(imageInput)) {
         throw new Error(
@@ -53,8 +66,20 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
       mode = "edit";
 
-      body.image_b64 =
-        imageInput.toString("base64");
+      // Cloudflare expects the uploaded
+      // image as a binary multipart field.
+      const imageBlob = new Blob(
+        [imageInput],
+        {
+          type: "image/png"
+        }
+      );
+
+      form.append(
+        "input_image_0",
+        imageBlob,
+        "input.png"
+      );
 
     }
 
@@ -71,28 +96,35 @@ export async function generateFAIImage(prompt, imageInput = null) {
     }
 
     // =====================================================
-    // CLOUDFLARE WORKERS AI
+    // CLOUDFLARE API
     // =====================================================
 
     const url =
       `https://api.cloudflare.com/client/v4/accounts/` +
       `${ACCOUNT_ID}/ai/run/${MODEL}`;
 
-    const response = await fetch(url, {
+    // IMPORTANT:
+    // Do NOT manually set Content-Type.
+    //
+    // fetch() automatically creates:
+    // multipart/form-data; boundary=...
+    //
+    const response = await fetch(
+      url,
+      {
+        method: "POST",
 
-      method: "POST",
+        headers: {
+          "Authorization":
+            `Bearer ${API_TOKEN}`
+        },
 
-      headers: {
-        "Authorization": `Bearer ${API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify(body)
-
-    });
+        body: form
+      }
+    );
 
     // =====================================================
-    // ERROR
+    // ERROR HANDLING
     // =====================================================
 
     if (!response.ok) {
@@ -122,17 +154,20 @@ export async function generateFAIImage(prompt, imageInput = null) {
       );
 
     if (!imageBuffer.length) {
+
       throw new Error(
         "Cloudflare returned an empty image"
       );
+
     }
 
     const base64Image =
       imageBuffer.toString("base64");
 
     const mimeType =
-      response.headers.get("content-type") ||
-      "image/png";
+      response.headers.get(
+        "content-type"
+      ) || "image/png";
 
     const dataUrl =
       `data:${mimeType};base64,${base64Image}`;
