@@ -40,7 +40,10 @@ export async function generateFAIImage(prompt) {
   const data = await response.json();
 
   if (!response.ok) {
-    console.error("❌ Image generation error:", data);
+    console.error(
+      "❌ Image generation error:",
+      data
+    );
 
     throw new Error(
       data?.error?.message ||
@@ -51,13 +54,16 @@ export async function generateFAIImage(prompt) {
   const image = data?.output_image;
 
   if (!image?.data) {
-    throw new Error("Image model returned no image");
+    throw new Error(
+      "Image model returned no image"
+    );
   }
 
   return {
     success: true,
     model: IMAGE_MODEL,
-    mime_type: image.mime_type || "image/png",
+    mime_type:
+      image.mime_type || "image/png",
     image: image.data
   };
 }

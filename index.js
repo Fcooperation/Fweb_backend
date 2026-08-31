@@ -269,39 +269,48 @@ app.post(
 // ------------------------------
 // FAI IMAGE GENERATION
 // ------------------------------
-app.post("/fai/generate-image", async (req, res) => {
 
-  try {
+app.post(
+  "/fai-generate-image",
+  upload.single("file"),
+  async (req, res) => {
 
-    const { prompt } = req.body;
+    try {
 
-    if (!prompt) {
-      return res.status(400).json({
+      const {
+        prompt
+      } = req.body;
+
+      if (!prompt) {
+
+        return res.status(400).json({
+          success: false,
+          error: "Image prompt is required"
+        });
+
+      }
+
+      const result =
+        await generateFAIImage(prompt);
+
+      return res.json(result);
+
+    } catch (err) {
+
+      console.error(
+        "❌ FAI image generation error:",
+        err.message
+      );
+
+      return res.status(500).json({
         success: false,
-        error: "Image prompt is required"
+        error: err.message
       });
+
     }
 
-    const result =
-      await generateFAIImage(prompt);
-
-    res.json(result);
-
-  } catch (err) {
-
-    console.error(
-      "❌ FAI image generation error:",
-      err.message
-    );
-
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-
   }
-
-});
+);
 
 // RECEIVING LOGIC 
 // RECEIVE CHAT MESSAGES
