@@ -1,11 +1,19 @@
 import "dotenv/config";
 
-const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
-const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const ACCOUNT_ID =
+  process.env.CLOUDFLARE_ACCOUNT_ID;
 
-const MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
+const API_TOKEN =
+  process.env.CLOUDFLARE_API_TOKEN;
 
-export async function generateFAIImage(prompt, imageInput = null) {
+const MODEL =
+  "@cf/black-forest-labs/flux-2-klein-4b";
+
+
+export async function generateFAIImage(
+  prompt,
+  imageInput = null
+) {
 
   if (!ACCOUNT_ID) {
     throw new Error(
@@ -20,12 +28,16 @@ export async function generateFAIImage(prompt, imageInput = null) {
   }
 
   if (!prompt || !prompt.trim()) {
-    throw new Error("Image prompt is required");
+    throw new Error(
+      "Image prompt is required"
+    );
   }
+
 
   try {
 
     let mode = "generate";
+
 
     // =====================================================
     // MULTIPART FORM
@@ -48,6 +60,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
       "1024"
     );
 
+
     // =====================================================
     // IMAGE EDITING
     // =====================================================
@@ -59,29 +72,92 @@ export async function generateFAIImage(prompt, imageInput = null) {
       );
 
       if (!Buffer.isBuffer(imageInput)) {
+
         throw new Error(
           "Uploaded image must be a Buffer"
         );
+
       }
 
       mode = "edit";
 
-      // Cloudflare expects the uploaded
-      // image as a binary multipart field.
-      const imageBlob = new Blob(
-        [imageInput],
-        {
-          type: "image/png"
-        }
-      );
+
+      /*
+        Try to detect the image type.
+
+        If the uploaded image is PNG,
+        JPEG, WEBP, etc., use the correct
+        MIME type instead of always saying PNG.
+      */
+
+      let imageMimeType =
+        "image/png";
+
+
+      /*
+        Detect common image formats
+        from their binary signatures.
+      */
+
+      if (
+        imageInput[0] === 0xFF &&
+        imageInput[1] === 0xD8 &&
+        imageInput[2] === 0xFF
+      ) {
+
+        imageMimeType =
+          "image/jpeg";
+
+      }
+
+      else if (
+        imageInput[0] === 0x89 &&
+        imageInput[1] === 0x50 &&
+        imageInput[2] === 0x4E &&
+        imageInput[3] === 0x47
+      ) {
+
+        imageMimeType =
+          "image/png";
+
+      }
+
+      else if (
+        imageInput[0] === 0x52 &&
+        imageInput[1] === 0x49 &&
+        imageInput[2] === 0x46 &&
+        imageInput[3] === 0x46
+      ) {
+
+        imageMimeType =
+          "image/webp";
+
+      }
+
+
+      const imageBlob =
+        new Blob(
+          [imageInput],
+          {
+            type: imageMimeType
+          }
+        );
+
 
       form.append(
         "input_image_0",
         imageBlob,
-        "input.png"
+        `input.${
+          imageMimeType === "image/jpeg"
+            ? "jpg"
+            : imageMimeType === "image/webp"
+              ? "webp"
+              : "png"
+        }`
       );
 
     }
+
 
     // =====================================================
     // IMAGE GENERATION
@@ -95,6 +171,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
     }
 
+
     // =====================================================
     // CLOUDFLARE API
     // =====================================================
@@ -103,28 +180,25 @@ export async function generateFAIImage(prompt, imageInput = null) {
       `https://api.cloudflare.com/client/v4/accounts/` +
       `${ACCOUNT_ID}/ai/run/${MODEL}`;
 
-    // IMPORTANT:
-    // Do NOT manually set Content-Type.
-    //
-    // fetch() automatically creates:
-    // multipart/form-data; boundary=...
-    //
-    const response = await fetch(
-      url,
-      {
-        method: "POST",
 
-        headers: {
-          "Authorization":
-            `Bearer ${API_TOKEN}`
-        },
+    const response =
+      await fetch(
+        url,
+        {
+          method: "POST",
 
-        body: form
-      }
-    );
+          headers: {
+            "Authorization":
+              `Bearer ${API_TOKEN}`
+          },
+
+          body: form
+        }
+      );
+
 
     // =====================================================
-    // ERROR HANDLING
+    // CLOUDFLARE ERROR
     // =====================================================
 
     if (!response.ok) {
@@ -144,6 +218,63 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
     }
 
+
+    // =====================================================
+    // GET RESPONSE CONTENT TYPE
+    // =====================================================
+
+    const responseContentType =
+      response.headers.get(
+        "content-type"
+      ) || "";
+
+
+    /*
+      Cloudflare image models should return
+      binary image data.
+
+      If Cloudflare unexpectedly returns JSON,
+      don't turn that JSON into a fake image.
+    */
+
+    if (
+      responseContentType.includes(
+        "application/json"
+      )
+    ) {
+
+      const jsonText =
+        await response.text();
+
+      console.error(
+        "❌ Cloudflare returned JSON instead of an image:",
+        jsonText
+      );
+
+      let cloudflareError =
+        jsonText;
+
+      try {
+
+        const json =
+          JSON.parse(jsonText);
+
+        cloudflareError =
+          json?.errors?.[0]?.message ||
+          json?.message ||
+          jsonText;
+
+      } catch {
+        // Keep original response
+      }
+
+      throw new Error(
+        `Cloudflare returned JSON instead of an image: ${cloudflareError}`
+      );
+
+    }
+
+
     // =====================================================
     // IMAGE RESPONSE
     // =====================================================
@@ -153,6 +284,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
         await response.arrayBuffer()
       );
 
+
     if (!imageBuffer.length) {
 
       throw new Error(
@@ -161,19 +293,63 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
     }
 
-    const base64Image =
-      imageBuffer.toString("base64");
 
-    const mimeType =
-      response.headers.get(
-        "content-type"
-      ) || "image/png";
+    // =====================================================
+    // DETERMINE IMAGE TYPE
+    // =====================================================
+
+    let mimeType =
+      "image/png";
+
+
+    /*
+      Use Cloudflare's content type only
+      if it is actually an image.
+    */
+
+    if (
+      responseContentType.startsWith(
+        "image/"
+      )
+    ) {
+
+      mimeType =
+        responseContentType
+          .split(";")[0]
+          .trim();
+
+    }
+
+
+    // =====================================================
+    // CONVERT IMAGE TO BASE64
+    // =====================================================
+
+    const base64Image =
+      imageBuffer.toString(
+        "base64"
+      );
+
+
+    /*
+      IMPORTANT:
+
+      This creates a valid browser image
+      data URL:
+
+      data:image/png;base64,...
+
+      or
+
+      data:image/jpeg;base64,...
+    */
 
     const dataUrl =
       `data:${mimeType};base64,${base64Image}`;
 
+
     // =====================================================
-    // RESPONSE
+    // FINAL RESPONSE
     // =====================================================
 
     return {
@@ -185,13 +361,17 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
       mode,
 
-      model: MODEL,
+      model:
+        MODEL,
 
-      image: dataUrl,
+      image:
+        dataUrl,
 
-      imageUrl: dataUrl,
+      imageUrl:
+        dataUrl,
 
-      mime_type: mimeType,
+      mime_type:
+        mimeType,
 
       answer:
         mode === "edit"
@@ -199,10 +379,18 @@ export async function generateFAIImage(prompt, imageInput = null) {
           : "I generated a new image according to your prompt.",
 
       cloudflare: {
-        model: MODEL
+        model:
+          MODEL,
+
+        content_type:
+          responseContentType,
+
+        image_size:
+          imageBuffer.length
       }
 
     };
+
 
   } catch (error) {
 
@@ -210,6 +398,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
       "❌ FAI Image Error:",
       error
     );
+
 
     throw new Error(
       error?.message ||
