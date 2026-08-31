@@ -1,7 +1,9 @@
 import "dotenv/config";
 import { InferenceClient } from "@huggingface/inference";
 
-export async function generateFAIImage(prompt) {
+const MODEL = "black-forest-labs/FLUX.1-Kontext-dev";
+
+export async function generateFAIImage(prompt, imageInput = null) {
   const ACCESS_TOKEN = process.env.HF_ACCESS_TOKEN;
 
   if (!ACCESS_TOKEN) {
@@ -15,36 +17,102 @@ export async function generateFAIImage(prompt) {
   try {
     const hf = new InferenceClient(ACCESS_TOKEN);
 
-    const image = await hf.textToImage({
-      model: "black-forest-labs/FLUX.1-schnell",
-      provider: "auto",
-      inputs: prompt.trim(),
-    });
+    let imageBlob = null;
 
-    const arrayBuffer = await image.arrayBuffer();
-    const base64Image = Buffer.from(arrayBuffer).toString("base64");
+    // ----------------------------------------
+    // If an image was uploaded, prepare it
+    // ----------------------------------------
+    if (imageInput) {
+      if (Buffer.isBuffer(imageInput)) {
+        imageBlob = new Blob([imageInput]);
+      } else {
+        throw new Error("Unsupported image input");
+      }
+    }
 
-    const mimeType = image.type || "image/jpeg";
+    let result;
+
+    // ----------------------------------------
+    // IMAGE EDITING
+    // Image + prompt
+    // ----------------------------------------
+    if (imageBlob) {
+      console.log("🖼️ FAI image edit requested");
+
+      result = await hf.imageToImage({
+        model: MODEL,
+        provider: "auto",
+        inputs: imageBlob,
+        parameters: {
+          prompt: prompt.trim()
+        }
+      });
+
+    } else {
+      // ----------------------------------------
+      // IMAGE GENERATION
+      // Prompt only
+      // ----------------------------------------
+      console.log("🎨 FAI image generation requested");
+
+      result = await hf.textToImage({
+        model: MODEL,
+        provider: "auto",
+        inputs: prompt.trim()
+      });
+    }
+
+    // ----------------------------------------
+    // Convert result to base64
+    // ----------------------------------------
+
+    const arrayBuffer = await result.arrayBuffer();
+
+    const base64Image = Buffer
+      .from(arrayBuffer)
+      .toString("base64");
+
+    const mimeType = result.type || "image/png";
+
     const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
     return {
       success: true,
+
       provider: "huggingface",
+
+      mode: imageBlob
+        ? "edit"
+        : "generate",
+
+      model: MODEL,
+
       image: dataUrl,
+
       imageUrl: dataUrl,
+
       mime_type: mimeType,
-      answer: `I generated a new image based on your prompt.`,
+
+      answer: imageBlob
+        ? "I edited your image according to your instruction."
+        : "I generated a new image according to your prompt.",
+
       huggingface: {
-        model: "black-forest-labs/FLUX.1-schnell",
-        provider: "auto",
-      },
+        model: MODEL,
+        provider: "auto"
+      }
     };
 
   } catch (error) {
-    console.error("❌ FAI Image Generation Error:", error);
+
+    console.error(
+      "❌ FAI Image Error:",
+      error
+    );
 
     throw new Error(
-      error?.message || "Hugging Face image generation failed."
+      error?.message ||
+      "Hugging Face image processing failed."
     );
   }
 }

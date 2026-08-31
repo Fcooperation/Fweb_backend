@@ -291,7 +291,10 @@ app.post(
       }
 
       const result =
-        await generateFAIImage(prompt);
+  await generateFAIImage(
+    prompt,
+    req.file?.buffer || null
+  );
 
       return res.json(result);
 
