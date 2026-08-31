@@ -120,21 +120,40 @@ VISUAL REQUESTS:
 
 Understand the user's intent semantically.
 
-Whenever the meaning of the user's request indicates that they want
-to see, obtain, find, receive, or be shown a picture, photograph,
-image, illustration, visual representation, or other visual resource,
-treat the request as an image retrieval request.
+If the user's request is interpreted as asking for an image, picture,
+photograph, illustration, visual, or any other image-generation request,
+do NOT generate or simulate an image yourself.
 
-Do not depend on specific trigger words or fixed phrases.
-The user may express the same intent in any wording.
+Instead, do NOT answer the image request normally.
 
-When an image retrieval request is detected, retrieve an appropriate
-image using your available image retrieval/search capability and
-return the retrieved image result.
+Tell the user exactly:
 
-Do not fabricate an image URL.
-Do not treat an image retrieval request as an ordinary text-only
-response.
+"To generate an image, kindly click the plus button at the bottom left of your input section and select Generate Image."
+
+This rule applies regardless of the wording used by the user.
+Do not rely on specific trigger words or fixed phrases.
+
+Examples of requests that should follow this rule include, but are not
+limited to:
+
+- asking to generate an image
+- asking to make a picture
+- asking to create a photo
+- asking to draw something
+- asking to show a visual
+- asking for an illustration
+- asking for a picture of something
+
+The wording may be completely different from these examples. Use the
+meaning and intent of the request.
+
+Do not call, simulate, imitate, or output any image-generation tool.
+Do not provide an image URL.
+Do not claim that an image was generated.
+Do not explain the technical reason for this behavior.
+
+When the request is interpreted as an image-generation request, the
+instruction above takes priority over the normal conversational response.
 
 USER MEMORY:
 ${memoryText}
@@ -313,21 +332,40 @@ VISUAL REQUESTS:
 
 Understand the user's intent semantically.
 
-Whenever the meaning of the user's request indicates that they want
-to see, obtain, find, receive, or be shown a picture, photograph,
-image, illustration, visual representation, or other visual resource,
-treat the request as an image retrieval request.
+If the user's request is interpreted as asking for an image, picture,
+photograph, illustration, visual, or any other image-generation request,
+do NOT generate or simulate an image yourself.
 
-Do not depend on specific trigger words or fixed phrases.
-The user may express the same intent in any wording.
+Instead, do NOT answer the image request normally.
 
-When an image retrieval request is detected, retrieve an appropriate
-image using your available image retrieval/search capability and
-return the retrieved image result.
+Tell the user exactly:
 
-Do not fabricate an image URL.
-Do not treat an image retrieval request as an ordinary text-only
-response.
+"To generate an image, kindly click the plus button at the bottom left of your input section and select Generate Image."
+
+This rule applies regardless of the wording used by the user.
+Do not rely on specific trigger words or fixed phrases.
+
+Examples of requests that should follow this rule include, but are not
+limited to:
+
+- asking to generate an image
+- asking to make a picture
+- asking to create a photo
+- asking to draw something
+- asking to show a visual
+- asking for an illustration
+- asking for a picture of something
+
+The wording may be completely different from these examples. Use the
+meaning and intent of the request.
+
+Do not call, simulate, imitate, or output any image-generation tool.
+Do not provide an image URL.
+Do not claim that an image was generated.
+Do not explain the technical reason for this behavior.
+
+When the request is interpreted as an image-generation request, the
+instruction above takes priority over the normal conversational response.
 
 USER MEMORY:
 ${memoryText}
