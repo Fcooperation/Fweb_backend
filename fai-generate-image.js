@@ -1,18 +1,18 @@
 import "dotenv/config";
-import { InferenceClient } from "@huggingface/inference";
 
-// Model for NEW images
-const GENERATION_MODEL = "black-forest-labs/FLUX.1-schnell";
+const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
+const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 
-// Model for EDITING existing images
-const EDIT_MODEL = "black-forest-labs/FLUX.1-Kontext-dev";
+const MODEL = "@cf/stabilityai/stable-diffusion-xl-base-1.0";
 
 export async function generateFAIImage(prompt, imageInput = null) {
 
-  const ACCESS_TOKEN = process.env.HF_ACCESS_TOKEN;
+  if (!ACCOUNT_ID) {
+    throw new Error("CLOUDFLARE_ACCOUNT_ID is missing from .env");
+  }
 
-  if (!ACCESS_TOKEN) {
-    throw new Error("HF_ACCESS_TOKEN is missing from .env");
+  if (!API_TOKEN) {
+    throw new Error("CLOUDFLARE_API_TOKEN is missing from .env");
   }
 
   if (!prompt || !prompt.trim()) {
@@ -21,13 +21,13 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
   try {
 
-    const hf = new InferenceClient(ACCESS_TOKEN);
-
-    let result;
-    let mode;
+    let mode = "generate";
+    let body = {
+      prompt: prompt.trim()
+    };
 
     // =====================================================
-    // EDIT IMAGE
+    // IMAGE EDITING
     // =====================================================
 
     if (imageInput) {
@@ -38,59 +38,105 @@ export async function generateFAIImage(prompt, imageInput = null) {
         throw new Error("Uploaded image must be a Buffer");
       }
 
-      const imageBlob = new Blob([imageInput]);
-
-      result = await hf.imageToImage({
-
-        model: EDIT_MODEL,
-
-        provider: "auto",
-
-        inputs: imageBlob,
-
-        parameters: {
-          prompt: prompt.trim()
-        }
-
-      });
-
       mode = "edit";
+
+      const imageBase64 =
+        imageInput.toString("base64");
+
+      body = {
+        prompt: prompt.trim(),
+
+        image_b64: imageBase64,
+
+        // Lower = preserve more of original image
+        // Higher = follow the prompt more strongly
+        strength: 0.7,
+
+        guidance: 7.5,
+
+        num_steps: 20
+      };
 
     }
 
     // =====================================================
-    // GENERATE IMAGE
+    // IMAGE GENERATION
     // =====================================================
 
     else {
 
       console.log("🎨 FAI image generation requested");
 
-      result = await hf.textToImage({
+      body = {
+        prompt: prompt.trim(),
 
-        model: GENERATION_MODEL,
+        width: 1024,
 
-        provider: "auto",
+        height: 1024,
 
-        inputs: prompt.trim()
+        num_steps: 20,
 
-      });
-
-      mode = "generate";
+        guidance: 7.5
+      };
 
     }
 
     // =====================================================
-    // CONVERT IMAGE TO BASE64
+    // CLOUDFLARE WORKERS AI REQUEST
     // =====================================================
 
-    const arrayBuffer = await result.arrayBuffer();
+    const url =
+      `https://api.cloudflare.com/client/v4/accounts/` +
+      `${ACCOUNT_ID}/ai/run/${MODEL}`;
 
-    const base64Image = Buffer
-      .from(arrayBuffer)
-      .toString("base64");
+    const response = await fetch(url, {
 
-    const mimeType = result.type || "image/png";
+      method: "POST",
+
+      headers: {
+        "Authorization": `Bearer ${API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify(body)
+
+    });
+
+    // =====================================================
+    // HANDLE CLOUDFLARE ERROR
+    // =====================================================
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+      console.error(
+        "❌ Cloudflare AI error:",
+        errorText
+      );
+
+      throw new Error(
+        `Cloudflare Workers AI failed (${response.status}): ${errorText}`
+      );
+
+    }
+
+    // =====================================================
+    // CLOUDFLARE RETURNS IMAGE DATA
+    // =====================================================
+
+    const imageBuffer =
+      Buffer.from(
+        await response.arrayBuffer()
+      );
+
+    const base64Image =
+      imageBuffer.toString("base64");
+
+    const mimeType =
+      response.headers.get("content-type") ||
+      "image/png";
 
     const dataUrl =
       `data:${mimeType};base64,${base64Image}`;
@@ -103,14 +149,11 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
       success: true,
 
-      provider: "huggingface",
+      provider: "cloudflare-workers-ai",
 
       mode,
 
-      model:
-        mode === "edit"
-          ? EDIT_MODEL
-          : GENERATION_MODEL,
+      model: MODEL,
 
       image: dataUrl,
 
@@ -123,15 +166,8 @@ export async function generateFAIImage(prompt, imageInput = null) {
           ? "I edited your image according to your instruction."
           : "I generated a new image according to your prompt.",
 
-      huggingface: {
-
-        provider: "auto",
-
-        model:
-          mode === "edit"
-            ? EDIT_MODEL
-            : GENERATION_MODEL
-
+      cloudflare: {
+        model: MODEL
       }
 
     };
@@ -145,7 +181,7 @@ export async function generateFAIImage(prompt, imageInput = null) {
 
     throw new Error(
       error?.message ||
-      "Hugging Face image processing failed."
+      "Cloudflare image processing failed."
     );
 
   }
