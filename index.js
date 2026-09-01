@@ -63,7 +63,12 @@ app.use(cors());
 app.use(express.json());
 
 const upload = multer({
-  storage: multer.memoryStorage()
+  storage: multer.memoryStorage(),
+
+  limits: {
+    files: 20,
+    fileSize: 10 * 1024 * 1024
+  }
 });
 
 // ------------------------------
@@ -457,21 +462,32 @@ app.get("/fai", async (req, res) => {
 
 app.post(
   "/fai",
-  upload.single("file"),
+  upload.array("files", 20),
   async (req, res) => {
 
     const {
-      userId,
-      prompt
-    } = req.body;
+  userId,
+  prompt,
+  mode,
+  university,
+  course,
+  topic,
+  title,
+  uploaded_by,
+  note_content
+} = req.body;
 
-    if (!prompt && !req.file) {
+    if (
+      !prompt &&
+      (!req.files || req.files.length === 0)
+    ) {
 
-  return res.status(400).json({
-    error: "Please provide a question or upload a file"
-  });
+      return res.status(400).json({
+        error:
+          "Please provide a question or upload files"
+      });
 
-}
+    }
 
     let messages = [];
 
@@ -491,12 +507,29 @@ app.post(
     try {
 
       await fetchFAIStream({
-        userId,
-        messages,
-        prompt,
-        file: req.file || null,
-        res
-      });
+  userId,
+  messages,
+
+  prompt: `
+MODE: ${mode || "normal"}
+
+University: ${university || ""}
+Course: ${course || ""}
+Topic: ${topic || ""}
+Title: ${title || ""}
+Uploaded by: ${uploaded_by || ""}
+
+Typed note content:
+${note_content || ""}
+
+User request:
+${prompt || "Generate a study note from the supplied material."}
+`,
+
+  files: req.files || [],
+
+  res
+});
 
     } catch (err) {
 

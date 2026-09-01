@@ -376,7 +376,59 @@ ${context}
 USER MESSAGE:
 ${prompt}
 
-If an image/file is attached:
+REQUEST MODE:
+If the user message contains:
+
+MODE: generate_note
+
+then this is a NOTE GENERATION request.
+
+For a NOTE GENERATION request:
+
+- Carefully inspect ALL attached images and files.
+- Read the supplied typed note content.
+- Combine information from all supplied materials.
+- Do not ignore any readable information in the attachments.
+- Organize the material into logical study-note sections.
+- Do not invent information that is not supported by the supplied material.
+- Use the supplied university, course, topic, title, and uploaded_by values exactly when provided.
+- Create clear, useful student-friendly sections.
+- Return ONLY valid JSON.
+- Do NOT use Markdown.
+- Do NOT use ```json.
+- Do NOT add explanations before or after the JSON.
+
+The JSON MUST have exactly this general structure:
+
+{
+  "university": "...",
+  "course": "...",
+  "topic": "...",
+  "title": "...",
+  "uploaded_by": "...",
+  "sections": [
+    {
+      "title": "...",
+      "content": "..."
+    }
+  ]
+}
+
+Each section must contain:
+- "title": a short section heading
+- "content": the actual study-note content
+
+If files are attached:
+- Inspect every attached file/image.
+- Extract relevant educational information from them.
+- Combine information across the files when appropriate.
+
+If typed note content is provided:
+- Use it together with the uploaded files.
+
+For normal FAI requests that are NOT note generation requests, behave normally.
+
+If an image/file is attached to a normal FAI request:
 - Inspect it carefully.
 - Use the attached content as additional context.
 - If the user's written message refers to the attachment, answer based on both.
