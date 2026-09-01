@@ -395,7 +395,7 @@ For a NOTE GENERATION request:
 - Create clear, useful student-friendly sections.
 - Return ONLY valid JSON.
 - Do NOT use Markdown.
-- Do NOT use ```json.
+- Do NOT use JSON code fences.
 - Do NOT add explanations before or after the JSON.
 
 The JSON MUST have exactly this general structure:
@@ -808,7 +808,10 @@ try {
 let cleanText = text.trim();
 
 // remove all code fences
-cleanText = cleanText.replace(/```json|```/gi, "").trim();
+cleanText = cleanText
+  .replace(/```json/gi, "")
+  .replace(/```/g, "")
+  .trim();
 
 // extract ONLY the JSON object (safer)
 const match = cleanText.match(/\{[\s\S]*\}/);
