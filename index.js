@@ -55,6 +55,7 @@ from "./receive-messages.js";
 import pastQuestion from "./past-question.js";
 import { generateFAIImage } from "./fai-generate-image.js";
 import { getFAIModels } from "./fai-models.js";
+import fmarket from "./fmarket.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -266,6 +267,44 @@ app.post(
         success: false,
         error: err.message
       });
+
+    }
+
+  }
+);
+
+// ------------------------------
+// FMARKET
+// ------------------------------
+
+app.get(
+  "/fmarket",
+  async (req, res) => {
+
+    try {
+
+      const result =
+        await fmarket(req, res);
+
+      if (!res.headersSent) {
+        res.json(result);
+      }
+
+    } catch (err) {
+
+      console.error(
+        "❌ FMarket error:",
+        err.message
+      );
+
+      if (!res.headersSent) {
+
+        res.status(500).json({
+          success: false,
+          error: err.message
+        });
+
+      }
 
     }
 
