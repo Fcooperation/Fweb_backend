@@ -14,17 +14,90 @@ const supabase =
   );
 
 
-const PAYSTACK_SECRET_KEY =
-  process.env.PAYSTACK_SECRET_KEY;
+/* =========================
+   MONNIFY
+========================= */
 
+const MONNIFY_API_KEY =
+  process.env.MONNIFY_API_KEY;
+
+const MONNIFY_SECRET_KEY =
+  process.env.MONNIFY_SECRET_KEY;
+
+const MONNIFY_CONTRACT_CODE =
+  process.env.MONNIFY_CONTRACT_CODE;
+
+const MONNIFY_BASE_URL =
+  process.env.MONNIFY_BASE_URL ||
+  "https://sandbox.monnify.com";
+
+
+/* =========================
+   SETTINGS
+========================= */
 
 const MIN_NAIRA = 150;
+
 const MAX_NAIRA = 150000;
 
 const FEE_RATE = 0.05;
 
 const FCOINS_PER_NAIRA =
   1000 / 1500;
+
+
+/* =========================
+   GET MONNIFY ACCESS TOKEN
+========================= */
+
+async function getMonnifyAccessToken() {
+
+  const credentials =
+    Buffer
+      .from(
+        `${MONNIFY_API_KEY}:${MONNIFY_SECRET_KEY}`
+      )
+      .toString("base64");
+
+
+  const response =
+    await fetch(
+      `${MONNIFY_BASE_URL}/api/v1/auth/login`,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Basic ${credentials}`,
+
+          "Content-Type":
+            "application/json"
+        }
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (
+    !response.ok ||
+    !data.requestSuccessful ||
+    !data.responseBody?.accessToken
+  ) {
+
+    throw new Error(
+      data.responseMessage ||
+      "Unable to authenticate with Monnify."
+    );
+
+  }
+
+
+  return data.responseBody.accessToken;
+
+}
 
 
 /* =========================
@@ -81,7 +154,8 @@ export default async function fmarketTopup(
 
       return res.status(400).json({
         success: false,
-        error: "Invalid top-up amount."
+        error:
+          "Invalid top-up amount."
       });
 
     }
@@ -116,9 +190,8 @@ export default async function fmarketTopup(
     /* =========================
        CALCULATE FCOINS
        
-       Example:
        ₦1,500
-       - 5% = ₦75
+       - 5% FMarket fee = ₦75
        = ₦1,425
 
        ₦1,425 × 1000 / 1500
@@ -156,7 +229,7 @@ export default async function fmarketTopup(
 
 
     /* =========================
-       GENERATE REFERENCE
+       GENERATE PAYMENT REFERENCE
     ========================= */
 
     const reference =
@@ -179,22 +252,29 @@ export default async function fmarketTopup(
         )
         .insert({
 
-          user_id: userId,
+          user_id:
+            userId,
 
-          reference,
+          reference:
+            reference,
 
-          type: "topup",
+          type:
+            "topup",
 
-          amount_naira: naira,
+          amount_naira:
+            naira,
 
-          fcoins,
+          fcoins:
+            fcoins,
 
-          status: "pending",
+          status:
+            "pending",
 
           payment_provider:
-            "paystack",
+            "monnify",
 
-          currency: "NGN"
+          currency:
+            "NGN"
 
         })
         .select()
@@ -215,12 +295,20 @@ export default async function fmarketTopup(
 
 
     /* =========================
-       INITIALIZE PAYSTACK
+       GET MONNIFY TOKEN
     ========================= */
 
-    const paystackResponse =
+    const accessToken =
+      await getMonnifyAccessToken();
+
+
+    /* =========================
+       INITIALIZE MONNIFY
+    ========================= */
+
+    const monnifyResponse =
       await fetch(
-        "https://api.paystack.co/transaction/initialize",
+        `${MONNIFY_BASE_URL}/api/v1/merchant/transactions/init-transaction`,
         {
 
           method: "POST",
@@ -228,7 +316,7 @@ export default async function fmarketTopup(
           headers: {
 
             Authorization:
-              `Bearer ${PAYSTACK_SECRET_KEY}`,
+              `Bearer ${accessToken}`,
 
             "Content-Type":
               "application/json"
@@ -237,21 +325,41 @@ export default async function fmarketTopup(
 
           body: JSON.stringify({
 
-            email,
-
-            /*
-             * Paystack expects Kobo.
-             *
-             * ₦1,500 = 150000 kobo
-             */
-
             amount:
-              naira * 100,
+              naira,
 
-            currency:
+            customerEmail:
+              email,
+
+            paymentReference:
+              reference,
+
+            paymentDescription:
+              "FMarket FCoins Top Up",
+
+            currencyCode:
               "NGN",
 
-            reference,
+            contractCode:
+              MONNIFY_CONTRACT_CODE,
+
+            /*
+             * Change this to your actual
+             * frontend callback URL.
+             *
+             * Example:
+             * https://fweb.com/fmarket-topup-callback
+             */
+
+            redirectUrl:
+              "https://fcooperation.vercel.app/fmarket-topup-callback",
+
+            paymentMethods: [
+              "CARD",
+              "ACCOUNT_TRANSFER",
+              "USSD",
+              "PHONE_NUMBER"
+            ],
 
             metadata: {
 
@@ -264,7 +372,8 @@ export default async function fmarketTopup(
               amount_naira:
                 naira,
 
-              fcoins,
+              fcoins:
+                fcoins,
 
               fmarket_fee:
                 feeNaira
@@ -277,17 +386,18 @@ export default async function fmarketTopup(
       );
 
 
-    const paystackData =
-      await paystackResponse.json();
+    const monnifyData =
+      await monnifyResponse.json();
 
 
     /* =========================
-       PAYSTACK ERROR
+       MONNIFY ERROR
     ========================= */
 
     if (
-      !paystackResponse.ok ||
-      !paystackData.status
+      !monnifyResponse.ok ||
+      !monnifyData.requestSuccessful ||
+      !monnifyData.responseBody?.checkoutUrl
     ) {
 
       await supabase
@@ -295,7 +405,8 @@ export default async function fmarketTopup(
           "fmarket_transactions"
         )
         .update({
-          status: "failed"
+          status:
+            "failed"
         })
         .eq(
           "id",
@@ -304,10 +415,14 @@ export default async function fmarketTopup(
 
 
       return res.status(502).json({
-        success: false,
+
+        success:
+          false,
+
         error:
-          paystackData.message ||
-          "Paystack could not initialize the payment."
+          monnifyData.responseMessage ||
+          "Monnify could not initialize the payment."
+
       });
 
     }
@@ -319,24 +434,26 @@ export default async function fmarketTopup(
 
     return res.json({
 
-      success: true,
+      success:
+        true,
 
-      authorization_url:
-        paystackData.data
-          .authorization_url,
+      checkout_url:
+        monnifyData.responseBody
+          .checkoutUrl,
 
-      access_code:
-        paystackData.data
-          .access_code,
+      payment_reference:
+        monnifyData.responseBody
+          .paymentReference,
 
-      reference:
-        paystackData.data
-          .reference,
+      transaction_reference:
+        monnifyData.responseBody
+          .transactionReference,
 
       amount_naira:
         naira,
 
-      fcoins,
+      fcoins:
+        fcoins,
 
       fmarket_fee:
         feeNaira
@@ -348,11 +465,12 @@ export default async function fmarketTopup(
 
     return res.status(500).json({
 
-      success: false,
+      success:
+        false,
 
       error:
         error.message ||
-        "Unable to initialize top-up."
+        "Unable to initialize FMarket top-up."
 
     });
 
