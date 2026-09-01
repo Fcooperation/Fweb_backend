@@ -57,7 +57,9 @@ import { generateFAIImage } from "./fai-generate-image.js";
 import { getFAIModels } from "./fai-models.js";
 import fmarket from "./fmarket.js";
 import fmarketTopup from "./fmarket-topup.js";
-
+import fmarketTopupVerify
+  from "./fmarket-topup-verify.js";
+  
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -303,6 +305,50 @@ app.get(
         res.status(500).json({
           success: false,
           error: err.message
+        });
+
+      }
+
+    }
+
+  }
+);
+
+/* =========================
+   FMARKET TOPUP VERIFY
+========================= */
+
+app.post(
+  "/fmarket-topup/verify",
+  async (req, res) => {
+
+    try {
+
+      await fmarketTopupVerify(
+        req,
+        res
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ FMarket top-up verification error:",
+        error.message
+      );
+
+      if (
+        !res.headersSent
+      ) {
+
+        res.status(500).json({
+
+          success:
+            false,
+
+          error:
+            error.message ||
+            "Unable to verify payment."
+
         });
 
       }
