@@ -59,7 +59,8 @@ import fmarket from "./fmarket.js";
 import fmarketTopup from "./fmarket-topup.js";
 import fmarketTopupVerify
   from "./fmarket-topup-verify.js";
-  
+import fmarketSell from "./fmarket-sell.js";
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -436,6 +437,44 @@ app.get("/fai-models", async (req, res) => {
   }
 
 });
+
+/* =========================
+   FMARKET SELL
+========================= */
+
+app.post(
+  "/fmarket-sell",
+  async (req, res) => {
+
+    try {
+
+      await fmarketSell(
+        req,
+        res
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ FMarket sell error:",
+        error.message
+      );
+
+      if (!res.headersSent) {
+
+        res.status(500).json({
+          success: false,
+          error:
+            error.message ||
+            "Unable to list FMarket item."
+        });
+
+      }
+
+    }
+
+  }
+);
 
 // RECEIVING LOGIC 
 // RECEIVE CHAT MESSAGES
