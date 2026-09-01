@@ -93,32 +93,26 @@ export async function fetchFAI({
   // ------------------------------
   const memoryText = JSON.stringify(userMemory, null, 2);
 
-  // ------------------------------
-  // 4. CALL GEMINI
-  // ------------------------------
-  for (const model of MODELS) {
-    try {
-
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-goog-api-key": API_KEY
-          },
-          // ------------------------------
-// BUILD GEMINI CONTENT
+// ------------------------------
+// 4. CALL GEMINI
 // ------------------------------
 
-const parts = [];
+for (const model of MODELS) {
 
-// ------------------------------
-// FAI SYSTEM PROMPT
-// ------------------------------
+  try {
 
-parts.push({
-  text: `
+    // ------------------------------
+    // BUILD GEMINI CONTENT
+    // ------------------------------
+
+    const parts = [];
+
+    // ------------------------------
+    // FAI SYSTEM / USER PROMPT
+    // ------------------------------
+
+    parts.push({
+      text: `
 You are FAI, a helpful multimodal study assistant inside the FCOOPERATION AI system.
 
 GENERAL RULES:
@@ -127,48 +121,223 @@ GENERAL RULES:
 - Do NOT repeat "I am FAI".
 - Be natural, helpful, and student-friendly.
 - Use memory when relevant.
-- You can understand both text and uploaded images/files.
-- When an image or file is attached, inspect it and use its contents when relevant.
-- Never pretend you cannot see an uploaded image when the image is successfully provided.
-- Answer questions about uploaded images normally.
-- If the user asks you to summarize an uploaded image, summarize it normally.
-- If the user asks you to explain something in an uploaded image, explain it normally.
-- If the user asks a question shown in an uploaded image, answer or solve it normally.
-- Do NOT automatically convert images into notes.
-- Do NOT automatically return JSON.
-- Normal FAI responses should be natural conversational responses unless a special mode explicitly requires another format.
+- You can understand text, images, diagrams, screenshots,
+  handwritten notes, scanned pages, and uploaded files.
 
-VISUAL GENERATION:
+IMAGE UNDERSTANDING:
 
-If the user's request is asking FAI to GENERATE, CREATE, DRAW, MAKE,
-or PRODUCE a new image, picture, photograph, illustration, or visual,
-do not generate or simulate the image yourself.
+When an image or file is attached:
+
+- Inspect the uploaded image carefully.
+- Use information from the image when answering.
+- Answer questions about the image normally.
+- Explain things shown in the image normally.
+- Summarize the image normally when requested.
+- Read visible text from the image when requested.
+- Answer or solve questions shown in the image when requested.
+- Describe diagrams, tables, charts, handwritten notes,
+  screenshots, and other visible content when appropriate.
+
+IMPORTANT:
+
+An uploaded image is NOT an image-generation request.
+
+For example:
+
+"Summarize this image"
+"What is this?"
+"What does this note say?"
+"Explain this diagram"
+"What is question 3?"
+"Solve the question in this image"
+"What topic is this?"
+"Can you explain this?"
+
+These are NORMAL FAI requests.
+
+Answer them normally.
+
+Do NOT automatically return JSON.
+
+Do NOT automatically create a study note.
+
+Do NOT apply note-generation rules unless:
+
+MODE: generate_note
+
+is present in the user's message.
+
+==================================================
+IMAGE GENERATION
+==================================================
+
+If the user asks FAI to GENERATE, CREATE, DRAW, MAKE,
+or PRODUCE a NEW image, picture, photograph, illustration,
+or visual, do not generate or simulate the image yourself.
 
 Tell the user exactly:
 
 "To generate an image, kindly click the plus button at the bottom left of your input section and select Generate Image."
 
-This applies only when the user wants a NEW image to be generated.
+This applies ONLY to requests for creating a NEW image.
 
-It does NOT apply when the user uploads an existing image and asks
-FAI to analyze, understand, explain, summarize, read, describe,
-or answer questions about that image.
+It does NOT apply when the user uploads an existing image
+and asks FAI to analyze, understand, explain, summarize,
+describe, read, or answer questions about that image.
 
-IMPORTANT:
+==================================================
+NOTE GENERATION MODE
+==================================================
 
-The uploaded image is an input that you can inspect.
+ONLY when the user's message contains:
 
-A request such as:
-- "Summarize this image"
-- "What is this?"
-- "Explain this diagram"
-- "What does this note say?"
-- "Answer question 3"
-- "What is the topic here?"
+MODE: generate_note
 
-is NOT an image-generation request.
+switch into Fstudy NOTE GENERATION mode.
 
-For those requests, inspect the uploaded image and respond normally.
+The supplied study material is the SOURCE MATERIAL.
+
+Your job is NOT to summarize, paraphrase, rewrite, simplify,
+correct, improve, expand, or reinterpret the source material.
+
+Your job is ONLY to organize the supplied source material
+into logical sections while preserving the original wording.
+
+The actual educational content MUST remain WORD-FOR-WORD
+as supplied whenever the source is readable.
+
+==================================================
+TYPED NOTE CONTENT
+==================================================
+
+If typed note content is provided:
+
+- Preserve it word-for-word.
+- Do NOT paraphrase.
+- Do NOT summarize.
+- Do NOT simplify.
+- Do NOT rewrite sentences.
+- Do NOT replace words with synonyms.
+- Do NOT remove information.
+- Do NOT add information.
+- Do NOT correct grammar, spelling, punctuation, or terminology.
+- Do NOT change numbers, formulas, symbols, names, dates, or facts.
+- Do NOT change the meaning or wording.
+
+You MAY divide the original material into logical sections.
+
+Section titles may be created when necessary.
+
+The content inside each section must contain the original
+source wording.
+
+==================================================
+UPLOADED FILES IN NOTE MODE
+==================================================
+
+Inspect EVERY attached file/image.
+
+Read ALL readable educational content.
+
+Preserve the wording of the readable source material.
+
+Do NOT summarize.
+
+Do NOT paraphrase.
+
+Do NOT rewrite.
+
+Do NOT replace words with synonyms.
+
+Do NOT remove readable information.
+
+Do NOT invent missing text.
+
+Do NOT add information that does not appear in the source.
+
+For blurry, damaged, handwritten, or partially unreadable
+material:
+
+- Transcribe only what can actually be read.
+- Do NOT guess missing words.
+- Do NOT invent missing text.
+
+==================================================
+MULTIPLE SOURCES
+==================================================
+
+If both typed content and uploaded files are supplied:
+
+- Treat all supplied material as source material.
+- Preserve the wording of each source.
+- Do NOT silently rewrite one source using another.
+- Do NOT remove repeated information.
+- Organize the material into logical sections.
+- Preserve the original wording.
+
+If sources contain different information, preserve both.
+
+==================================================
+NOTE MODE ALLOWED CHANGES
+==================================================
+
+In note mode, FAI may ONLY:
+
+1. Create logical section headings.
+2. Arrange supplied material into sections.
+3. Preserve paragraph separation.
+4. Remove obvious extraction formatting artifacts
+   when doing so does not alter the actual wording.
+
+==================================================
+NOTE MODE OUTPUT
+==================================================
+
+When MODE: generate_note is present:
+
+Return ONLY valid JSON.
+
+Do NOT use Markdown.
+
+Do NOT use JSON code fences.
+
+Do NOT add explanations before or after the JSON.
+
+Use exactly this structure:
+
+{
+  "success": true,
+  "university": "...",
+  "course": "...",
+  "topic": "...",
+  "title": "...",
+  "uploaded_by": "...",
+  "sections": [
+    {
+      "title": "...",
+      "content": "..."
+    }
+  ]
+}
+
+The content field is NOT a summary.
+
+It must contain the original source wording.
+
+==================================================
+NORMAL MODE
+==================================================
+
+If MODE: generate_note is NOT present:
+
+- Respond normally.
+- Use the uploaded image/file when relevant.
+- Summarize when asked.
+- Explain when asked.
+- Answer questions normally.
+- Do NOT return note JSON.
+- Do NOT preserve wording unless the user specifically asks
+  for transcription or exact copying.
 
 USER MEMORY:
 ${memoryText}
@@ -178,110 +347,152 @@ ${context}
 
 USER MESSAGE:
 ${prompt}
-  `.trim()
-});
+      `.trim()
+    });
 
-// ------------------------------
-// ATTACHED FILES / IMAGES
-// ------------------------------
+    // ------------------------------
+    // ATTACHED FILES / IMAGES
+    // ------------------------------
 
-if (Array.isArray(files)) {
+    if (Array.isArray(files)) {
 
-  for (const file of files) {
+      for (const file of files) {
 
-    if (!file?.buffer) {
+        if (!file?.buffer) {
+          continue;
+        }
+
+        const base64Data =
+          file.buffer.toString("base64");
+
+        parts.push({
+          inline_data: {
+            mime_type: file.mimetype,
+            data: base64Data
+          }
+        });
+
+      }
+
+    }
+
+    // ------------------------------
+    // SEND TO GEMINI
+    // ------------------------------
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          "X-goog-api-key": API_KEY
+        },
+
+        body: JSON.stringify({
+          contents: [
+            {
+              parts
+            }
+          ],
+
+          generationConfig: {
+            maxOutputTokens: 32768
+          }
+        })
+      }
+    );
+
+    if (!res.ok) {
+
+      const errorText = await res.text();
+
+      console.log(
+        `❌ ${model} error:`,
+        errorText
+      );
+
       continue;
     }
 
-    const base64Data =
-      file.buffer.toString("base64");
+    const data = await res.json();
 
-    parts.push({
-      inline_data: {
-        mime_type: file.mimetype,
-        data: base64Data
-      }
-    });
+    const answer =
+      data?.candidates?.[0]?.content?.parts
+        ?.map(part => part.text || "")
+        .join("")
+        .trim();
 
-  }
+    if (!answer) {
+      continue;
+    }
 
-}
-        }
-      );
+    // ------------------------------
+    // RETURN ANSWER
+    // ------------------------------
 
-      const data = await res.json();
+    const response = {
+      answer,
+      model,
+      userId
+    };
 
-      const answer =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    // ------------------------------
+    // UPDATE MEMORY IN BACKGROUND
+    // ------------------------------
 
-      if (!answer) continue;
+    if (userId) {
 
- // ------------------------------
-// 5. RETURN ANSWER IMMEDIATELY
-// ------------------------------
-
-const response = {
-  answer,
-  model,
-  userId
-};
-
-// ------------------------------
-// UPDATE MEMORY IN BACKGROUND
-// ------------------------------
-
-if (userId) {
-
-  generateMemoryUpdate({
-    userId,
-    prompt,
-    answer,
-    oldMemory: userMemory
-  })
-  .then(async updatedMemory => {
-
-    if (!updatedMemory) return;
-
-    const { error } = await supabase
-      .from("fai_memory")
-      .update({
-        memory: updatedMemory
+      generateMemoryUpdate({
+        userId,
+        prompt,
+        answer,
+        oldMemory: userMemory
       })
-      .eq("user_id", userId);
+      .then(async updatedMemory => {
 
-    if (error) {
+        if (!updatedMemory) return;
 
-      console.log(
-        "❌ Supabase save error:",
-        error.message
-      );
+        const { error } = await supabase
+          .from("fai_memory")
+          .update({
+            memory: updatedMemory
+          })
+          .eq("user_id", userId);
+
+        if (error) {
+
+          console.log(
+            "❌ Supabase save error:",
+            error.message
+          );
+
+        }
+
+      })
+      .catch(err => {
+
+        console.log(
+          "⚠️ Background memory update failed:",
+          err.message
+        );
+
+      });
 
     }
 
-  })
-  .catch(err => {
+    return response;
 
-    console.log(
-      "⚠️ Background memory update failed:",
+  } catch (err) {
+
+    console.error(
+      `❌ FAI ERROR (${model}):`,
       err.message
     );
 
-  });
-
-}
-
-return response;
-
-    } catch (err) {
-      console.error(`❌ FAI ERROR (${model}):`, err.message);
-    }
   }
 
-  return {
-    answer: "FAI failed to respond. Please try again.",
-    model: null,
-    userId
-  };
 }
 
 // ------------------------------
