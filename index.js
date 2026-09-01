@@ -477,14 +477,15 @@ app.post(
   note_content
 } = req.body;
 
-    if (
-      !prompt &&
+        if (
+      !prompt?.trim() &&
+      !note_content?.trim() &&
       (!req.files || req.files.length === 0)
     ) {
 
       return res.status(400).json({
         error:
-          "Please provide a question or upload files"
+          "Please provide note content, or upload files"
       });
 
     }
