@@ -4,6 +4,10 @@ import {
   createClient
 } from "@supabase/supabase-js";
 
+import {
+  v2 as cloudinary
+} from "cloudinary";
+
 
 /* =========================
    SUPABASE
@@ -14,6 +18,24 @@ const supabase =
     process.env.SUPABASE_URL,
     process.env.SUPABASE_KEY
   );
+
+
+/* =========================
+   CLOUDINARY
+========================= */
+
+cloudinary.config({
+
+  cloud_name:
+    process.env.CLOUDINARY_CLOUD_NAME,
+
+  api_key:
+    process.env.CLOUDINARY_API_KEY,
+
+  api_secret:
+    process.env.CLOUDINARY_API_SECRET
+
+});
 
 
 /* =========================
@@ -43,6 +65,91 @@ const ALLOWED_CONDITIONS = [
 
 
 /* =========================
+   UPLOAD IMAGE TO CLOUDINARY
+========================= */
+
+function uploadImageToCloudinary(
+  buffer
+) {
+
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+
+      const stream =
+        cloudinary.uploader.upload_stream(
+
+          {
+            folder:
+              "fmarket",
+
+            resource_type:
+              "image",
+
+            /*
+             * Compress and resize
+             * the stored image.
+             *
+             * Maximum width/height:
+             * 1600px
+             *
+             * Automatic quality keeps
+             * the file reasonably small.
+             */
+
+            transformation: [
+
+              {
+                width: 1600,
+                height: 1600,
+                crop: "limit"
+              },
+
+              {
+                quality: "auto"
+              }
+
+            ]
+
+          },
+
+          (
+            error,
+            result
+          ) => {
+
+            if (error) {
+
+              reject(
+                error
+              );
+
+              return;
+
+            }
+
+            resolve(
+              result
+            );
+
+          }
+
+        );
+
+
+      stream.end(
+        buffer
+      );
+
+    }
+  );
+
+}
+
+
+/* =========================
    SELL ITEM
 ========================= */
 
@@ -54,6 +161,7 @@ export default async function fmarketSell(
   try {
 
     const {
+
       userId,
       title,
       description,
@@ -64,8 +172,8 @@ export default async function fmarketSell(
       price,
       location,
       condition,
-      image_url,
       file_url
+
     } = req.body;
 
 
@@ -76,9 +184,12 @@ export default async function fmarketSell(
     if (!userId) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "User ID is required."
+
       });
 
     }
@@ -94,7 +205,9 @@ export default async function fmarketSell(
     } =
       await supabase
         .from("fwebaccount")
-        .select("id, username")
+        .select(
+          "id, username"
+        )
         .eq(
           "id",
           userId
@@ -105,9 +218,12 @@ export default async function fmarketSell(
     if (sellerError) {
 
       return res.status(500).json({
+
         success: false,
+
         error:
           "Could not verify seller account."
+
       });
 
     }
@@ -116,9 +232,12 @@ export default async function fmarketSell(
     if (!seller) {
 
       return res.status(404).json({
+
         success: false,
+
         error:
           "Seller account was not found."
+
       });
 
     }
@@ -134,9 +253,12 @@ export default async function fmarketSell(
     ) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "Material title is required."
+
       });
 
     }
@@ -145,7 +267,10 @@ export default async function fmarketSell(
     const cleanTitle =
       String(title)
         .trim()
-        .slice(0, 120);
+        .slice(
+          0,
+          120
+        );
 
 
     /* =========================
@@ -160,9 +285,12 @@ export default async function fmarketSell(
     ) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "Invalid material category."
+
       });
 
     }
@@ -176,7 +304,10 @@ export default async function fmarketSell(
       description
         ? String(description)
             .trim()
-            .slice(0, 2000)
+            .slice(
+              0,
+              2000
+            )
         : null;
 
 
@@ -195,9 +326,12 @@ export default async function fmarketSell(
     ) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "Invalid FCoins price."
+
       });
 
     }
@@ -214,9 +348,12 @@ export default async function fmarketSell(
     ) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "Price cannot be negative."
+
       });
 
     }
@@ -234,9 +371,12 @@ export default async function fmarketSell(
     ) {
 
       return res.status(400).json({
+
         success: false,
+
         error:
           "Invalid material condition."
+
       });
 
     }
@@ -250,7 +390,10 @@ export default async function fmarketSell(
       course
         ? String(course)
             .trim()
-            .slice(0, 100)
+            .slice(
+              0,
+              100
+            )
         : null;
 
 
@@ -258,7 +401,10 @@ export default async function fmarketSell(
       university
         ? String(university)
             .trim()
-            .slice(0, 150)
+            .slice(
+              0,
+              150
+            )
         : null;
 
 
@@ -266,7 +412,10 @@ export default async function fmarketSell(
       department
         ? String(department)
             .trim()
-            .slice(0, 150)
+            .slice(
+              0,
+              150
+            )
         : null;
 
 
@@ -274,15 +423,10 @@ export default async function fmarketSell(
       location
         ? String(location)
             .trim()
-            .slice(0, 200)
-        : null;
-
-
-    const cleanImageUrl =
-      image_url
-        ? String(image_url)
-            .trim()
-            .slice(0, 2000)
+            .slice(
+              0,
+              200
+            )
         : null;
 
 
@@ -290,8 +434,79 @@ export default async function fmarketSell(
       file_url
         ? String(file_url)
             .trim()
-            .slice(0, 2000)
+            .slice(
+              0,
+              2000
+            )
         : null;
+
+
+    /* =========================
+       IMAGE
+    ========================= */
+
+    let imageUrl =
+      null;
+
+
+    if (req.file) {
+
+      /*
+       * Make sure it is actually
+       * an image.
+       */
+
+      if (
+        !req.file.mimetype ||
+        !req.file.mimetype.startsWith(
+          "image/"
+        )
+      ) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          error:
+            "The uploaded file must be an image."
+
+        });
+
+      }
+
+
+      /*
+       * Upload to Cloudinary.
+       *
+       * Cloudinary performs the
+       * configured resize/compression.
+       */
+
+      const uploadedImage =
+        await uploadImageToCloudinary(
+          req.file.buffer
+        );
+
+
+      imageUrl =
+        uploadedImage.secure_url ||
+        null;
+
+
+      if (!imageUrl) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error:
+            "Image upload failed."
+
+        });
+
+      }
+
+    }
 
 
     /* =========================
@@ -334,7 +549,7 @@ export default async function fmarketSell(
             cleanLocation,
 
           image_url:
-            cleanImageUrl,
+            imageUrl,
 
           file_url:
             cleanFileUrl,
@@ -380,9 +595,12 @@ export default async function fmarketSell(
     if (insertError) {
 
       return res.status(500).json({
+
         success: false,
+
         error:
           "Could not create FMarket listing."
+
       });
 
     }

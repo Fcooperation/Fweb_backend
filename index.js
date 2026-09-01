@@ -444,6 +444,7 @@ app.get("/fai-models", async (req, res) => {
 
 app.post(
   "/fmarket-sell",
+  upload.single("image"),
   async (req, res) => {
 
     try {
@@ -463,10 +464,13 @@ app.post(
       if (!res.headersSent) {
 
         res.status(500).json({
+
           success: false,
+
           error:
             error.message ||
             "Unable to list FMarket item."
+
         });
 
       }
