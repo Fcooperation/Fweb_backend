@@ -135,9 +135,7 @@ export async function fmarketOrders(
         } =
           await supabase
             .from("fwebaccount")
-            .select(
-              "id, username"
-            )
+           .select("id, username, full_name")
             .in(
               "id",
               allUserIds
@@ -238,6 +236,209 @@ export async function fmarketOrders(
 
     }
 
+/* =========================
+   SET DELIVERY DETAILS
+========================= */
+
+if (
+  action === "set_delivery"
+) {
+
+  const {
+    deliveryMethod,
+    deliveryLocation
+  } =
+    req.body || {};
+
+
+  if (
+    !deliveryMethod ||
+    ![
+      "pickup",
+      "delivery"
+    ].includes(
+      deliveryMethod
+    )
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Invalid delivery method."
+
+    });
+
+  }
+
+
+  if (
+    !deliveryLocation ||
+    !String(
+      deliveryLocation
+    ).trim()
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery location is required."
+
+    });
+
+  }
+
+
+  if (
+    String(
+      deliveryLocation
+    ).trim().length > 300
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery location is too long."
+
+    });
+
+  }
+
+
+  const {
+    data: order,
+    error: orderError
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .select("*")
+      .eq(
+        "id",
+        orderId
+      )
+      .single();
+
+
+  if (orderError) {
+    throw orderError;
+  }
+
+
+  /* =========================
+     BUYER ONLY
+  ========================= */
+
+  if (
+    order.buyer_id !== userId
+  ) {
+
+    return res.status(403).json({
+
+      success: false,
+
+      error:
+        "Only the buyer can set delivery details."
+
+    });
+
+  }
+
+
+  /* =========================
+     PENDING ONLY
+  ========================= */
+
+  if (
+    order.status !==
+    "pending"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery details can only be changed while the order is pending."
+
+    });
+
+  }
+
+
+  const cleanLocation =
+    String(
+      deliveryLocation
+    ).trim();
+
+
+  const {
+    data: updated,
+    error: updateError
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .update({
+
+        delivery_method:
+          deliveryMethod,
+
+        delivery_location:
+          cleanLocation,
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq(
+        "id",
+        orderId
+      )
+      .select()
+      .single();
+
+
+  if (updateError) {
+    throw updateError;
+  }
+
+
+  await supabase
+    .from("fmarket_order_events")
+    .insert({
+
+      order_id:
+        orderId,
+
+      actor_id:
+        userId,
+
+      event:
+        "delivery_details_updated",
+
+      description:
+        `Buyer selected ${deliveryMethod} and provided a delivery location.`
+
+    });
+
+
+  return res.json({
+
+    success: true,
+
+    message:
+      "Delivery details saved.",
+
+    order:
+      updated
+
+  });
+
+}
 
     /* =========================
        ORDER ACTIONS
