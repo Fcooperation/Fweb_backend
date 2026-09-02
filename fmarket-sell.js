@@ -161,20 +161,19 @@ export default async function fmarketSell(
   try {
 
     const {
-
-      userId,
-      title,
-      description,
-      category,
-      course,
-      university,
-      department,
-      price,
-      location,
-      condition,
-      file_url
-
-    } = req.body;
+  userId,
+  title,
+  description,
+  category,
+  course,
+  university,
+  department,
+  price,
+  location,
+  condition,
+  file_url,
+  note_data
+} = req.body;
 
 
     /* =========================
@@ -440,6 +439,37 @@ export default async function fmarketSell(
             )
         : null;
 
+/* =========================
+   FSTUDY NOTE DATA
+========================= */
+
+let cleanNoteData =
+  null;
+
+
+if (note_data) {
+
+  try {
+
+    cleanNoteData =
+      JSON.parse(
+        note_data
+      );
+
+  } catch {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Invalid FStudy note data."
+
+    });
+
+  }
+
+}
 
     /* =========================
        IMAGE
@@ -521,70 +551,74 @@ export default async function fmarketSell(
         .from("fmarket")
         .insert({
 
-          seller_id:
-            seller.id,
+  seller_id:
+    seller.id,
 
-          title:
-            cleanTitle,
+  title:
+    cleanTitle,
 
-          description:
-            cleanDescription,
+  description:
+    cleanDescription,
 
-          category:
-            category,
+  category:
+    category,
 
-          course:
-            cleanCourse,
+  course:
+    cleanCourse,
 
-          university:
-            cleanUniversity,
+  university:
+    cleanUniversity,
 
-          department:
-            cleanDepartment,
+  department:
+    cleanDepartment,
 
-          price:
-            cleanPrice,
+  price:
+    cleanPrice,
 
-          location:
-            cleanLocation,
+  location:
+    cleanLocation,
 
-          image_url:
-            imageUrl,
+  image_url:
+    imageUrl,
 
-          file_url:
-            cleanFileUrl,
+  file_url:
+    cleanFileUrl,
 
-          condition:
-            condition || null,
+  note_data:
+    cleanNoteData,
 
-          status:
-            "available",
+  condition:
+    condition || null,
 
-          views:
-            0
+  status:
+    "available",
 
-        })
+  views:
+    0
+
+})
         .select(
-          `
-            id,
-            seller_id,
-            title,
-            description,
-            category,
-            course,
-            university,
-            department,
-            price,
-            location,
-            image_url,
-            file_url,
-            condition,
-            status,
-            views,
-            created_at,
-            updated_at
-          `
-        )
+  `
+    id,
+    seller_id,
+    title,
+    description,
+    category,
+    course,
+    university,
+    department,
+    price,
+    location,
+    image_url,
+    file_url,
+    note_data,
+    condition,
+    status,
+    views,
+    created_at,
+    updated_at
+  `
+)
         .single();
 
 

@@ -97,30 +97,29 @@ export default async function fmarket(
     let query =
       supabase
         .from("fmarket")
-        .select(
-          `
-          id,
-          seller_id,
-          title,
-          description,
-          category,
-          course,
-          university,
-          department,
-          price,
-          location,
-          image_url,
-          file_url,
-          condition,
-          status,
-          views,
-          created_at,
-          updated_at
-          `,
-          {
-            count: "exact"
-          }
-        )
+       .select(
+  `
+  id,
+  seller_id,
+  title,
+  description,
+  category,
+  course,
+  university,
+  department,
+  price,
+  location,
+  image_url,
+  condition,
+  status,
+  views,
+  created_at,
+  updated_at
+  `,
+  {
+    count: "exact"
+  }
+)
         .eq(
           "status",
           "available"
@@ -304,62 +303,59 @@ export default async function fmarket(
 
             return {
 
-              id:
-                material.id,
+  id:
+    material.id,
 
-              seller_id:
-                material.seller_id,
+  seller_id:
+    material.seller_id,
 
-              seller_name:
-                seller?.username ||
-                "Unknown seller",
+  seller_name:
+    seller?.username ||
+    "Unknown seller",
 
-              title:
-                material.title,
+  title:
+    material.title,
 
-              description:
-                material.description,
+  description:
+    material.description,
 
-              category:
-                material.category,
+  category:
+    material.category,
 
-              course:
-                material.course,
+  course:
+    material.course,
 
-              university:
-                material.university,
+  university:
+    material.university,
 
-              department:
-                material.department,
+  department:
+    material.department,
 
-              price:
-                material.price,
+  price:
+    material.price,
 
-              location:
-                material.location,
+  location:
+    material.location,
 
-              image_url:
-                material.image_url,
+  image_url:
+    material.image_url,
 
-              file_url:
-                material.file_url,
+  condition:
+    material.condition,
 
-              condition:
-                material.condition,
+  status:
+    material.status,
 
-              status:
-                material.status,
+  views:
+    material.views,
 
-              views:
-                material.views,
+  created_at:
+    material.created_at,
 
-              created_at:
-                material.created_at,
+  updated_at:
+    material.updated_at
 
-              updated_at:
-                material.updated_at
-
-            };
+};
 
           }
         );
