@@ -97,29 +97,30 @@ export default async function fmarket(
     let query =
       supabase
         .from("fmarket")
-       .select(
-  `
-  id,
-  seller_id,
-  title,
-  description,
-  category,
-  course,
-  university,
-  department,
-  price,
-  location,
-  image_url,
-  condition,
-  status,
-  views,
-  created_at,
-  updated_at
-  `,
-  {
-    count: "exact"
-  }
-)
+        .select(
+          `
+          id,
+          seller_id,
+          title,
+          description,
+          category,
+          course,
+          university,
+          department,
+          price,
+          location,
+          image_url,
+          condition,
+          status,
+          views,
+          created_at,
+          updated_at,
+          note_data
+          `,
+          {
+            count: "exact"
+          }
+        )
         .eq(
           "status",
           "available"
@@ -301,61 +302,85 @@ export default async function fmarket(
               );
 
 
-            return {
+            const price =
+              Number(
+                material.price
+              ) || 0;
 
-  id:
-    material.id,
 
-  seller_id:
-    material.seller_id,
+            const formatted = {
 
-  seller_name:
-    seller?.username ||
-    "Unknown seller",
+              id:
+                material.id,
 
-  title:
-    material.title,
+              seller_id:
+                material.seller_id,
 
-  description:
-    material.description,
+              seller_name:
+                seller?.username ||
+                "Unknown seller",
 
-  category:
-    material.category,
+              title:
+                material.title,
 
-  course:
-    material.course,
+              description:
+                material.description,
 
-  university:
-    material.university,
+              category:
+                material.category,
 
-  department:
-    material.department,
+              course:
+                material.course,
 
-  price:
-    material.price,
+              university:
+                material.university,
 
-  location:
-    material.location,
+              department:
+                material.department,
 
-  image_url:
-    material.image_url,
+              price:
+                material.price,
 
-  condition:
-    material.condition,
+              location:
+                material.location,
 
-  status:
-    material.status,
+              image_url:
+                material.image_url,
 
-  views:
-    material.views,
+              condition:
+                material.condition,
 
-  created_at:
-    material.created_at,
+              status:
+                material.status,
 
-  updated_at:
-    material.updated_at
+              views:
+                material.views,
 
-};
+              created_at:
+                material.created_at,
+
+              updated_at:
+                material.updated_at
+
+            };
+
+
+            /* =========================
+               FREE MATERIAL DATA
+            ========================= */
+
+            if (
+              price === 0
+            ) {
+
+              formatted.note_data =
+                material.note_data ??
+                null;
+
+            }
+
+
+            return formatted;
 
           }
         );
