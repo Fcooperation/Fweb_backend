@@ -150,20 +150,21 @@ export default async function fmarketSell(
   try {
 
     const {
-      userId,
-      title,
-      description,
-      category,
-      course,
-      university,
-      department,
-      price,
-      location,
-      condition,
-      file_url,
-      note_data,
-      note_file_ids
-    } = req.body;
+  userId,
+  title,
+  description,
+  category,
+  course,
+  university,
+  department,
+  price,
+  location,
+  condition,
+  file_url,
+  note_data,
+  past_questions_data,
+  note_file_ids
+} = req.body;
 
 
     /* =========================
@@ -431,36 +432,71 @@ export default async function fmarketSell(
 
 
     /* =========================
-       FSTUDY NOTE DATA
-    ========================= */
+   MATERIAL DATA
+========================= */
 
-    let cleanNoteData =
-      null;
+let cleanNoteData =
+  null;
 
 
-    if (note_data) {
+/*
+ * FSTUDY NOTE
+ */
 
-      try {
+if (note_data) {
 
-        cleanNoteData =
-          JSON.parse(
-            note_data
-          );
+  try {
 
-      } catch {
+    cleanNoteData =
+      JSON.parse(
+        note_data
+      );
 
-        return res.status(400).json({
+  } catch {
 
-          success: false,
+    return res.status(400).json({
 
-          error:
-            "Invalid FStudy note data."
+      success: false,
 
-        });
+      error:
+        "Invalid FStudy note data."
 
-      }
+    });
 
-    }
+  }
+
+}
+
+
+/*
+ * PAST QUESTIONS
+ */
+
+if (
+  past_questions_data
+) {
+
+  try {
+
+    cleanNoteData =
+      JSON.parse(
+        past_questions_data
+      );
+
+  } catch {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Invalid past questions data."
+
+    });
+
+  }
+
+}
 
 
     /* =========================
