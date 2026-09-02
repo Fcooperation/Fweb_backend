@@ -710,132 +710,84 @@ async function handleReceived(
   orderId
 ) {
 
-  const {
-    data: order,
-    error
-  } =
-    await supabase
-      .from("fmarket_orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabase.rpc(
+        "complete_fmarket_order",
+        {
+          p_user_id:
+            userId,
+
+          p_order_id:
+            orderId
+        }
+      );
 
 
-  if (error) {
-    throw error;
-  }
+    if (error) {
+      throw error;
+    }
 
 
-  if (
-    order.buyer_id !== userId
-  ) {
+    if (
+      !data ||
+      !data.success
+    ) {
 
-    return res.status(403).json({
+      return res.status(400).json({
 
-      success: false,
+        success: false,
 
-      error:
-        "Only the buyer can confirm receipt."
+        error:
+          data?.error ||
+          "Unable to complete order."
 
-    });
+      });
 
-  }
-
-
-  if (
-    order.status !==
-    "handed_over"
-  ) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      error:
-        "This order is not ready to be confirmed."
-
-    });
-
-  }
+    }
 
 
-  /*
-   * IMPORTANT:
-   *
-   * Do NOT release the seller's
-   * FCoins directly from here.
-   *
-   * This should eventually call
-   * a secure Supabase RPC that:
-   *
-   * 1. Locks the order
-   * 2. Checks payment is held
-   * 3. Changes payment to released
-   * 4. Credits seller
-   * 5. Marks order completed
-   *
-   * We will add that RPC separately.
-   */
+    return res.json({
 
+      success: true,
 
-  const {
-    data: updated,
-    error: updateError
-  } =
-    await supabase
-      .from("fmarket_orders")
-      .update({
-
-        status:
-          "received",
-
-        updated_at:
-          new Date().toISOString()
-
-      })
-      .eq(
-        "id",
-        orderId
-      )
-      .select()
-      .single();
-
-
-  if (updateError) {
-    throw updateError;
-  }
-
-
-  await supabase
-    .from("fmarket_order_events")
-    .insert({
+      message:
+        data.message ||
+        "Order completed and payment released.",
 
       order_id:
-        orderId,
+        data.order_id,
 
-      actor_id:
-        userId,
+      released:
+        data.released,
 
-      event:
-        "buyer_confirmed_received",
-
-      description:
-        "Buyer confirmed that the textbook was received."
+      seller_fcoins:
+        data.seller_fcoins
 
     });
 
+  } catch (error) {
 
-  return res.json({
+    console.error(
+      "❌ FMarket received error:",
+      error.message
+    );
 
-    success: true,
+    return res.status(500).json({
 
-    message:
-      "Receipt confirmed. Payment is awaiting release.",
+      success: false,
 
-    order:
-      updated
+      error:
+        error.message ||
+        "Unable to complete order."
 
-  });
+    });
+
+  }
 
 }
 
