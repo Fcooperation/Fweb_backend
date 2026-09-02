@@ -245,14 +245,14 @@ if (
           "fmarket_purchases"
         )
         .select(
-          "Material_id"
+          "material_id"
         )
         .eq(
-          "Buyer_id",
+          "buyer_id",
           userId
         )
         .in(
-          "Material_id",
+          "material_id",
           materialIds
         );
 

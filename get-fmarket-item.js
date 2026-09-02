@@ -135,14 +135,14 @@ export async function getFMarketItem(
             "fmarket_purchases"
           )
           .select(
-            "Id"
+            "id"
           )
           .eq(
-            "Buyer_id",
+            "buyer_id",
             userId
           )
           .eq(
-            "Material_id",
+            "material_id",
             itemId
           )
           .maybeSingle();
