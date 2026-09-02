@@ -111,6 +111,41 @@ export async function getFMarketItem(
 
 
     /* =========================
+       CHECK PRICE
+    ========================= */
+
+    const price =
+      Number(data.price) || 0;
+
+
+    /* =========================
+       FREE MATERIAL
+       
+       FREE:
+       return note_data
+
+       PAID:
+       hide note_data
+    ========================= */
+
+    if (
+      price === 0
+    ) {
+
+      return res.status(200).json({
+
+        success: true,
+
+        material: data
+
+      });
+
+    }
+
+
+    /* =========================
+       PAID MATERIAL
+       
        REMOVE NOTE DATA
     ========================= */
 
