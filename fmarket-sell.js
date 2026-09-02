@@ -69,7 +69,8 @@ const ALLOWED_CONDITIONS = [
 ========================= */
 
 function uploadImageToCloudinary(
-  buffer
+  buffer,
+  folder = "fmarket"
 ) {
 
   return new Promise(
@@ -82,22 +83,10 @@ function uploadImageToCloudinary(
         cloudinary.uploader.upload_stream(
 
           {
-            folder:
-              "fmarket",
+            folder,
 
             resource_type:
               "image",
-
-            /*
-             * Compress and resize
-             * the stored image.
-             *
-             * Maximum width/height:
-             * 1600px
-             *
-             * Automatic quality keeps
-             * the file reasonably small.
-             */
 
             transformation: [
 
@@ -161,19 +150,20 @@ export default async function fmarketSell(
   try {
 
     const {
-  userId,
-  title,
-  description,
-  category,
-  course,
-  university,
-  department,
-  price,
-  location,
-  condition,
-  file_url,
-  note_data
-} = req.body;
+      userId,
+      title,
+      description,
+      category,
+      course,
+      university,
+      department,
+      price,
+      location,
+      condition,
+      file_url,
+      note_data,
+      note_file_ids
+    } = req.body;
 
 
     /* =========================
@@ -439,56 +429,111 @@ export default async function fmarketSell(
             )
         : null;
 
-/* =========================
-   FSTUDY NOTE DATA
-========================= */
-
-let cleanNoteData =
-  null;
-
-
-if (note_data) {
-
-  try {
-
-    cleanNoteData =
-      JSON.parse(
-        note_data
-      );
-
-  } catch {
-
-    return res.status(400).json({
-
-      success: false,
-
-      error:
-        "Invalid FStudy note data."
-
-    });
-
-  }
-
-}
 
     /* =========================
-       IMAGE
+       FSTUDY NOTE DATA
+    ========================= */
+
+    let cleanNoteData =
+      null;
+
+
+    if (note_data) {
+
+      try {
+
+        cleanNoteData =
+          JSON.parse(
+            note_data
+          );
+
+      } catch {
+
+        return res.status(400).json({
+
+          success: false,
+
+          error:
+            "Invalid FStudy note data."
+
+        });
+
+      }
+
+    }
+
+
+    /* =========================
+       FSTUDY IMAGE IDS
+    ========================= */
+
+    let parsedNoteFileIds =
+      [];
+
+
+    if (note_file_ids) {
+
+      try {
+
+        parsedNoteFileIds =
+          JSON.parse(
+            note_file_ids
+          );
+
+        if (
+          !Array.isArray(
+            parsedNoteFileIds
+          )
+        ) {
+
+          parsedNoteFileIds =
+            [];
+
+        }
+
+      } catch {
+
+        return res.status(400).json({
+
+          success: false,
+
+          error:
+            "Invalid FStudy image data."
+
+        });
+
+      }
+
+    }
+
+
+    /* =========================
+       FILES FROM MULTER
+    ========================= */
+
+    const listingImage =
+      req.files?.image?.[0] ||
+      null;
+
+
+    const noteFiles =
+      req.files?.note_files ||
+      [];
+
+
+    /* =========================
+       LISTING IMAGE
     ========================= */
 
     let imageUrl =
       null;
 
 
-    if (req.file) {
-
-      /*
-       * Make sure it is actually
-       * an image.
-       */
+    if (listingImage) {
 
       if (
-        !req.file.mimetype ||
-        !req.file.mimetype.startsWith(
+        !listingImage.mimetype ||
+        !listingImage.mimetype.startsWith(
           "image/"
         )
       ) {
@@ -498,23 +543,17 @@ if (note_data) {
           success: false,
 
           error:
-            "The uploaded file must be an image."
+            "The uploaded listing image must be an image."
 
         });
 
       }
 
 
-      /*
-       * Upload to Cloudinary.
-       *
-       * Cloudinary performs the
-       * configured resize/compression.
-       */
-
       const uploadedImage =
         await uploadImageToCloudinary(
-          req.file.buffer
+          listingImage.buffer,
+          "fmarket"
         );
 
 
@@ -530,9 +569,116 @@ if (note_data) {
           success: false,
 
           error:
-            "Image upload failed."
+            "Listing image upload failed."
 
         });
+
+      }
+
+    }
+
+
+    /* =========================
+       FSTUDY NOTE IMAGES
+    ========================= */
+
+    if (
+      cleanNoteData &&
+      Array.isArray(
+        cleanNoteData.files
+      ) &&
+      noteFiles.length > 0
+    ) {
+
+      for (
+        let i = 0;
+        i < noteFiles.length;
+        i++
+      ) {
+
+        const file =
+          noteFiles[i];
+
+        const originalId =
+          parsedNoteFileIds[i];
+
+
+        /*
+         * Only allow images.
+         */
+        if (
+          !file.mimetype ||
+          !file.mimetype.startsWith(
+            "image/"
+          )
+        ) {
+
+          return res.status(400).json({
+
+            success: false,
+
+            error:
+              "All FStudy note files must be images."
+
+          });
+
+        }
+
+
+        /*
+         * Upload the actual
+         * FStudy image to Cloudinary.
+         */
+        const uploadedNoteImage =
+          await uploadImageToCloudinary(
+            file.buffer,
+            "fmarket/fstudy-notes"
+          );
+
+
+        const noteImageUrl =
+          uploadedNoteImage.secure_url ||
+          null;
+
+
+        if (!noteImageUrl) {
+
+          return res.status(500).json({
+
+            success: false,
+
+            error:
+              "An FStudy note image failed to upload."
+
+          });
+
+        }
+
+
+        /*
+         * Find the matching
+         * file inside note_data.
+         */
+        const noteFile =
+          cleanNoteData.files.find(
+            item =>
+              item &&
+              item.id ===
+              originalId
+          );
+
+
+        if (noteFile) {
+
+          /*
+           * Keep the original
+           * IndexedDB ID and metadata,
+           * but add the permanent URL.
+           */
+          noteFile.url =
+            noteImageUrl;
+
+        }
 
       }
 
@@ -551,74 +697,74 @@ if (note_data) {
         .from("fmarket")
         .insert({
 
-  seller_id:
-    seller.id,
+          seller_id:
+            seller.id,
 
-  title:
-    cleanTitle,
+          title:
+            cleanTitle,
 
-  description:
-    cleanDescription,
+          description:
+            cleanDescription,
 
-  category:
-    category,
+          category:
+            category,
 
-  course:
-    cleanCourse,
+          course:
+            cleanCourse,
 
-  university:
-    cleanUniversity,
+          university:
+            cleanUniversity,
 
-  department:
-    cleanDepartment,
+          department:
+            cleanDepartment,
 
-  price:
-    cleanPrice,
+          price:
+            cleanPrice,
 
-  location:
-    cleanLocation,
+          location:
+            cleanLocation,
 
-  image_url:
-    imageUrl,
+          image_url:
+            imageUrl,
 
-  file_url:
-    cleanFileUrl,
+          file_url:
+            cleanFileUrl,
 
-  note_data:
-    cleanNoteData,
+          note_data:
+            cleanNoteData,
 
-  condition:
-    condition || null,
+          condition:
+            condition || null,
 
-  status:
-    "available",
+          status:
+            "available",
 
-  views:
-    0
+          views:
+            0
 
-})
+        })
         .select(
-  `
-    id,
-    seller_id,
-    title,
-    description,
-    category,
-    course,
-    university,
-    department,
-    price,
-    location,
-    image_url,
-    file_url,
-    note_data,
-    condition,
-    status,
-    views,
-    created_at,
-    updated_at
-  `
-)
+          `
+          id,
+          seller_id,
+          title,
+          description,
+          category,
+          course,
+          university,
+          department,
+          price,
+          location,
+          image_url,
+          file_url,
+          note_data,
+          condition,
+          status,
+          views,
+          created_at,
+          updated_at
+          `
+        )
         .single();
 
 

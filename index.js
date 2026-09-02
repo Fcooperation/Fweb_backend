@@ -74,7 +74,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
 
   limits: {
-    files: 20,
+    files: 21,
     fileSize: 10 * 1024 * 1024
   }
 });
@@ -447,7 +447,18 @@ app.get("/fai-models", async (req, res) => {
 
 app.post(
   "/fmarket-sell",
-  upload.single("image"),
+
+  upload.fields([
+    {
+      name: "image",
+      maxCount: 1
+    },
+    {
+      name: "note_files",
+      maxCount: 20
+    }
+  ]),
+
   async (req, res) => {
 
     try {
