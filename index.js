@@ -63,6 +63,9 @@ import fmarketSell from "./fmarket-sell.js";
 import {
   fmarketBuy
 } from "./fmarket-buy.js";
+import {
+  fmarketOrders
+} from "./fmarket-orders.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -979,6 +982,45 @@ app.post(
           error:
             error.message ||
             "Unable to complete purchase."
+
+        });
+
+      }
+
+    }
+
+  }
+);
+
+app.post(
+  "/fmarket-orders",
+  async (req, res) => {
+
+    try {
+
+      await fmarketOrders(
+        req,
+        res
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ FMarket orders route error:",
+        error.message
+      );
+
+      if (
+        !res.headersSent
+      ) {
+
+        res.status(500).json({
+
+          success: false,
+
+          error:
+            error.message ||
+            "Unable to process FMarket orders."
 
         });
 
