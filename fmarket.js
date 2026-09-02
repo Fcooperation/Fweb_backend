@@ -267,15 +267,15 @@ if (
 
 
     purchasedMaterialIds =
-      new Set(
-        (purchases || [])
-          .map(
-            purchase =>
-              String(
-                purchase.Material_id
-              )
+  new Set(
+    (purchases || [])
+      .map(
+        purchase =>
+          String(
+            purchase.material_id
           )
-      );
+      )
+  );
 
   }
 
