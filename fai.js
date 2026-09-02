@@ -44,6 +44,47 @@ function limitWords(text, maxWords = 300) {
 }
 
 // ------------------------------
+// EXTRACT FIELD FROM FAI PROMPT
+// ------------------------------
+
+function extractField(
+  text,
+  field
+) {
+
+  if (!text) return "";
+
+  const marker =
+    `${field}`;
+
+  const start =
+    text.indexOf(marker);
+
+  if (start === -1) {
+    return "";
+  }
+
+  const valueStart =
+    start + marker.length;
+
+  const remaining =
+    text.slice(valueStart);
+
+  const nextField =
+    remaining.search(
+      /\n(?:University|Course|Topic|Title|Uploaded by|Year|Session|Difficulty|Question Number|Typed Question|Typed Note Content|User request):/
+    );
+
+  if (nextField === -1) {
+    return remaining.trim();
+  }
+
+  return remaining
+    .slice(0, nextField)
+    .trim();
+}
+
+// ------------------------------
 // MAIN FUNCTION
 // ------------------------------
 export async function fetchFAI({
@@ -560,15 +601,409 @@ export async function fetchFAIStream({
       2
     );
     
-    // ------------------------------
+// ------------------------------
 // BUILD GEMINI CONTENT
 // ------------------------------
 
 const parts = [];
 
-// Written prompt
-parts.push({
-  text: `
+// --------------------------------
+// DETECT MODE
+// --------------------------------
+
+const isPastQuestion =
+  prompt?.includes(
+    "MODE: generate_past_question"
+  );
+
+const isNote =
+  prompt?.includes(
+    "MODE: generate_note"
+  );
+
+// --------------------------------
+// PAST QUESTION MODE
+// --------------------------------
+
+if (isPastQuestion) {
+
+  parts.push({
+
+    text: `
+You are FAI, the Past Question generator inside FCOOPERATION AI.
+
+Your ONLY task in this mode is to create ONE Past Question JSON object.
+
+==================================================
+IMPORTANT
+==================================================
+
+MODE: generate_past_question
+
+You MUST return ONLY ONE valid JSON object.
+
+DO NOT return Markdown.
+
+DO NOT use code fences.
+
+DO NOT write explanations outside the JSON.
+
+DO NOT write introductory text.
+
+DO NOT write concluding text.
+
+DO NOT return an array.
+
+DO NOT return multiple questions.
+
+The response must begin with:
+
+{
+
+and end with:
+
+}
+
+==================================================
+SOURCE MATERIAL
+==================================================
+
+The typed question and/or uploaded image is the source material.
+
+If an uploaded image contains a past examination question:
+
+- Carefully inspect the image.
+- Read the question.
+- Read all visible options.
+- Identify the correct answer when it can be determined.
+- Extract the year/session if visible.
+- Extract the question number if visible.
+- Extract the course/topic when possible.
+- Use the supplied metadata when provided.
+
+Do NOT invent information that cannot reasonably be determined.
+
+==================================================
+QUESTION
+==================================================
+
+If a typed question is supplied, use it as the question source.
+
+If the question is supplied inside an image, carefully transcribe it.
+
+Preserve the meaning and important wording of the original question.
+
+==================================================
+OPTIONS
+==================================================
+
+The "options" field MUST contain exactly FOUR strings.
+
+Example:
+
+"options": [
+  "Option A",
+  "Option B",
+  "Option C",
+  "Option D"
+]
+
+If the original question has four visible options, preserve them.
+
+If the options are labeled A, B, C and D, do not include
+the labels unless necessary.
+
+If the source does not contain options but the question can
+reasonably be converted into a multiple-choice question,
+create four suitable options.
+
+There MUST always be exactly four options.
+
+==================================================
+ANSWER
+==================================================
+
+The "answer" field must contain the correct option.
+
+Prefer the actual option text.
+
+Example:
+
+"answer": "Mitochondria"
+
+Do NOT put an explanation in the answer field.
+
+==================================================
+EXPLANATION
+==================================================
+
+The "explanation" field should briefly explain why the answer
+is correct in a clear student-friendly way.
+
+Do NOT make it excessively long.
+
+==================================================
+FORMULA
+==================================================
+
+The "formula" field should contain the relevant formula when
+the question requires one.
+
+For example:
+
+"formula": "v = u + at"
+
+If no formula is relevant:
+
+"formula": ""
+
+Do NOT invent a formula for questions that do not need one.
+
+==================================================
+DIFFICULTY
+==================================================
+
+Use ONLY one of:
+
+"easy"
+
+"medium"
+
+"hard"
+
+If no difficulty is supplied, determine a reasonable difficulty.
+
+==================================================
+TYPE
+==================================================
+
+For this Past Question generator, use:
+
+"type": "mcq"
+
+==================================================
+YEAR
+==================================================
+
+The "year" field MUST be a number.
+
+If a valid year is supplied in the metadata or visible in the
+source, use it.
+
+If no year can be determined:
+
+"year": 0
+
+==================================================
+SESSION
+==================================================
+
+Use the supplied session if available.
+
+If the session cannot be determined:
+
+"session": ""
+
+==================================================
+QUESTION NUMBER
+==================================================
+
+Use the supplied question number when available.
+
+If it cannot be determined:
+
+"question_number": 0
+
+==================================================
+XP REWARD
+==================================================
+
+Always use:
+
+"xp_reward": 10
+
+unless a different value is explicitly supplied.
+
+==================================================
+VERIFIED
+==================================================
+
+Always use:
+
+"verified": true
+
+==================================================
+ID
+==================================================
+
+Generate a unique question ID beginning with:
+
+Q
+
+Example:
+
+"Q1788341608332675"
+
+The ID must be a string.
+
+==================================================
+EXACT OUTPUT SCHEMA
+==================================================
+
+Return EXACTLY this structure:
+
+{
+  "id": "Q1788341608332675",
+  "university": "",
+  "course": "",
+  "question": "",
+  "options": [
+    "",
+    "",
+    "",
+    ""
+  ],
+  "answer": "",
+  "explanation": "",
+  "formula": "",
+  "difficulty": "easy",
+  "topic": "",
+  "type": "mcq",
+  "year": 0,
+  "session": "",
+  "question_number": 0,
+  "xp_reward": 10,
+  "instructor": "",
+  "verified": true
+}
+
+==================================================
+FIELD RULES
+==================================================
+
+The final JSON MUST contain ALL of these fields:
+
+id
+university
+course
+question
+options
+answer
+explanation
+formula
+difficulty
+topic
+type
+year
+session
+question_number
+xp_reward
+instructor
+verified
+
+Do NOT add extra fields.
+
+"options" MUST contain exactly 4 items.
+
+"type" MUST be "mcq".
+
+"xp_reward" MUST be a number.
+
+"year" MUST be a number.
+
+"question_number" MUST be a number.
+
+"verified" MUST be true.
+
+==================================================
+METADATA
+==================================================
+
+University:
+${extractField(
+  prompt,
+  "University:"
+)}
+
+Course:
+${extractField(
+  prompt,
+  "Course:"
+)}
+
+Topic:
+${extractField(
+  prompt,
+  "Topic:"
+)}
+
+Year:
+${extractField(
+  prompt,
+  "Year:"
+)}
+
+Session:
+${extractField(
+  prompt,
+  "Session:"
+)}
+
+Difficulty:
+${extractField(
+  prompt,
+  "Difficulty:"
+)}
+
+Question Number:
+${extractField(
+  prompt,
+  "Question Number:"
+)}
+
+Uploaded By:
+${extractField(
+  prompt,
+  "Uploaded by:"
+)}
+
+Typed Question:
+${extractField(
+  prompt,
+  "Typed Question:"
+)}
+
+==================================================
+FINAL RULE
+==================================================
+
+Return ONLY the JSON object.
+
+No Markdown.
+
+No code fences.
+
+No extra text.
+
+`.trim()
+
+  });
+
+}
+
+// --------------------------------
+// NOTE MODE
+// --------------------------------
+
+else if (isNote) {
+
+  // --------------------------------
+  // YOUR EXISTING NOTE PROMPT
+  // --------------------------------
+
+  parts.push({
+
+    text: `
 You are FAI, a helpful multimodal study assistant inside the FCOOPERATION AI system.
 
 ==================================================
@@ -616,51 +1051,17 @@ Tell the user exactly:
 
 This rule applies ONLY to requests for creating a NEW image.
 
-It does NOT apply when the user uploads an existing image
-and asks FAI to:
-
-- analyze it
-- summarize it
-- explain it
-- describe it
-- read it
-- answer questions about it
-- solve a question shown in it
-- identify information shown in it
-
-==================================================
-REQUEST MODE
-==================================================
-
-There are two possible behaviors.
-
-NORMAL MODE:
-
-If the user message does NOT contain:
-
-MODE: generate_note
-
-then behave as normal FAI.
-
-Use the uploaded image/file when relevant.
-
-Answer naturally.
-
-Do NOT return note JSON.
-
-Do NOT apply the note-generation source-preservation rules.
-
 ==================================================
 NOTE GENERATION MODE
 ==================================================
 
-ONLY when the user message contains exactly:
+ONLY when the user's message contains exactly:
 
 MODE: generate_note
 
 switch into Fstudy NOTE GENERATION mode.
 
-In this mode, the supplied study material is the SOURCE MATERIAL.
+The supplied study material is the SOURCE MATERIAL.
 
 Your job is NOT to summarize, paraphrase, rewrite, simplify,
 correct, improve, expand, or reinterpret the source material.
@@ -723,9 +1124,6 @@ Do NOT invent missing text.
 
 Do NOT add information that does not appear in the supplied material.
 
-For readable printed or digital text, reproduce the text
-as faithfully as possible.
-
 For handwritten, scanned, blurry, damaged, or partially
 unreadable material:
 
@@ -753,20 +1151,6 @@ If both typed note content and uploaded files are supplied:
 If two sources contain different information, preserve both.
 
 Do NOT decide that one source is wrong and silently change it.
-
-==================================================
-WHAT FAI MAY CHANGE IN NOTE MODE
-==================================================
-
-FAI may ONLY:
-
-1. Create logical section headings.
-2. Arrange the supplied material into those sections.
-3. Preserve paragraph separation.
-4. Remove obvious formatting artifacts caused by extraction
-   when doing so does NOT alter the actual wording.
-
-FAI must NOT change the educational content itself.
 
 ==================================================
 ANTI-SUMMARIZATION RULE
@@ -824,31 +1208,6 @@ The "content" field is NOT a summary.
 It must contain the original source wording.
 
 ==================================================
-FINAL VERIFICATION FOR NOTE MODE
-==================================================
-
-Before returning the JSON, internally verify:
-
-- Did I preserve the supplied wording?
-- Did I accidentally summarize anything?
-- Did I accidentally paraphrase anything?
-- Did I remove readable information?
-- Did I invent anything?
-- Did I change numbers, names, formulas, terminology,
-  dates, or facts?
-- Did I add explanations that were not in the source?
-
-If any answer is YES, correct the output.
-
-The goal is:
-
-SOURCE MATERIAL → ORGANIZED NOTE
-
-NOT:
-
-SOURCE MATERIAL → SUMMARY
-
-==================================================
 
 USER MEMORY:
 ${memoryText}
@@ -859,7 +1218,53 @@ ${context}
 USER MESSAGE:
 ${prompt}
 `.trim()
-});
+
+  });
+
+}
+
+// --------------------------------
+// NORMAL FAI MODE
+// --------------------------------
+
+else {
+
+  parts.push({
+
+    text: `
+You are FAI, a helpful multimodal study assistant inside the FCOOPERATION AI system.
+
+Be natural, helpful, and student-friendly.
+
+You can understand text, images, diagrams, screenshots,
+handwritten notes, scanned pages, and uploaded files.
+
+When files are attached, inspect them carefully and use
+their contents when relevant.
+
+Do NOT automatically return JSON.
+
+Do NOT automatically create a study note.
+
+Answer the user's request normally.
+
+If the user asks you to generate a new image, tell them:
+
+"To generate an image, kindly click the plus button at the bottom left of your input section and select Generate Image."
+
+USER MEMORY:
+${memoryText}
+
+CHAT HISTORY:
+${context}
+
+USER MESSAGE:
+${prompt}
+`.trim()
+
+  });
+
+}
 
 // ------------------------------
 // ATTACHED FILES / IMAGES
@@ -945,8 +1350,15 @@ if (Array.isArray(files)) {
     ],
 
     generationConfig: {
-        maxOutputTokens: 32768
-    }
+  maxOutputTokens: 32768,
+
+  ...(isPastQuestion
+    ? {
+        responseMimeType:
+          "application/json"
+      }
+    : {})
+}
 })
           }
         );

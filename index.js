@@ -609,29 +609,72 @@ app.post(
   async (req, res) => {
 
     const {
-  userId,
-  prompt,
-  mode,
-  university,
-  course,
-  topic,
-  title,
-  uploaded_by,
-  note_content
-} = req.body;
+      userId,
+      prompt,
+      mode,
+      university,
+      course,
+      topic,
+      title,
+      uploaded_by,
+      note_content,
+      question,
+      year,
+      session,
+      difficulty,
+      question_number
+    } = req.body;
 
-        if (
-      !prompt?.trim() &&
-      !note_content?.trim() &&
-      (!req.files || req.files.length === 0)
+    // --------------------------------
+    // VALIDATE INPUT BASED ON MODE
+    // --------------------------------
+
+    if (
+      mode === "generate_past_question"
     ) {
 
-      return res.status(400).json({
-        error:
-          "Please provide note content, or upload files"
-      });
+      // Past Question mode:
+      // user can provide typed question,
+      // image, or both.
+
+      if (
+        !question?.trim() &&
+        (!req.files ||
+          req.files.length === 0)
+      ) {
+
+        return res.status(400).json({
+          error:
+            "Please provide the question, or upload an image."
+        });
+
+      }
+
+    } else {
+
+      // --------------------------------
+      // EXISTING FSTUDY NOTE VALIDATION
+      // --------------------------------
+
+      if (
+        !prompt?.trim() &&
+        !note_content?.trim() &&
+        (!req.files ||
+          req.files.length === 0)
+      ) {
+
+        return res.status(400).json({
+          error:
+            "Please provide note content, or upload files"
+        });
+
+      }
 
     }
+
+    // --------------------------------
+    // CHAT HISTORY
+    // --------------------------------
 
     let messages = [];
 
@@ -639,7 +682,9 @@ app.post(
 
       messages =
         req.body.messages
-          ? JSON.parse(req.body.messages)
+          ? JSON.parse(
+              req.body.messages
+            )
           : [];
 
     } catch (err) {
@@ -648,32 +693,64 @@ app.post(
 
     }
 
+    // --------------------------------
+    // FAI STREAM
+    // --------------------------------
+
     try {
 
       await fetchFAIStream({
-  userId,
-  messages,
 
-  prompt: `
+        userId,
+
+        messages,
+
+        prompt: `
 MODE: ${mode || "normal"}
 
-University: ${university || ""}
-Course: ${course || ""}
-Topic: ${topic || ""}
-Title: ${title || ""}
-Uploaded by: ${uploaded_by || ""}
+University:
+${university || ""}
 
-Typed note content:
+Course:
+${course || ""}
+
+Topic:
+${topic || ""}
+
+Title:
+${title || ""}
+
+Uploaded by:
+${uploaded_by || ""}
+
+Year:
+${year || ""}
+
+Session:
+${session || ""}
+
+Difficulty:
+${difficulty || ""}
+
+Question Number:
+${question_number || ""}
+
+Typed Question:
+${question || ""}
+
+Typed Note Content:
 ${note_content || ""}
 
 User request:
-${prompt || "Generate a study note from the supplied material."}
+${prompt || ""}
 `,
 
-  files: req.files || [],
+        files:
+          req.files || [],
 
-  res
-});
+        res
+
+      });
 
     } catch (err) {
 
