@@ -625,17 +625,13 @@ app.post(
       question_number
     } = req.body;
 
-    // --------------------------------
-    // VALIDATE INPUT BASED ON MODE
-    // --------------------------------
+    /* =========================
+       VALIDATION
+    ========================= */
 
     if (
       mode === "generate_past_question"
     ) {
-
-      // Past Question mode:
-      // user can provide typed question,
-      // image, or both.
 
       if (
         !question?.trim() &&
@@ -645,16 +641,12 @@ app.post(
 
         return res.status(400).json({
           error:
-            "Please provide the question, or upload an image."
+            "Please provide the questions or upload an image."
         });
 
       }
 
     } else {
-
-      // --------------------------------
-      // EXISTING FSTUDY NOTE VALIDATION
-      // --------------------------------
 
       if (
         !prompt?.trim() &&
@@ -665,16 +657,16 @@ app.post(
 
         return res.status(400).json({
           error:
-            "Please provide note content, or upload files"
+            "Please provide note content, or upload files."
         });
 
       }
 
     }
 
-    // --------------------------------
-    // CHAT HISTORY
-    // --------------------------------
+    /* =========================
+       CHAT HISTORY
+    ========================= */
 
     let messages = [];
 
@@ -687,15 +679,15 @@ app.post(
             )
           : [];
 
-    } catch (err) {
+    } catch {
 
       messages = [];
 
     }
 
-    // --------------------------------
-    // FAI STREAM
-    // --------------------------------
+    /* =========================
+       FAI
+    ========================= */
 
     try {
 
@@ -705,45 +697,44 @@ app.post(
 
         messages,
 
-        prompt: `
-MODE: ${mode || "normal"}
+        prompt:
+          prompt || "",
 
-University:
-${university || ""}
+        mode,
 
-Course:
-${course || ""}
+        metadata: {
 
-Topic:
-${topic || ""}
+          university:
+            university || "",
 
-Title:
-${title || ""}
+          course:
+            course || "",
 
-Uploaded by:
-${uploaded_by || ""}
+          topic:
+            topic || "",
 
-Year:
-${year || ""}
+          title:
+            title || "",
 
-Session:
-${session || ""}
+          uploaded_by:
+            uploaded_by || "",
 
-Difficulty:
-${difficulty || ""}
+          year:
+            year || "0",
 
-Question Number:
-${question_number || ""}
+          session:
+            session || "",
 
-Typed Question:
-${question || ""}
+          difficulty:
+            difficulty || "",
 
-Typed Note Content:
-${note_content || ""}
+          question_number:
+            question_number || "0",
 
-User request:
-${prompt || ""}
-`,
+          question:
+            question || ""
+
+        },
 
         files:
           req.files || [],
@@ -762,8 +753,13 @@ ${prompt || ""}
       if (!res.headersSent) {
 
         return res.status(500).json({
-          error: "FAI failed",
-          details: err.message
+
+          error:
+            "FAI failed",
+
+          details:
+            err.message
+
         });
 
       }
