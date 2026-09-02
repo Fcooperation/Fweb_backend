@@ -60,6 +60,9 @@ import fmarketTopup from "./fmarket-topup.js";
 import fmarketTopupVerify
   from "./fmarket-topup-verify.js";
 import fmarketSell from "./fmarket-sell.js";
+import {
+  fmarketBuy
+} from "./fmarket-buy.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -857,6 +860,46 @@ app.post("/follow", async (req, res) => {
     });
   }
 });
+
+//Fmarket Buy 
+app.post(
+  "/fmarket-buy",
+  async (req, res) => {
+
+    try {
+
+      await fmarketBuy(
+        req,
+        res
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ FMarket buy route error:",
+        error.message
+      );
+
+      if (
+        !res.headersSent
+      ) {
+
+        res.status(500).json({
+
+          success: false,
+
+          error:
+            error.message ||
+            "Unable to complete purchase."
+
+        });
+
+      }
+
+    }
+
+  }
+);
 
 // FOLLOWING FEED ROUTE
 app.get("/fvids/following-feed", async (req, res) => {
