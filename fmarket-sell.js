@@ -137,6 +137,79 @@ function uploadImageToCloudinary(
 
 }
 
+/* =========================
+   UPLOAD TEXTBOOK TO CLOUDINARY
+========================= */
+
+function uploadTextbookToCloudinary(
+  buffer,
+  originalName
+) {
+
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+
+      const stream =
+        cloudinary.uploader.upload_stream(
+
+          {
+            folder:
+              "fmarket/textbooks",
+
+            resource_type:
+              "raw",
+
+            public_id:
+              `${Date.now()}-${String(
+                originalName || "textbook"
+              )
+                .replace(
+                  /\.[^/.]+$/,
+                  ""
+                )
+                .replace(
+                  /[^a-zA-Z0-9-_]/g,
+                  "-"
+                )}`
+
+          },
+
+          (
+            error,
+            result
+          ) => {
+
+            if (error) {
+
+              reject(
+                error
+              );
+
+              return;
+
+            }
+
+            resolve(
+              result
+            );
+
+          }
+
+        );
+
+
+      stream.end(
+        buffer
+      );
+
+    }
+  );
+
+}
+
 
 /* =========================
    SELL ITEM
@@ -161,6 +234,7 @@ export default async function fmarketSell(
   location,
   condition,
   file_url,
+  material_type,
   note_data,
   past_questions_data,
   note_file_ids
@@ -371,6 +445,93 @@ export default async function fmarketSell(
 
     }
 
+/* =========================
+   TEXTBOOK TYPE
+========================= */
+
+if (
+  category === "textbook"
+) {
+
+  if (
+    !material_type ||
+    ![
+      "digital",
+      "physical"
+    ].includes(
+      material_type
+    )
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Invalid textbook type."
+
+    });
+
+  }
+
+
+  /* =========================
+     DIGITAL TEXTBOOK
+  ========================= */
+
+  if (
+    material_type ===
+    "digital"
+  ) {
+
+    if (
+      condition !==
+      "digital"
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Digital textbooks must have a digital condition."
+
+      });
+
+    }
+
+  }
+
+
+  /* =========================
+     PHYSICAL TEXTBOOK
+  ========================= */
+
+  if (
+    material_type ===
+    "physical"
+  ) {
+
+    if (
+      !condition ||
+      condition ===
+      "digital"
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Physical textbooks require a valid condition."
+
+      });
+
+    }
+
+  }
+
+}
 
     /* =========================
        CLEAN OPTIONAL DATA
@@ -548,13 +709,16 @@ if (
     ========================= */
 
     const listingImage =
-      req.files?.image?.[0] ||
-      null;
+  req.files?.image?.[0] ||
+  null;
 
+const noteFiles =
+  req.files?.note_files ||
+  [];
 
-    const noteFiles =
-      req.files?.note_files ||
-      [];
+const textbookFile =
+  req.files?.textbook_file?.[0] ||
+  null;
 
 
     /* =========================
@@ -613,6 +777,173 @@ if (
 
     }
 
+/* =========================
+   TEXTBOOK FILE
+========================= */
+
+let textbookFileUrl =
+  cleanFileUrl;
+
+
+/* =========================
+   DIGITAL TEXTBOOK
+========================= */
+
+if (
+  category === "textbook" &&
+  material_type === "digital"
+) {
+
+  if (!textbookFile) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Digital textbook file is required."
+
+    });
+
+  }
+
+
+  /* =========================
+     ALLOWED TEXTBOOK TYPES
+  ========================= */
+
+  const allowedTextbookTypes = [
+    "application/pdf",
+
+    "application/epub+zip",
+
+    "application/msword",
+
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ];
+
+
+  const allowedExtensions = [
+    ".pdf",
+    ".epub",
+    ".doc",
+    ".docx"
+  ];
+
+
+  const originalName =
+    textbookFile.originalname ||
+    "";
+
+
+  const extension =
+    originalName
+      .toLowerCase()
+      .slice(
+        originalName.lastIndexOf(".")
+      );
+
+
+  if (
+    !allowedTextbookTypes.includes(
+      textbookFile.mimetype
+    ) &&
+    !allowedExtensions.includes(
+      extension
+    )
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Invalid textbook file. Only PDF, EPUB, DOC and DOCX files are allowed."
+
+    });
+
+  }
+
+
+  /* =========================
+     MAX SIZE
+  ========================= */
+
+  const maxTextbookSize =
+    100 *
+    1024 *
+    1024;
+
+
+  if (
+    textbookFile.size >
+    maxTextbookSize
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Textbook file is too large. Maximum size is 100MB."
+
+    });
+
+  }
+
+
+  /* =========================
+     UPLOAD TO CLOUDINARY
+  ========================= */
+
+  const uploadedTextbook =
+    await uploadTextbookToCloudinary(
+      textbookFile.buffer,
+      originalName
+    );
+
+
+  textbookFileUrl =
+    uploadedTextbook.secure_url ||
+    null;
+
+
+  if (
+    !textbookFileUrl
+  ) {
+
+    return res.status(500).json({
+
+      success: false,
+
+      error:
+        "Textbook upload failed."
+
+    });
+
+  }
+
+}
+
+
+/* =========================
+   PHYSICAL TEXTBOOK
+========================= */
+
+if (
+  category === "textbook" &&
+  material_type === "physical"
+) {
+
+  /*
+   * Physical textbooks do not
+   * need a digital file.
+   */
+
+  textbookFileUrl =
+    null;
+
+}
 
     /* =========================
        FSTUDY NOTE IMAGES
@@ -764,13 +1095,18 @@ if (
             imageUrl,
 
           file_url:
-            cleanFileUrl,
+  textbookFileUrl,
 
-          note_data:
-            cleanNoteData,
+note_data:
+  cleanNoteData,
 
-          condition:
-            condition || null,
+material_type:
+  category === "textbook"
+    ? material_type
+    : null,
+
+condition:
+  condition || null,
 
           status:
             "available",
@@ -782,23 +1118,24 @@ if (
         .select(
           `
           id,
-          seller_id,
-          title,
-          description,
-          category,
-          course,
-          university,
-          department,
-          price,
-          location,
-          image_url,
-          file_url,
-          note_data,
-          condition,
-          status,
-          views,
-          created_at,
-          updated_at
+seller_id,
+title,
+description,
+category,
+course,
+university,
+department,
+price,
+location,
+image_url,
+file_url,
+note_data,
+material_type,
+condition,
+status,
+views,
+created_at,
+updated_at
           `
         )
         .single();

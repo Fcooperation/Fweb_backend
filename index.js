@@ -74,8 +74,8 @@ const upload = multer({
   storage: multer.memoryStorage(),
 
   limits: {
-    files: 21,
-    fileSize: 10 * 1024 * 1024
+    files: 22,
+    fileSize: 100 * 1024 * 1024
   }
 });
 
@@ -456,6 +456,10 @@ app.post(
     {
       name: "note_files",
       maxCount: 20
+    },
+    {
+      name: "textbook_file",
+      maxCount: 1
     }
   ]),
 
