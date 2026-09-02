@@ -40,14 +40,19 @@ export async function getFMarketItem(
 
 
     /* =========================
-       GET ITEM ID
+       GET REQUEST DATA
     ========================= */
 
     const {
-      itemId
+      itemId,
+      userId
     } =
       req.body || {};
 
+
+    /* =========================
+       CHECK ITEM ID
+    ========================= */
 
     if (
       !itemId ||
@@ -111,6 +116,58 @@ export async function getFMarketItem(
 
 
     /* =========================
+       CHECK OWNERSHIP
+    ========================= */
+
+    let owned = false;
+
+
+    if (
+      userId
+    ) {
+
+      const {
+        data: purchase,
+        error: purchaseError
+      } =
+        await supabase
+          .from(
+            "fmarket_purchases"
+          )
+          .select(
+            "Id"
+          )
+          .eq(
+            "Buyer_id",
+            userId
+          )
+          .eq(
+            "Material_id",
+            itemId
+          )
+          .maybeSingle();
+
+
+      if (
+        purchaseError
+      ) {
+
+        return res.status(500).json({
+          success: false,
+          error:
+            "Unable to check material ownership."
+        });
+
+      }
+
+
+      owned =
+        !!purchase;
+
+    }
+
+
+    /* =========================
        CHECK PRICE
     ========================= */
 
@@ -121,11 +178,8 @@ export async function getFMarketItem(
     /* =========================
        FREE MATERIAL
        
-       FREE:
-       return note_data
-
-       PAID:
-       hide note_data
+       RETURN EVERYTHING
+       + OWNERSHIP
     ========================= */
 
     if (
@@ -136,7 +190,14 @@ export async function getFMarketItem(
 
         success: true,
 
-        material: data
+        owned,
+
+        material: {
+          ...data,
+
+          owned
+
+        }
 
       });
 
@@ -163,7 +224,15 @@ export async function getFMarketItem(
 
       success: true,
 
-      material
+      owned,
+
+      material: {
+
+        ...material,
+
+        owned
+
+      }
 
     });
 

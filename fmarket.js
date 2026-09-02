@@ -210,6 +210,76 @@ export default async function fmarket(
 
     }
 
+/* =========================
+   GET USER PURCHASES
+========================= */
+
+let purchasedMaterialIds =
+  new Set();
+
+if (
+  userId &&
+  materials &&
+  materials.length
+) {
+
+  const materialIds =
+    materials
+      .map(
+        material =>
+          material.id
+      )
+      .filter(Boolean);
+
+
+  if (
+    materialIds.length
+  ) {
+
+    const {
+      data: purchases,
+      error: purchasesError
+    } =
+      await supabase
+        .from(
+          "fmarket_purchases"
+        )
+        .select(
+          "Material_id"
+        )
+        .eq(
+          "Buyer_id",
+          userId
+        )
+        .in(
+          "Material_id",
+          materialIds
+        );
+
+
+    if (
+      purchasesError
+    ) {
+
+      throw purchasesError;
+
+    }
+
+
+    purchasedMaterialIds =
+      new Set(
+        (purchases || [])
+          .map(
+            purchase =>
+              String(
+                purchase.Material_id
+              )
+          )
+      );
+
+  }
+
+}
 
     /* =========================
        GET SELLER IDs
@@ -312,6 +382,11 @@ export default async function fmarket(
 
               id:
                 material.id,
+                
+                owned:
+  purchasedMaterialIds.has(
+    String(material.id)
+  ),
 
               seller_id:
                 material.seller_id,
