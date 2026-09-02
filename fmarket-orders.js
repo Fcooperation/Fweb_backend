@@ -136,7 +136,7 @@ export async function fmarketOrders(
           await supabase
             .from("fwebaccount")
             .select(
-              "id, username, name"
+              "id, username"
             )
             .in(
               "id",
