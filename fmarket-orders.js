@@ -192,9 +192,9 @@ export async function fmarketOrders(
                 ? {
                     id: buyer.id,
                     name:
-                      buyer.name ||
-                      buyer.username ||
-                      "Buyer"
+  buyer.full_name ||
+  buyer.username ||
+  "Buyer"
                   }
                 : null,
 
@@ -202,9 +202,9 @@ export async function fmarketOrders(
                 ? {
                     id: seller.id,
                     name:
-                      seller.name ||
-                      seller.username ||
-                      "Seller"
+  seller.full_name ||
+  seller.username ||
+  "Seller"
                   }
                 : null
 
@@ -851,14 +851,16 @@ async function handleCancel(
 ) {
 
   const {
-    data: order,
+    data,
     error
   } =
-    await supabase
-      .from("fmarket_orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+    await supabase.rpc(
+      "cancel_fmarket_order",
+      {
+        p_user_id: userId,
+        p_order_id: orderId
+      }
+    );
 
 
   if (error) {
@@ -867,29 +869,8 @@ async function handleCancel(
 
 
   if (
-    order.buyer_id !== userId &&
-    order.seller_id !== userId
-  ) {
-
-    return res.status(403).json({
-
-      success: false,
-
-      error:
-        "You are not part of this order."
-
-    });
-
-  }
-
-
-  if (
-    ![
-      "pending",
-      "accepted"
-    ].includes(
-      order.status
-    )
+    !data ||
+    !data.success
   ) {
 
     return res.status(400).json({
@@ -897,69 +878,12 @@ async function handleCancel(
       success: false,
 
       error:
-        "This order can no longer be cancelled."
+        data?.error ||
+        "Unable to cancel order."
 
     });
 
   }
-
-
-  const {
-    data: updated,
-    error: updateError
-  } =
-    await supabase
-      .from("fmarket_orders")
-      .update({
-
-        status:
-          "cancelled",
-
-        updated_at:
-          new Date().toISOString()
-
-      })
-      .eq(
-        "id",
-        orderId
-      )
-      .select()
-      .single();
-
-
-  if (updateError) {
-    throw updateError;
-  }
-
-
-  /*
-   * IMPORTANT:
-   *
-   * The held FCoins should be refunded
-   * through a secure database RPC.
-   *
-   * Do not manually modify fwebaccount
-   * from the frontend.
-   */
-
-
-  await supabase
-    .from("fmarket_order_events")
-    .insert({
-
-      order_id:
-        orderId,
-
-      actor_id:
-        userId,
-
-      event:
-        "order_cancelled",
-
-      description:
-        "Physical textbook order was cancelled."
-
-    });
 
 
   return res.json({
@@ -967,10 +891,17 @@ async function handleCancel(
     success: true,
 
     message:
-      "Order cancelled.",
+      data.message ||
+      "Order cancelled and FCoins refunded.",
 
-    order:
-      updated
+    order_id:
+      data.order_id,
+
+    refund:
+      data.refund,
+
+    fcoins:
+      data.fcoins
 
   });
 
