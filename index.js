@@ -66,6 +66,9 @@ import {
 import {
   fmarketOrders
 } from "./fmarket-orders.js";
+import {
+  getFMarketItem
+} from "./get-fmarket-item.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -252,6 +255,12 @@ app.post(
 app.get(
   "/fchat/contacts",
   fchat
+);
+
+//Get Fmarket Item
+app.post(
+  "/get-fmarket-item",
+  getFMarketItem
 );
 
 // SEND CHAT MESSAGE
