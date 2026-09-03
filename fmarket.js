@@ -116,7 +116,8 @@ export default async function fmarket(
           views,
           created_at,
           updated_at,
-          note_data
+          note_data,
+          file_url
           `,
           {
             count: "exact"
@@ -211,76 +212,79 @@ export default async function fmarket(
 
     }
 
-/* =========================
-   GET USER PURCHASES
-========================= */
 
-let purchasedMaterialIds =
-  new Set();
+    /* =========================
+       GET USER PURCHASES
+    ========================= */
 
-if (
-  userId &&
-  materials &&
-  materials.length
-) {
-
-  const materialIds =
-    materials
-      .map(
-        material =>
-          material.id
-      )
-      .filter(Boolean);
-
-
-  if (
-    materialIds.length
-  ) {
-
-    const {
-      data: purchases,
-      error: purchasesError
-    } =
-      await supabase
-        .from(
-          "fmarket_purchases"
-        )
-        .select(
-          "material_id"
-        )
-        .eq(
-          "buyer_id",
-          userId
-        )
-        .in(
-          "material_id",
-          materialIds
-        );
+    let purchasedMaterialIds =
+      new Set();
 
 
     if (
-      purchasesError
+      userId &&
+      materials &&
+      materials.length
     ) {
 
-      throw purchasesError;
+      const materialIds =
+        materials
+          .map(
+            material =>
+              material.id
+          )
+          .filter(Boolean);
+
+
+      if (
+        materialIds.length
+      ) {
+
+        const {
+          data: purchases,
+          error: purchasesError
+        } =
+          await supabase
+            .from(
+              "fmarket_purchases"
+            )
+            .select(
+              "material_id"
+            )
+            .eq(
+              "buyer_id",
+              userId
+            )
+            .in(
+              "material_id",
+              materialIds
+            );
+
+
+        if (
+          purchasesError
+        ) {
+
+          throw purchasesError;
+
+        }
+
+
+        purchasedMaterialIds =
+          new Set(
+            (purchases || [])
+              .map(
+                purchase =>
+                  String(
+                    purchase.material_id
+                  )
+              )
+          );
+
+      }
 
     }
 
-
-    purchasedMaterialIds =
-  new Set(
-    (purchases || [])
-      .map(
-        purchase =>
-          String(
-            purchase.material_id
-          )
-      )
-  );
-
-  }
-
-}
 
     /* =========================
        GET SELLER IDs
@@ -358,140 +362,139 @@ if (
     );
 
 
-/* =========================
-   ADD SELLER INFORMATION
-========================= */
+    /* =========================
+       FORMAT MATERIALS
+    ========================= */
 
-const formattedMaterials =
-  (materials || [])
-    .map(
-      material => {
+    const formattedMaterials =
+      (materials || [])
+        .map(
+          material => {
 
-        const seller =
-          sellerMap.get(
-            material.seller_id
-          );
-
-
-        const price =
-          Number(
-            material.price
-          ) || 0;
+            const seller =
+              sellerMap.get(
+                material.seller_id
+              );
 
 
-        const owned =
-          purchasedMaterialIds.has(
-            String(material.id)
-          );
+            const price =
+              Number(
+                material.price
+              ) || 0;
 
 
-        /* =========================
-           FORMAT MATERIAL
-        ========================= */
-
-        const formatted = {
-
-          id:
-            material.id,
-
-          owned:
-            owned,
-
-          seller_id:
-            material.seller_id,
-
-          seller_name:
-            seller?.username ||
-            "Unknown seller",
-
-          title:
-            material.title,
-
-          description:
-            material.description,
-
-          category:
-            material.category,
-
-          course:
-            material.course,
-
-          university:
-            material.university,
-
-          department:
-            material.department,
-
-          price:
-            material.price,
-
-          location:
-            material.location,
-
-          image_url:
-            material.image_url,
-
-          material_type:
-            material.material_type,
-
-          condition:
-            material.condition,
-
-          status:
-            material.status,
-
-          views:
-            material.views,
-
-          created_at:
-            material.created_at,
-
-          updated_at:
-            material.updated_at
-
-        };
+            const owned =
+              purchasedMaterialIds.has(
+                String(
+                  material.id
+                )
+              );
 
 
-        /* =========================
-           FILE URL
-           
-           ONLY SEND FOR:
-           1. FREE MATERIAL
-           2. OWNED MATERIAL
-        ========================= */
+            /* =========================
+               BASE MATERIAL
+            ========================= */
 
-        if (
-          price === 0 ||
-          owned
-        ) {
+            const formatted = {
 
-          formatted.file_url =
-            material.file_url ||
-            null;
+              id:
+                material.id,
 
-        }
+              owned:
+                owned,
+
+              seller_id:
+                material.seller_id,
+
+              seller_name:
+                seller?.username ||
+                "Unknown seller",
+
+              title:
+                material.title,
+
+              description:
+                material.description,
+
+              category:
+                material.category,
+
+              course:
+                material.course,
+
+              university:
+                material.university,
+
+              department:
+                material.department,
+
+              price:
+                material.price,
+
+              location:
+                material.location,
+
+              image_url:
+                material.image_url,
+
+              material_type:
+                material.material_type,
+
+              condition:
+                material.condition,
+
+              status:
+                material.status,
+
+              views:
+                material.views,
+
+              created_at:
+                material.created_at,
+
+              updated_at:
+                material.updated_at
+
+            };
 
 
-        /* =========================
-           FREE MATERIAL DATA
-        ========================= */
+            /* =========================
+               FILE URL
+               
+               FREE OR OWNED ONLY
+            ========================= */
 
-        if (
-          price === 0
-        ) {
+            if (
+              price === 0 ||
+              owned
+            ) {
 
-          formatted.note_data =
-            material.note_data ??
-            null;
+              formatted.file_url =
+                material.file_url ||
+                null;
 
-        }
+            }
 
 
-        return formatted;
+            /* =========================
+               FREE MATERIAL DATA
+            ========================= */
 
-      }
-    );
-    
+            if (
+              price === 0
+            ) {
+
+              formatted.note_data =
+                material.note_data ??
+                null;
+
+            }
+
+
+            return formatted;
+
+          }
+        );
 
 
     /* =========================
