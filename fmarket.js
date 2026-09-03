@@ -358,109 +358,115 @@ if (
     );
 
 
-    /* =========================
-       ADD SELLER INFORMATION
-    ========================= */
+/* =========================
+   ADD SELLER INFORMATION
+========================= */
 
-    const formattedMaterials =
-      (materials || [])
-        .map(
-          material => {
+const formattedMaterials =
+  (materials || [])
+    .map(
+      material => {
 
-            const seller =
-              sellerMap.get(
-                material.seller_id
-              );
-
-
-            const price =
-              Number(
-                material.price
-              ) || 0;
+        const seller =
+          sellerMap.get(
+            material.seller_id
+          );
 
 
-            const formatted =
-  materials.map(
-    (material) => ({
-      id: material.id,
-      owned:
-        ownedIds.has(material.id),
-
-      seller_id:
-        material.seller_id,
-
-      seller_name:
-        sellerMap[
-          material.seller_id
-        ] || "Unknown seller",
-
-      title:
-        material.title,
-
-      description:
-        material.description,
-
-      category:
-        material.category,
-
-      course:
-        material.course,
-
-      university:
-        material.university,
-
-      department:
-        material.department,
-
-      price:
-        material.price,
-
-      location:
-        material.location,
-
-      image_url:
-        material.image_url,
-
-      material_type:
-        material.material_type,
-
-      condition:
-        material.condition,
-
-      status:
-        material.status,
-
-      views:
-        material.views,
-
-      created_at:
-        material.created_at,
-
-      updated_at:
-        material.updated_at
-    })
-  );
+        const price =
+          Number(
+            material.price
+          ) || 0;
 
 
-            /* =========================
-               FREE MATERIAL DATA
-            ========================= */
+        /* =========================
+           FORMAT MATERIAL
+        ========================= */
 
-            if (
-              price === 0
-            ) {
+        const formatted = {
 
-              formatted.note_data =
-                material.note_data ??
-                null;
+          id:
+            material.id,
 
-            }
+          owned:
+            purchasedMaterialIds.has(
+              String(material.id)
+            ),
+
+          seller_id:
+            material.seller_id,
+
+          seller_name:
+            seller?.username ||
+            "Unknown seller",
+
+          title:
+            material.title,
+
+          description:
+            material.description,
+
+          category:
+            material.category,
+
+          course:
+            material.course,
+
+          university:
+            material.university,
+
+          department:
+            material.department,
+
+          price:
+            material.price,
+
+          location:
+            material.location,
+
+          image_url:
+            material.image_url,
+
+          material_type:
+            material.material_type,
+
+          condition:
+            material.condition,
+
+          status:
+            material.status,
+
+          views:
+            material.views,
+
+          created_at:
+            material.created_at,
+
+          updated_at:
+            material.updated_at
+
+        };
 
 
-            return formatted;
+        /* =========================
+           FREE MATERIAL DATA
+        ========================= */
 
-          }
-        );
+        if (
+          price === 0
+        ) {
+
+          formatted.note_data =
+            material.note_data ??
+            null;
+
+        }
+
+
+        return formatted;
+
+      }
+    );
 
 
     /* =========================
