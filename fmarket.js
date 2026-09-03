@@ -379,6 +379,12 @@ const formattedMaterials =
           ) || 0;
 
 
+        const owned =
+          purchasedMaterialIds.has(
+            String(material.id)
+          );
+
+
         /* =========================
            FORMAT MATERIAL
         ========================= */
@@ -389,9 +395,7 @@ const formattedMaterials =
             material.id,
 
           owned:
-            purchasedMaterialIds.has(
-              String(material.id)
-            ),
+            owned,
 
           seller_id:
             material.seller_id,
@@ -449,6 +453,26 @@ const formattedMaterials =
 
 
         /* =========================
+           FILE URL
+           
+           ONLY SEND FOR:
+           1. FREE MATERIAL
+           2. OWNED MATERIAL
+        ========================= */
+
+        if (
+          price === 0 ||
+          owned
+        ) {
+
+          formatted.file_url =
+            material.file_url ||
+            null;
+
+        }
+
+
+        /* =========================
            FREE MATERIAL DATA
         ========================= */
 
@@ -467,6 +491,7 @@ const formattedMaterials =
 
       }
     );
+    
 
 
     /* =========================

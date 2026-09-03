@@ -172,19 +172,34 @@ export async function getFMarketItem(
     ========================= */
 
     const price =
-      Number(data.price) || 0;
+      Number(
+        data.price
+      ) || 0;
 
 
     /* =========================
-       FREE MATERIAL
+       FREE OR OWNED
        
-       RETURN EVERYTHING
-       + OWNERSHIP
+       FILE URL IS ALLOWED
     ========================= */
 
     if (
-      price === 0
+      price === 0 ||
+      owned
     ) {
+
+      const material = {
+
+        ...data,
+
+        owned
+
+      };
+
+
+      /* =========================
+         FREE / OWNED RESPONSE
+      ========================= */
 
       return res.status(200).json({
 
@@ -192,12 +207,7 @@ export async function getFMarketItem(
 
         owned,
 
-        material: {
-          ...data,
-
-          owned
-
-        }
+        material
 
       });
 
@@ -205,13 +215,14 @@ export async function getFMarketItem(
 
 
     /* =========================
-       PAID MATERIAL
+       PAID + NOT OWNED
        
-       REMOVE NOTE DATA
+       REMOVE PROTECTED DATA
     ========================= */
 
     const {
       note_data,
+      file_url,
       ...material
     } = data;
 
@@ -224,13 +235,13 @@ export async function getFMarketItem(
 
       success: true,
 
-      owned,
+      owned: false,
 
       material: {
 
         ...material,
 
-        owned
+        owned: false
 
       }
 
