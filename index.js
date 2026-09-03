@@ -69,6 +69,9 @@ import {
 import {
   getFMarketItem
 } from "./get-fmarket-item.js";
+import {
+  fai2
+} from "./fai2.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -508,6 +511,12 @@ app.post(
     }
 
   }
+);
+
+// FAI2 LOGIC
+app.post(
+  "/fai2",
+  fai2
 );
 
 // RECEIVING LOGIC 
