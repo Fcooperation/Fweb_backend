@@ -110,6 +110,7 @@ export default async function fmarket(
           price,
           location,
           image_url,
+          material_type,
           condition,
           status,
           views,
@@ -378,66 +379,67 @@ if (
               ) || 0;
 
 
-            const formatted = {
+            const formatted =
+  materials.map(
+    (material) => ({
+      id: material.id,
+      owned:
+        ownedIds.has(material.id),
 
-              id:
-                material.id,
-                
-                owned:
-  purchasedMaterialIds.has(
-    String(material.id)
-  ),
+      seller_id:
+        material.seller_id,
 
-              seller_id:
-                material.seller_id,
+      seller_name:
+        sellerMap[
+          material.seller_id
+        ] || "Unknown seller",
 
-              seller_name:
-                seller?.username ||
-                "Unknown seller",
+      title:
+        material.title,
 
-              title:
-                material.title,
+      description:
+        material.description,
 
-              description:
-                material.description,
+      category:
+        material.category,
 
-              category:
-                material.category,
+      course:
+        material.course,
 
-              course:
-                material.course,
+      university:
+        material.university,
 
-              university:
-                material.university,
+      department:
+        material.department,
 
-              department:
-                material.department,
+      price:
+        material.price,
 
-              price:
-                material.price,
+      location:
+        material.location,
 
-              location:
-                material.location,
+      image_url:
+        material.image_url,
 
-              image_url:
-                material.image_url,
+      material_type:
+        material.material_type,
 
-              condition:
-                material.condition,
+      condition:
+        material.condition,
 
-              status:
-                material.status,
+      status:
+        material.status,
 
-              views:
-                material.views,
+      views:
+        material.views,
 
-              created_at:
-                material.created_at,
+      created_at:
+        material.created_at,
 
-              updated_at:
-                material.updated_at
-
-            };
+      updated_at:
+        material.updated_at
+    })
+  );
 
 
             /* =========================
