@@ -117,7 +117,9 @@ export default async function fmarket(
           created_at,
           updated_at,
           note_data,
-          file_url
+          file_url,
+          file_type,
+          file_name
           `,
           {
             count: "exact"
@@ -456,6 +458,23 @@ export default async function fmarket(
                 material.updated_at
 
             };
+
+
+            /* =========================
+               FILE INFORMATION
+               
+               Metadata is safe to return.
+               Actual URL only goes to
+               free or owned materials.
+            ========================= */
+
+            formatted.file_type =
+              material.file_type ||
+              null;
+
+            formatted.file_name =
+              material.file_name ||
+              null;
 
 
             /* =========================
