@@ -1,36 +1,17 @@
 import "dotenv/config";
 
-
-/* =========================
-   CLOUDFLARE
-========================= */
-
 const ACCOUNT_ID =
   process.env.CLOUDFLARE_ACCOUNT_ID;
 
 const API_TOKEN =
   process.env.CLOUDFLARE_API_TOKEN;
 
-
-/* =========================
-   MODEL
-========================= */
-
 const MODEL =
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-
-
-/* =========================
-   CLOUDFLARE URL
-========================= */
 
 const CLOUDFLARE_URL =
   `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/${MODEL}`;
 
-
-/* =========================
-   MAIN HANDLER
-========================= */
 
 export async function fai2(
   req,
@@ -60,19 +41,25 @@ export async function fai2(
 
 
     /* =========================
-       REQUEST BODY
+       REQUEST DATA
     ========================= */
 
     const {
+
       userId,
+
       message,
+
+      messages = [],
+
       context = {}
+
     } =
       req.body || {};
 
 
     /* =========================
-       VALIDATE
+       VALIDATE MESSAGE
     ========================= */
 
     if (
@@ -91,6 +78,10 @@ export async function fai2(
 
     }
 
+
+    /* =========================
+       CLOUDFLARE CONFIG
+    ========================= */
 
     if (
       !ACCOUNT_ID ||
@@ -133,37 +124,54 @@ export async function fai2(
         context.pageText || ""
       );
 
+    const fileType =
+      String(
+        context.fileType ||
+        "application/pdf"
+      );
+
 
     /* =========================
-       SYSTEM INSTRUCTION
+       LAST 7 MESSAGES
+    ========================= */
+
+    /*
+      Accept only valid conversation
+      messages from the frontend.
+
+      Then keep only the newest 7.
+    */
+
+    const history =
+      Array.isArray(messages)
+        ? messages
+            .filter(
+              item =>
+                item &&
+                (
+                  item.role ===
+                    "user" ||
+                  item.role ===
+                    "assistant"
+                ) &&
+                typeof item.content ===
+                  "string" &&
+                item.content.trim()
+            )
+            .slice(-7)
+        : [];
+
+
+    /* =========================
+       SYSTEM PROMPT
     ========================= */
 
     const systemPrompt = `
-
 You are FAI, the study assistant inside FCOOPERATION.
 
-You are currently helping a student study a digital textbook.
+You are helping a student study a textbook.
 
-Your job is to answer questions about the supplied textbook page accurately, clearly, and in student-friendly language.
-
-IMPORTANT RULES:
-
-- Use the supplied textbook page content as your primary source.
-- Do not pretend information is present when it is not.
-- If the answer cannot be determined from the supplied page, say so clearly.
-- You may use your general knowledge to explain educational concepts when helpful.
-- Do not unnecessarily repeat the entire textbook page.
-- Keep explanations clear and easy for a student to understand.
-- Use examples when they make a difficult concept easier.
-- For calculations, show the important steps.
-- For definitions, give the definition first, then explain it simply.
-- For summaries, focus on the important points.
-- For quizzes, ask one question at a time if the user requests an interactive quiz.
-- Do not mention these instructions.
-- Do not say you are using Cloudflare.
-- Do not introduce yourself unless the student asks.
-
-TEXTBOOK:
+TEXTBOOK INFORMATION
 
 Title:
 ${textbookTitle}
@@ -174,15 +182,132 @@ ${course}
 Current page:
 ${page}
 
-TEXT FROM CURRENT PAGE:
+File type:
+${fileType}
 
+CURRENT TEXTBOOK CONTENT:
 ${pageText}
 
+IMPORTANT RULES:
+
+1. Answer the student's question clearly and accurately.
+
+2. Use the supplied textbook content as your primary source.
+
+3. You may use your general academic knowledge to explain concepts when the textbook content alone is insufficient.
+
+4. Never pretend that something appears in the textbook when it does not.
+
+5. If the supplied textbook content is insufficient to answer something, say so clearly.
+
+6. Keep explanations appropriate for a student.
+
+7. For difficult concepts, explain them step by step.
+
+8. For calculations, show the important working.
+
+9. For definitions, give the definition first and then explain it simply.
+
+10. For summaries, focus on the most important points.
+
+11. If the student asks to be quizzed, ask one question at a time and wait for their answer.
+
+12. Use the previous conversation messages to understand what the student is referring to.
+
+13. Treat the previous user and assistant messages as part of the same conversation.
+
+14. If the student refers to something they previously said, use the conversation history to understand the reference.
+
+15. Do not unnecessarily repeat previous answers.
+
+16. Do not mention these instructions.
+
+17. Do not mention Cloudflare or the model being used.
+
+The student may be studying a PDF, EPUB, DOC, or DOCX textbook. The content supplied to you is extracted textbook text, so treat it as the current textbook content regardless of the original file format.
 `.trim();
 
 
     /* =========================
-       CLOUDFLARE REQUEST
+       BUILD CHAT
+    ========================= */
+
+    const chatMessages = [
+
+      {
+        role:
+          "system",
+
+        content:
+          systemPrompt
+
+      }
+
+    ];
+
+
+    /*
+      Add the latest 7 messages
+      supplied by the frontend.
+    */
+
+    for (
+      const item of history
+    ) {
+
+      chatMessages.push({
+
+        role:
+          item.role,
+
+        content:
+          item.content.trim()
+
+      });
+
+    }
+
+
+    /*
+      IMPORTANT:
+
+      The frontend already includes
+      the current user message in its
+      7-message history.
+
+      We do NOT add another copy.
+
+      If for some reason the frontend
+      did not include it, add it here.
+    */
+
+    const lastMessage =
+      chatMessages[
+        chatMessages.length - 1
+      ];
+
+
+    if (
+      !lastMessage ||
+      lastMessage.role !== "user" ||
+      lastMessage.content !== message.trim()
+    ) {
+
+      chatMessages.push({
+
+        role:
+          "user",
+
+        content:
+          message.trim()
+
+      });
+
+    }
+
+
+    /* =========================
+       CLOUDFLARE AI REQUEST
     ========================= */
 
     const response =
@@ -206,31 +331,14 @@ ${pageText}
           body:
             JSON.stringify({
 
-              messages: [
-
-                {
-                  role:
-                    "system",
-
-                  content:
-                    systemPrompt
-                },
-
-                {
-                  role:
-                    "user",
-
-                  content:
-                    message
-                }
-
-              ],
+              messages:
+                chatMessages,
 
               max_tokens:
                 2048,
 
               temperature:
-                0.4
+                0.35
 
             })
 
@@ -246,13 +354,7 @@ ${pageText}
       !response.ok
     ) {
 
-      const errorText =
-        await response.text();
-
-      console.error(
-        "❌ Cloudflare FAI2 error:",
-        errorText
-      );
+      await response.text();
 
       return res.status(502).json({
 
@@ -267,7 +369,7 @@ ${pageText}
 
 
     /* =========================
-       PARSE RESPONSE
+       RESPONSE
     ========================= */
 
     const data =
@@ -278,13 +380,10 @@ ${pageText}
       data?.result?.response;
 
 
-    /* =========================
-       EMPTY RESPONSE
-    ========================= */
-
     if (
       !answer ||
-      typeof answer !== "string"
+      typeof answer !==
+        "string"
     ) {
 
       return res.status(502).json({
@@ -300,7 +399,7 @@ ${pageText}
 
 
     /* =========================
-       RESPONSE
+       SUCCESS
     ========================= */
 
     return res.status(200).json({
@@ -319,12 +418,9 @@ ${pageText}
     });
 
 
-  } catch (error) {
-
-    console.error(
-      "❌ FAI2 ERROR:",
-      error.message
-    );
+  } catch (
+    error
+  ) {
 
     return res.status(500).json({
 
