@@ -905,112 +905,30 @@ textbookFileType =
   }
 
 
-/* =========================
-   UPLOAD TEXTBOOK TO CLOUDINARY
-========================= */
-
-function uploadTextbookToCloudinary(
-  buffer,
-  originalName
-) {
-
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-
-      const safeOriginalName =
-        String(
-          originalName ||
-          "textbook.pdf"
-        )
-          .trim();
+  const uploadedTextbook =
+    await uploadTextbookToCloudinary(
+      textbookFile.buffer,
+      originalName
+    );
 
 
-      const extensionMatch =
-        safeOriginalName.match(
-          /\.[^/.]+$/
-        );
+  textbookFileUrl =
+    uploadedTextbook.secure_url ||
+    null;
 
 
-      const extension =
-        extensionMatch
-          ? extensionMatch[0]
-              .toLowerCase()
-          : "";
+  if (!textbookFileUrl) {
 
+    return res.status(500).json({
 
-      const baseName =
-        safeOriginalName
-          .replace(
-            /\.[^/.]+$/,
-            ""
-          )
-          .replace(
-            /[^a-zA-Z0-9-_]/g,
-            "-"
-          )
-          .replace(
-            /-+/g,
-            "-"
-          )
-          .replace(
-            /^-+|-+$/g,
-            ""
-          ) ||
-        "textbook";
+      success: false,
 
+      error:
+        "Textbook file upload failed."
 
-      const publicId =
-        `${Date.now()}-${baseName}${extension}`;
+    });
 
-
-      const stream =
-        cloudinary.uploader.upload_stream(
-
-          {
-            folder:
-              "fmarket/textbooks",
-
-            resource_type:
-              "raw",
-
-            public_id:
-              publicId
-
-          },
-
-          (
-            error,
-            result
-          ) => {
-
-            if (error) {
-
-              reject(
-                error
-              );
-
-              return;
-
-            }
-
-            resolve(
-              result
-            );
-
-          }
-
-        );
-
-
-      stream.end(
-        buffer
-      );
-
-    }
-  );
+  }
 
 }
 
@@ -1023,11 +941,6 @@ if (
   category === "textbook" &&
   material_type === "physical"
 ) {
-
-  /*
-   * Physical textbooks do not
-   * need a digital file.
-   */
 
   textbookFileUrl =
     null;
