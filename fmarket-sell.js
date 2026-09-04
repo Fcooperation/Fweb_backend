@@ -783,6 +783,12 @@ const textbookFile =
 
 let textbookFileUrl =
   cleanFileUrl;
+  
+  let textbookFileType =
+  null;
+
+let textbookFileName =
+  null;
 
 
 /* =========================
@@ -834,6 +840,13 @@ if (
   const originalName =
     textbookFile.originalname ||
     "";
+    
+    textbookFileName =
+  originalName;
+
+textbookFileType =
+  textbookFile.mimetype ||
+  null;
 
 
   const extension =
@@ -892,36 +905,112 @@ if (
   }
 
 
-  /* =========================
-     UPLOAD TO CLOUDINARY
-  ========================= */
+/* =========================
+   UPLOAD TEXTBOOK TO CLOUDINARY
+========================= */
 
-  const uploadedTextbook =
-    await uploadTextbookToCloudinary(
-      textbookFile.buffer,
-      originalName
-    );
+function uploadTextbookToCloudinary(
+  buffer,
+  originalName
+) {
+
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+
+      const safeOriginalName =
+        String(
+          originalName ||
+          "textbook.pdf"
+        )
+          .trim();
 
 
-  textbookFileUrl =
-    uploadedTextbook.secure_url ||
-    null;
+      const extensionMatch =
+        safeOriginalName.match(
+          /\.[^/.]+$/
+        );
 
 
-  if (
-    !textbookFileUrl
-  ) {
+      const extension =
+        extensionMatch
+          ? extensionMatch[0]
+              .toLowerCase()
+          : "";
 
-    return res.status(500).json({
 
-      success: false,
+      const baseName =
+        safeOriginalName
+          .replace(
+            /\.[^/.]+$/,
+            ""
+          )
+          .replace(
+            /[^a-zA-Z0-9-_]/g,
+            "-"
+          )
+          .replace(
+            /-+/g,
+            "-"
+          )
+          .replace(
+            /^-+|-+$/g,
+            ""
+          ) ||
+        "textbook";
 
-      error:
-        "Textbook upload failed."
 
-    });
+      const publicId =
+        `${Date.now()}-${baseName}${extension}`;
 
-  }
+
+      const stream =
+        cloudinary.uploader.upload_stream(
+
+          {
+            folder:
+              "fmarket/textbooks",
+
+            resource_type:
+              "raw",
+
+            public_id:
+              publicId
+
+          },
+
+          (
+            error,
+            result
+          ) => {
+
+            if (error) {
+
+              reject(
+                error
+              );
+
+              return;
+
+            }
+
+            resolve(
+              result
+            );
+
+          }
+
+        );
+
+
+      stream.end(
+        buffer
+      );
+
+    }
+  );
 
 }
 
@@ -1097,6 +1186,12 @@ if (
           file_url:
   textbookFileUrl,
 
+file_type:
+  textbookFileType,
+
+file_name:
+  textbookFileName,
+
 note_data:
   cleanNoteData,
 
@@ -1129,6 +1224,8 @@ price,
 location,
 image_url,
 file_url,
+file_type,
+file_name,
 note_data,
 material_type,
 condition,
