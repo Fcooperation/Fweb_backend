@@ -232,6 +232,7 @@ export default async function fmarketSell(
   department,
   price,
   location,
+  pickup_location,
   condition,
   file_url,
   material_type,
@@ -533,6 +534,37 @@ if (
 
 }
 
+/* =========================
+   PICKUP LOCATION
+========================= */
+
+const requiresPickupLocation =
+  (
+    category === "textbook" &&
+    material_type === "physical"
+  ) ||
+  category === "other";
+
+
+if (requiresPickupLocation) {
+
+  if (
+    !cleanPickupLocation
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Pickup location is required for this material."
+
+    });
+
+  }
+
+}
+
     /* =========================
        CLEAN OPTIONAL DATA
     ========================= */
@@ -579,6 +611,16 @@ if (
               200
             )
         : null;
+        
+        const cleanPickupLocation =
+  pickup_location
+    ? String(pickup_location)
+        .trim()
+        .slice(
+          0,
+          200
+        )
+    : null;
 
 
     const cleanFileUrl =
@@ -1091,10 +1133,13 @@ if (
             cleanPrice,
 
           location:
-            cleanLocation,
+  cleanLocation,
 
-          image_url:
-            imageUrl,
+pickup_location:
+  cleanPickupLocation,
+
+image_url:
+  imageUrl,
 
           file_url:
   textbookFileUrl,
@@ -1135,6 +1180,7 @@ university,
 department,
 price,
 location,
+pickup_location,
 image_url,
 file_url,
 file_type,
