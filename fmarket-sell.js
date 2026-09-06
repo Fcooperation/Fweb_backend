@@ -534,6 +534,20 @@ if (
 
 }
 
+// clean pickup location
+const cleanPickupLocation =
+  pickup_location
+    ? String(pickup_location)
+        .trim()
+        .slice(
+          0,
+          200
+        )
+    : null;
+
+
+    
+
 /* =========================
    PICKUP LOCATION
 ========================= */
@@ -612,18 +626,7 @@ if (requiresPickupLocation) {
             )
         : null;
         
-        const cleanPickupLocation =
-  pickup_location
-    ? String(pickup_location)
-        .trim()
-        .slice(
-          0,
-          200
-        )
-    : null;
-
-
-    const cleanFileUrl =
+        const cleanFileUrl =
       file_url
         ? String(file_url)
             .trim()

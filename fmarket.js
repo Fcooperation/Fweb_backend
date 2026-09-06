@@ -109,8 +109,9 @@ export default async function fmarket(
           department,
           price,
           location,
-          image_url,
-          material_type,
+pickup_location,
+image_url,
+material_type,
           condition,
           status,
           views,
@@ -435,6 +436,9 @@ export default async function fmarket(
 
               location:
                 material.location,
+                
+                pickup_location:
+  material.pickup_location,
 
               image_url:
                 material.image_url,
