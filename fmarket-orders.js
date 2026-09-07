@@ -1190,7 +1190,7 @@ if (
   action === "out_for_delivery"
 ) {
 
-  return updateorderstatus(
+  return updateOrderStatus(
     res,
     userId,
     orderId,
