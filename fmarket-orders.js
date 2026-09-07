@@ -675,7 +675,7 @@ if (
       .select("*")
       .eq(
         "id",
-        orderid
+        orderId
       )
       .single();
 
@@ -690,7 +690,7 @@ if (
   ========================= */
 
   if (
-    order.seller_id !== userid
+    order.seller_id !== userId
   ) {
 
     return res.status(403).json({
@@ -813,7 +813,7 @@ if (
       })
       .eq(
         "id",
-        orderid
+        orderId
       )
       .select()
       .single();
@@ -833,10 +833,10 @@ if (
     .insert({
 
       order_id:
-        orderid,
+        orderId,
 
       actor_id:
-        userid,
+        userId,
 
       event:
         "delivery_fee_proposed",
@@ -878,7 +878,7 @@ if (
       .select("*")
       .eq(
         "id",
-        orderid
+        orderId
       )
       .single();
 
@@ -893,7 +893,7 @@ if (
   ========================= */
 
   if (
-    order.buyer_id !== userid
+    order.buyer_id !== userId
   ) {
 
     return res.status(403).json({
@@ -967,7 +967,7 @@ if (
       })
       .eq(
         "id",
-        orderid
+        orderId
       )
       .select()
       .single();
@@ -983,10 +983,10 @@ if (
     .insert({
 
       order_id:
-        orderid,
+        orderId,
 
       actor_id:
-        userid,
+        userId,
 
       event:
         "delivery_fee_accepted",
@@ -1028,7 +1028,7 @@ if (
       .select("*")
       .eq(
         "id",
-        orderid
+        orderId
       )
       .single();
 
@@ -1043,7 +1043,7 @@ if (
   ========================= */
 
   if (
-    order.buyer_id !== userid
+    order.buyer_id !== userId
   ) {
 
     return res.status(403).json({
@@ -1099,7 +1099,7 @@ if (
       })
       .eq(
         "id",
-        orderid
+        orderId
       )
       .select()
       .single();
@@ -1115,10 +1115,10 @@ if (
     .insert({
 
       order_id:
-        orderid,
+        orderId,
 
       actor_id:
-        userid,
+        userId,
 
       event:
         "delivery_fee_rejected",
@@ -1192,8 +1192,8 @@ if (
 
   return updateorderstatus(
     res,
-    userid,
-    orderid,
+    userId,
+    orderId,
     "out_for_delivery",
     "seller_started_delivery"
   );
