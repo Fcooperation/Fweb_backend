@@ -585,6 +585,564 @@ if (
 
 }
 
+/* =========================
+   PROPOSE DELIVERY FEE
+========================= */
+
+if (
+  action === "propose_delivery_fee"
+) {
+
+  const {
+    deliveryFee
+  } =
+    req.body || {};
+
+
+  const fee =
+    Number(
+      deliveryFee
+    );
+
+
+  /* =========================
+     VALIDATE FEE
+  ========================= */
+
+  if (
+    !Number.isFinite(fee) ||
+    fee <= 0
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Enter a valid delivery fee."
+
+    });
+
+  }
+
+
+  if (
+    fee > 1000000
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery fee is too high."
+
+    });
+
+  }
+
+
+  /*
+     Keep FCoins as whole units.
+  */
+
+  if (
+    !Number.isInteger(fee)
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery fee must be a whole number of FCoins."
+
+    });
+
+  }
+
+
+  /* =========================
+     GET ORDER
+  ========================= */
+
+  const {
+    data: order,
+    error: ordererror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .select("*")
+      .eq(
+        "id",
+        orderid
+      )
+      .single();
+
+
+  if (ordererror) {
+    throw ordererror;
+  }
+
+
+  /* =========================
+     SELLER ONLY
+  ========================= */
+
+  if (
+    order.seller_id !== userid
+  ) {
+
+    return res.status(403).json({
+
+      success: false,
+
+      error:
+        "Only the seller can set the delivery fee."
+
+    });
+
+  }
+
+
+  /* =========================
+     MUST BE DELIVERY
+  ========================= */
+
+  if (
+    order.delivery_method !==
+    "delivery"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "A delivery fee is only required for delivery orders."
+
+    });
+
+  }
+
+
+  /* =========================
+     LOCATION REQUIRED
+  ========================= */
+
+  if (
+    !order.delivery_location
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "The buyer must provide a delivery location first."
+
+    });
+
+  }
+
+
+  /* =========================
+     ORDER MUST BE ACCEPTED
+  ========================= */
+
+  if (
+    order.status !==
+    "accepted"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "The delivery fee can only be set while the order is accepted."
+
+    });
+
+  }
+
+
+  /* =========================
+     CANNOT CHANGE
+     ACCEPTED FEE
+  ========================= */
+
+  if (
+    order.delivery_fee_status ===
+    "accepted"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "The delivery fee has already been accepted."
+
+    });
+
+  }
+
+
+  /* =========================
+     SAVE PROPOSAL
+  ========================= */
+
+  const {
+    data: updated,
+    error: updateerror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .update({
+
+        delivery_fee:
+          fee,
+
+        delivery_fee_status:
+          "proposed",
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq(
+        "id",
+        orderid
+      )
+      .select()
+      .single();
+
+
+  if (updateerror) {
+    throw updateerror;
+  }
+
+
+  /* =========================
+     EVENT
+  ========================= */
+
+  await supabase
+    .from("fmarket_order_events")
+    .insert({
+
+      order_id:
+        orderid,
+
+      actor_id:
+        userid,
+
+      event:
+        "delivery_fee_proposed",
+
+      description:
+        `Seller proposed a delivery fee of ₣${fee}.`
+
+    });
+
+
+  return res.json({
+
+    success: true,
+
+    message:
+      `Delivery fee of ₣${fee.toLocaleString()} proposed.`,
+
+    order:
+      updated
+
+  });
+
+}
+
+/* =========================
+   ACCEPT DELIVERY FEE
+========================= */
+
+if (
+  action === "accept_delivery_fee"
+) {
+
+  const {
+    data: order,
+    error: ordererror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .select("*")
+      .eq(
+        "id",
+        orderid
+      )
+      .single();
+
+
+  if (ordererror) {
+    throw ordererror;
+  }
+
+
+  /* =========================
+     BUYER ONLY
+  ========================= */
+
+  if (
+    order.buyer_id !== userid
+  ) {
+
+    return res.status(403).json({
+
+      success: false,
+
+      error:
+        "Only the buyer can accept the delivery fee."
+
+    });
+
+  }
+
+
+  /* =========================
+     MUST BE PROPOSED
+  ========================= */
+
+  if (
+    order.delivery_fee_status !==
+    "proposed"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "There is no delivery fee waiting for acceptance."
+
+    });
+
+  }
+
+
+  if (
+    !order.delivery_fee ||
+    Number(order.delivery_fee) <= 0
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "The delivery fee is invalid."
+
+    });
+
+  }
+
+
+  /* =========================
+     ACCEPT
+  ========================= */
+
+  const {
+    data: updated,
+    error: updateerror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .update({
+
+        delivery_fee_status:
+          "accepted",
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq(
+        "id",
+        orderid
+      )
+      .select()
+      .single();
+
+
+  if (updateerror) {
+    throw updateerror;
+  }
+
+
+  await supabase
+    .from("fmarket_order_events")
+    .insert({
+
+      order_id:
+        orderid,
+
+      actor_id:
+        userid,
+
+      event:
+        "delivery_fee_accepted",
+
+      description:
+        `Buyer accepted the delivery fee of ₣${Number(order.delivery_fee).toLocaleString()}.`
+
+    });
+
+
+  return res.json({
+
+    success: true,
+
+    message:
+      "Delivery fee accepted. The order is now locked.",
+
+    order:
+      updated
+
+  });
+
+}
+
+/* =========================
+   REJECT DELIVERY FEE
+========================= */
+
+if (
+  action === "reject_delivery_fee"
+) {
+
+  const {
+    data: order,
+    error: ordererror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .select("*")
+      .eq(
+        "id",
+        orderid
+      )
+      .single();
+
+
+  if (ordererror) {
+    throw ordererror;
+  }
+
+
+  /* =========================
+     BUYER ONLY
+  ========================= */
+
+  if (
+    order.buyer_id !== userid
+  ) {
+
+    return res.status(403).json({
+
+      success: false,
+
+      error:
+        "Only the buyer can reject the delivery fee."
+
+    });
+
+  }
+
+
+  if (
+    order.delivery_fee_status !==
+    "proposed"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "There is no delivery fee waiting for rejection."
+
+    });
+
+  }
+
+
+  /* =========================
+     RETURN TO PENDING
+  ========================= */
+
+  const {
+    data: updated,
+    error: updateerror
+  } =
+    await supabase
+      .from("fmarket_orders")
+      .update({
+
+        delivery_fee:
+          0,
+
+        delivery_fee_status:
+          "pending",
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq(
+        "id",
+        orderid
+      )
+      .select()
+      .single();
+
+
+  if (updateerror) {
+    throw updateerror;
+  }
+
+
+  await supabase
+    .from("fmarket_order_events")
+    .insert({
+
+      order_id:
+        orderid,
+
+      actor_id:
+        userid,
+
+      event:
+        "delivery_fee_rejected",
+
+      description:
+        "Buyer rejected the proposed delivery fee."
+
+    });
+
+
+  return res.json({
+
+    success: true,
+
+    message:
+      "Delivery fee rejected. The seller can propose a new fee.",
+
+    order:
+      updated
+
+  });
+
+}
+
     /* =========================
        ORDER ACTIONS
     ========================= */
@@ -627,6 +1185,20 @@ if (
       );
 
     }
+    
+    if (
+  action === "out_for_delivery"
+) {
+
+  return updateorderstatus(
+    res,
+    userid,
+    orderid,
+    "out_for_delivery",
+    "seller_started_delivery"
+  );
+
+}
 
 
     if (
