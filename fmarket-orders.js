@@ -58,18 +58,19 @@ export async function fmarketOrders(
           .select(`
             *,
             material:fmarket(
-              id,
-              title,
-              description,
-              category,
-              course,
-              university,
-              material_type,
-              price,
-              location,
-              condition,
-              image_url
-            )
+  id,
+  title,
+  description,
+  category,
+  course,
+  university,
+  material_type,
+  price,
+  location,
+  pickup_location,
+  condition,
+  image_url
+)
           `)
           .or(
             `buyer_id.eq.${userId},seller_id.eq.${userId}`
@@ -349,25 +350,25 @@ if (
   }
 
 
-  /* =========================
-     PENDING ONLY
-  ========================= */
+/* =========================
+   NOT READY YET
+========================= */
 
-  if (
-    order.status !==
-    "pending"
-  ) {
+if (
+  order.status ===
+  "ready"
+) {
 
-    return res.status(400).json({
+  return res.status(400).json({
 
-      success: false,
+    success: false,
 
-      error:
-        "Delivery details can only be changed while the order is pending."
+    error:
+      "Delivery details can no longer be changed because the seller has marked the order as ready."
 
-    });
+  });
 
-  }
+}
 
 
   const cleanLocation =
@@ -586,41 +587,70 @@ async function updateOrderStatus(
   }
 
 
-  /* =========================
-     SELLER ONLY
-  ========================= */
+/* =========================
+   SELLER ONLY
+========================= */
 
-  if (
-    order.seller_id !== userId
-  ) {
+if (
+  order.seller_id !== userId
+) {
 
-    return res.status(403).json({
+  return res.status(403).json({
 
-      success: false,
+    success: false,
 
-      error:
-        "Only the seller can perform this action."
+    error:
+      "Only the seller can perform this action."
 
-    });
+  });
 
-  }
+}
 
 
-  const allowedTransitions = {
+/* =========================
+   READY REQUIRES
+   DELIVERY DETAILS
+========================= */
 
-    accepted: [
-      "pending"
-    ],
+if (
+  newStatus === "ready" &&
+  (
+    !order.delivery_method ||
+    !order.delivery_location
+  )
+) {
 
-    ready: [
-      "accepted"
-    ],
+  return res.status(400).json({
 
-    handed_over: [
-      "ready"
-    ]
+    success: false,
 
-  };
+    error:
+      "The buyer must set a delivery method and location before the order can be marked ready."
+
+  });
+
+}
+
+
+/* =========================
+   ALLOWED TRANSITIONS
+========================= */
+
+const allowedTransitions = {
+
+  accepted: [
+    "pending"
+  ],
+
+  ready: [
+    "accepted"
+  ],
+
+  handed_over: [
+    "ready"
+  ]
+
+};
 
 
   if (
