@@ -253,7 +253,6 @@ if (
 
 
   if (
-    !deliveryMethod ||
     ![
       "pickup",
       "delivery"
@@ -268,43 +267,6 @@ if (
 
       error:
         "Invalid delivery method."
-
-    });
-
-  }
-
-
-  if (
-    !deliveryLocation ||
-    !String(
-      deliveryLocation
-    ).trim()
-  ) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      error:
-        "Delivery location is required."
-
-    });
-
-  }
-
-
-  if (
-    String(
-      deliveryLocation
-    ).trim().length > 300
-  ) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      error:
-        "Delivery location is too long."
 
     });
 
@@ -350,32 +312,197 @@ if (
   }
 
 
-/* =========================
-   NOT READY YET
-========================= */
+  /* =========================
+     ORDER MUST BE EDITABLE
+  ========================= */
 
-if (
-  order.status ===
-  "ready"
-) {
+  if (
+    [
+      "ready",
+      "out_for_delivery",
+      "handed_over",
+      "received",
+      "completed"
+    ].includes(
+      order.status
+    )
+  ) {
 
-  return res.status(400).json({
+    return res.status(400).json({
 
-    success: false,
+      success: false,
 
-    error:
-      "Delivery details can no longer be changed because the seller has marked the order as ready."
+      error:
+        "Delivery details can no longer be changed because fulfillment has started."
 
-  });
+    });
 
-}
+  }
 
 
-  const cleanLocation =
-    String(
-      deliveryLocation
-    ).trim();
+  /*
+     Once a delivery fee has been
+     accepted, the agreement is locked.
+  */
 
+  if (
+    order.delivery_method ===
+      "delivery" &&
+    order.delivery_fee_status ===
+      "accepted"
+  ) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      error:
+        "Delivery details can no longer be changed because the delivery arrangement has been accepted."
+
+    });
+
+  }
+
+
+  /* =========================
+     PICKUP
+  ========================= */
+
+  if (
+    deliveryMethod ===
+    "pickup"
+  ) {
+
+    const {
+      data: material,
+      error: materialError
+    } =
+      await supabase
+        .from("fmarket")
+        .select(
+          "pickup_location"
+        )
+        .eq(
+          "id",
+          order.material_id
+        )
+        .single();
+
+
+    if (materialError) {
+      throw materialError;
+    }
+
+
+    if (
+      !material?.pickup_location
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "The seller has not provided a pickup location."
+
+      });
+
+    }
+
+  }
+
+
+  /* =========================
+     DELIVERY
+  ========================= */
+
+  let cleanLocation = null;
+
+
+  if (
+    deliveryMethod ===
+    "delivery"
+  ) {
+
+    if (
+      !deliveryLocation ||
+      !String(
+        deliveryLocation
+      ).trim()
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Delivery location is required."
+
+      });
+
+    }
+
+
+    cleanLocation =
+      String(
+        deliveryLocation
+      ).trim();
+
+
+    if (
+      cleanLocation.length > 300
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "Delivery location is too long."
+
+      });
+
+    }
+
+  }
+
+
+  /* =========================
+     DELIVERY FEE STATE
+  ========================= */
+
+  let deliveryFeeStatus =
+    "not_required";
+
+
+  let deliveryFee =
+    0;
+
+
+  if (
+    deliveryMethod ===
+    "delivery"
+  ) {
+
+    /*
+       If buyer changes their
+       delivery location before
+       fee acceptance, the seller
+       must quote again.
+    */
+
+    deliveryFeeStatus =
+      "pending";
+
+    deliveryFee =
+      0;
+
+  }
+
+
+  /* =========================
+     UPDATE ORDER
+  ========================= */
 
   const {
     data: updated,
@@ -390,6 +517,12 @@ if (
 
         delivery_location:
           cleanLocation,
+
+        delivery_fee:
+          deliveryFee,
+
+        delivery_fee_status:
+          deliveryFeeStatus,
 
         updated_at:
           new Date().toISOString()
@@ -408,6 +541,16 @@ if (
   }
 
 
+  /* =========================
+     EVENT
+  ========================= */
+
+  const description =
+    deliveryMethod === "pickup"
+      ? "Buyer selected pickup."
+      : "Buyer selected delivery and provided a delivery location.";
+
+
   await supabase
     .from("fmarket_order_events")
     .insert({
@@ -421,8 +564,7 @@ if (
       event:
         "delivery_details_updated",
 
-      description:
-        `Buyer selected ${deliveryMethod} and provided a delivery location.`
+      description
 
     });
 
@@ -432,7 +574,9 @@ if (
     success: true,
 
     message:
-      "Delivery details saved.",
+      deliveryMethod === "pickup"
+        ? "Pickup details saved."
+        : "Delivery location saved. The seller must now set the delivery fee.",
 
     order:
       updated
@@ -608,26 +752,107 @@ if (
 
 
 /* =========================
-   READY REQUIRES
-   DELIVERY DETAILS
+   READY VALIDATION
 ========================= */
 
 if (
-  newStatus === "ready" &&
-  (
-    !order.delivery_method ||
-    !order.delivery_location
-  )
+  newStatus === "ready"
 ) {
 
-  return res.status(400).json({
+  /* =========================
+     METHOD REQUIRED
+  ========================= */
 
-    success: false,
+  if (
+    !order.delivery_method
+  ) {
 
-    error:
-      "The buyer must set a delivery method and location before the order can be marked ready."
+    return res.status(400).json({
 
-  });
+      success: false,
+
+      error:
+        "The buyer must choose pickup or delivery first."
+
+    });
+
+  }
+
+
+  /* =========================
+     PICKUP
+  ========================= */
+
+  if (
+    order.delivery_method ===
+    "pickup"
+  ) {
+
+    if (
+      !order.material_id
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "This order has no material attached."
+
+      });
+
+    }
+
+    /*
+       Pickup requires no buyer
+       delivery address.
+    */
+
+  }
+
+
+  /* =========================
+     DELIVERY
+  ========================= */
+
+  if (
+    order.delivery_method ===
+    "delivery"
+  ) {
+
+    if (
+      !order.delivery_location
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "The buyer must provide a delivery location."
+
+      });
+
+    }
+
+
+    if (
+      order.delivery_fee_status !==
+      "accepted"
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        error:
+          "The delivery fee must be accepted by the buyer before the order can be marked ready."
+
+      });
+
+    }
+
+  }
 
 }
 
@@ -646,8 +871,13 @@ const allowedTransitions = {
     "accepted"
   ],
 
-  handed_over: [
+  out_for_delivery: [
     "ready"
+  ],
+
+  handed_over: [
+    "ready",
+    "out_for_delivery"
   ]
 
 };
