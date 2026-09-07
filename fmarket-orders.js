@@ -870,51 +870,29 @@ if (
 ) {
 
   const {
-    data: order,
-    error: ordererror
+    data,
+    error
   } =
-    await supabase
-      .from("fmarket_orders")
-      .select("*")
-      .eq(
-        "id",
-        orderId
-      )
-      .single();
+    await supabase.rpc(
+      "accept_fmarket_delivery_fee",
+      {
+        p_user_id:
+          userId,
+
+        p_order_id:
+          orderId
+      }
+    );
 
 
-  if (ordererror) {
-    throw ordererror;
+  if (error) {
+    throw error;
   }
 
 
-  /* =========================
-     BUYER ONLY
-  ========================= */
-
   if (
-    order.buyer_id !== userId
-  ) {
-
-    return res.status(403).json({
-
-      success: false,
-
-      error:
-        "Only the buyer can accept the delivery fee."
-
-    });
-
-  }
-
-
-  /* =========================
-     MUST BE PROPOSED
-  ========================= */
-
-  if (
-    order.delivery_fee_status !==
-    "proposed"
+    !data ||
+    !data.success
   ) {
 
     return res.status(400).json({
@@ -922,79 +900,12 @@ if (
       success: false,
 
       error:
-        "There is no delivery fee waiting for acceptance."
+        data?.error ||
+        "Unable to accept delivery fee."
 
     });
 
   }
-
-
-  if (
-    !order.delivery_fee ||
-    Number(order.delivery_fee) <= 0
-  ) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      error:
-        "The delivery fee is invalid."
-
-    });
-
-  }
-
-
-  /* =========================
-     ACCEPT
-  ========================= */
-
-  const {
-    data: updated,
-    error: updateerror
-  } =
-    await supabase
-      .from("fmarket_orders")
-      .update({
-
-        delivery_fee_status:
-          "accepted",
-
-        updated_at:
-          new Date().toISOString()
-
-      })
-      .eq(
-        "id",
-        orderId
-      )
-      .select()
-      .single();
-
-
-  if (updateerror) {
-    throw updateerror;
-  }
-
-
-  await supabase
-    .from("fmarket_order_events")
-    .insert({
-
-      order_id:
-        orderId,
-
-      actor_id:
-        userId,
-
-      event:
-        "delivery_fee_accepted",
-
-      description:
-        `Buyer accepted the delivery fee of ₣${Number(order.delivery_fee).toLocaleString()}.`
-
-    });
 
 
   return res.json({
@@ -1002,10 +913,14 @@ if (
     success: true,
 
     message:
-      "Delivery fee accepted. The order is now locked.",
+      data.message ||
+      "Delivery fee accepted and held.",
 
-    order:
-      updated
+    order_id:
+      orderId,
+
+    fee:
+      data.fee
 
   });
 
