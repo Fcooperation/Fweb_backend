@@ -609,10 +609,7 @@ if (
      VALIDATE FEE
   ========================= */
 
-  if (
-    !Number.isFinite(fee) ||
-    fee <= 0
-  ) {
+  if (!Number.isFinite(fee) || fee < 0) {
 
     return res.status(400).json({
 
