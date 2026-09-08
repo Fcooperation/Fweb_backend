@@ -72,6 +72,9 @@ import {
 import {
   fai2
 } from "./fai2.js";
+import {
+  fmarketInbox
+} from "./fmarket-inbox.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -375,6 +378,12 @@ app.post(
     }
 
   }
+);
+
+// Fmarket inbox 
+app.post(
+  "/fmarket-inbox",
+  fmarketInbox
 );
 
 // ------------------------------
