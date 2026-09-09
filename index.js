@@ -75,6 +75,7 @@ import {
 import {
   fmarketInbox
 } from "./fmarket-inbox.js";
+import { faiGameTest } from "./fai-game-test.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -267,6 +268,15 @@ app.get(
 app.post(
   "/get-fmarket-item",
   getFMarketItem
+);
+
+// ------------------------------
+// FAI GAME NPC TEST
+// ------------------------------
+
+app.post(
+  "/fai-game-test",
+  faiGameTest
 );
 
 // SEND CHAT MESSAGE
