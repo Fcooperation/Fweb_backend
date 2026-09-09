@@ -9,9 +9,12 @@ const supabase = createClient(
 const GEMINI_API_KEY =
   process.env.GEMINI_API_KEY;
 
-const GEMINI_MODEL =
-  process.env.GEMINI_MODEL ||
-  "gemini-3.7-flash";
+const MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.7-flash"
+];
 
 
 /* =========================================================
@@ -76,170 +79,200 @@ async function callGemini(
   prompt
 ) {
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  for (const model of MODELS) {
 
-  const response =
-    await fetch(url, {
-      method: "POST",
+    try {
 
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
-      },
+      const url =
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-      body: JSON.stringify({
+      const response =
+        await fetch(url, {
+          method: "POST",
 
-        system_instruction: {
-          parts: [
-            {
-              text: systemInstruction
-            }
-          ]
-        },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY
+          },
 
-        contents: [
-          {
-            role: "user",
+          body: JSON.stringify({
 
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-
-        generationConfig: {
-
-          temperature: 1.0,
-
-          maxOutputTokens: 500,
-
-          responseMimeType:
-            "application/json",
-
-          responseSchema: {
-
-            type: "object",
-
-            properties: {
-
-              response_type: {
-                type: "string",
-                enum: [
-                  "speech",
-                  "action",
-                  "speech_and_action",
-                  "silence"
-                ]
-              },
-
-              speech: {
-                type: "string"
-              },
-
-              action: {
-                type: "object",
-
-                properties: {
-
-                  type: {
-                    type: "string"
-                  },
-
-                  description: {
-                    type: "string"
-                  }
-
-                },
-
-                required: [
-                  "type",
-                  "description"
-                ]
-              },
-
-              memory: {
-                type: "object",
-
-                properties: {
-
-                  importance: {
-                    type: "integer"
-                  },
-
-                  summary: {
-                    type: "string"
-                  }
-
-                },
-
-                required: [
-                  "importance",
-                  "summary"
-                ]
-              }
-
+            system_instruction: {
+              parts: [
+                {
+                  text: systemInstruction
+                }
+              ]
             },
 
-            required: [
-              "response_type",
-              "speech",
-              "action",
-              "memory"
-            ]
-          }
+            contents: [
+              {
+                role: "user",
 
-        }
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ]
+              }
+            ],
 
-      })
-    });
+            generationConfig: {
+
+              maxOutputTokens: 500,
+
+              responseMimeType:
+                "application/json",
+
+              responseSchema: {
+
+                type: "object",
+
+                properties: {
+
+                  response_type: {
+                    type: "string",
+                    enum: [
+                      "speech",
+                      "action",
+                      "speech_and_action",
+                      "silence"
+                    ]
+                  },
+
+                  speech: {
+                    type: "string"
+                  },
+
+                  action: {
+                    type: "object",
+
+                    properties: {
+
+                      type: {
+                        type: "string"
+                      },
+
+                      description: {
+                        type: "string"
+                      }
+
+                    },
+
+                    required: [
+                      "type",
+                      "description"
+                    ]
+                  },
+
+                  memory: {
+                    type: "object",
+
+                    properties: {
+
+                      importance: {
+                        type: "integer"
+                      },
+
+                      summary: {
+                        type: "string"
+                      }
+
+                    },
+
+                    required: [
+                      "importance",
+                      "summary"
+                    ]
+                  }
+
+                },
+
+                required: [
+                  "response_type",
+                  "speech",
+                  "action",
+                  "memory"
+                ]
+
+              }
+
+            }
+
+          })
+
+        });
 
 
-  if (!response.ok) {
+      if (!response.ok) {
 
-    const errorText =
-      await response.text();
+        const errorText =
+          await response.text();
 
-    throw new Error(
-      `Gemini error ${response.status}: ${errorText}`
-    );
+        console.log(
+          `❌ NPC model ${model} failed:`,
+          errorText
+        );
+
+        continue;
+      }
+
+
+      const result =
+        await response.json();
+
+
+      const text =
+        result
+          ?.candidates?.[0]
+          ?.content?.parts?.[0]
+          ?.text;
+
+
+      if (!text) {
+
+        console.log(
+          `⚠️ ${model} returned no text`
+        );
+
+        continue;
+      }
+
+
+      try {
+
+        const parsed =
+          JSON.parse(text);
+
+        return parsed;
+
+      } catch {
+
+        console.log(
+          `⚠️ ${model} returned invalid JSON`
+        );
+
+        continue;
+      }
+
+
+    } catch (error) {
+
+      console.log(
+        `❌ NPC model ${model} error:`,
+        error.message
+      );
+
+      continue;
+
+    }
 
   }
 
 
-  const result =
-    await response.json();
-
-
-  const text =
-    result
-      ?.candidates?.[0]
-      ?.content?.parts?.[0]
-      ?.text;
-
-
-  if (!text) {
-
-    throw new Error(
-      "Gemini returned no text."
-    );
-
-  }
-
-
-  try {
-
-    return JSON.parse(text);
-
-  } catch {
-
-    throw new Error(
-      "Gemini returned invalid JSON."
-    );
-
-  }
+  throw new Error(
+    "All Gemini NPC models failed."
+  );
 
 }
 
