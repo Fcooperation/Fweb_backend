@@ -156,38 +156,45 @@ return {
 // -------------------------
 // GET UNIVERSITIES
 // -------------------------
+
 if (action === "get_universities") {
-
-  const { data, error } =
-    await supabase
+  try {
+    const { data, error } = await supabase
       .from("fchatstudy")
-      .select("university");
+      .select("university")
+      .limit(5);
 
-  if (error) {
+    if (error) {
+      return {
+        success: false,
+        stage: "supabase_response",
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      };
+    }
 
-    console.error(error);
+    return {
+      success: true,
+      stage: "query_success",
+      universities: data
+    };
+
+  } catch (err) {
+    console.error("ADMIN SUPABASE FAILURE:", err);
 
     return {
       success: false,
-      error: error.message
+      stage: "fetch_exception",
+      error: err.message,
+      cause: err.cause?.message,
+      causeCode: err.cause?.code,
+      causeName: err.cause?.name
     };
-
   }
-
-  const universities = [
-    ...new Set(
-      data
-        .map(row => row.university)
-        .filter(Boolean)
-    )
-  ];
-
-  return {
-    success: true,
-    universities
-  };
-
 }
+
 
 // -------------------------
 // GET COURSES
