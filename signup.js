@@ -13,6 +13,7 @@ const supabase =
     supabaseKey
   );
 
+
 // --------------------
 // GET LOCATION FROM IP
 // --------------------
@@ -21,8 +22,6 @@ async function getUserLocation(req) {
 
   try {
 
-    // Get the connecting IP address.
-    // Configure trusted proxy handling on your host.
     const forwardedFor =
       req.headers["x-forwarded-for"];
 
@@ -31,18 +30,22 @@ async function getUserLocation(req) {
       : req.socket.remoteAddress;
 
     if (!ip) {
-      return null;
+      throw new Error(
+        "Unable to determine your connection IP address."
+      );
     }
 
-    // Ignore local/private addresses.
+    // Reject basic local/private IPv4 addresses
     if (
       ip === "127.0.0.1" ||
       ip === "::1" ||
       ip.startsWith("10.") ||
       ip.startsWith("192.168.") ||
-      ip.startsWith("172.")
+      /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
     ) {
-      return null;
+      throw new Error(
+        "We couldn't determine your location. Please try again using your normal internet connection."
+      );
     }
 
     const response = await fetch(
@@ -50,17 +53,24 @@ async function getUserLocation(req) {
     );
 
     if (!response.ok) {
-      return null;
+      throw new Error(
+        "Our location service is temporarily unavailable. Please try again."
+      );
     }
 
     const data = await response.json();
 
-    if (data.error) {
-      return null;
+    if (
+      data.error ||
+      !data.country_name
+    ) {
+      throw new Error(
+        "We couldn't determine your location. Please try again."
+      );
     }
 
     return {
-      country: data.country_name || null,
+      country: data.country_name,
       region: data.region || null,
       city: data.city || null
     };
@@ -72,7 +82,10 @@ async function getUserLocation(req) {
       error.message
     );
 
-    return null;
+    throw new Error(
+      error.message ||
+      "Unable to determine your location. Please try again."
+    );
 
   }
 
@@ -172,13 +185,32 @@ if (
 // GET SIGNUP LOCATION
 // --------------------
 
-const signupLocation =
-  await getUserLocation(req);
+let signupLocation;
 
-console.log(
-  "Signup location:",
-  signupLocation
-);
+try {
+
+  signupLocation =
+    await getUserLocation(req);
+
+  console.log(
+    "Signup location:",
+    signupLocation
+  );
+
+} catch (locationError) {
+
+  console.error(
+    "❌ Location detection failed:",
+    locationError.message
+  );
+
+  return res.status(400).json({
+    success: false,
+    code: "LOCATION_LOOKUP_FAILED",
+    message: locationError.message
+  });
+
+}
 
     // --------------------
     // CHECK EMAIL
@@ -381,6 +413,77 @@ const status =
     ? "active"
     : "pending";
 
+    // --------------------
+// SAVE USER LOCATION
+// --------------------
+
+const {
+  error: locationError
+} = await supabase
+  .from("user_locations")
+  .insert({
+    user_id: userId,
+
+    current_country:
+      signupLocation.country,
+
+    current_region:
+      signupLocation.region,
+
+    current_city:
+      signupLocation.city,
+
+    previous_country: null,
+    previous_region: null,
+    previous_city: null,
+
+    updated_at: new Date().toISOString()
+  });
+
+if (locationError) {
+
+  console.error(
+    "❌ Location save failed:",
+    locationError
+  );
+
+  // Clean up the Auth account created by this request.
+  // Do not delete an existing Google account.
+  if (
+    provider !== "google" &&
+    userId
+  ) {
+
+    const {
+      error: cleanupError
+    } = await supabaseAdmin.auth.admin.deleteUser(
+      userId
+    );
+
+    if (cleanupError) {
+
+      console.error(
+        "❌ Auth cleanup failed:",
+        cleanupError.message
+      );
+
+    }
+
+  }
+
+  return res.status(500).json({
+    success: false,
+    code: "LOCATION_SAVE_FAILED",
+    message:
+      "We couldn't save your location. Your signup could not be completed. Please try again."
+  });
+
+}
+
+console.log(
+  "✅ User location saved successfully"
+);
+
     console.log(
       "Account status:",
       status
@@ -440,79 +543,66 @@ const status =
       newUser
     );
 
-    if (
-      insertError
-    ) {
+    if (insertError) {
 
-      console.log(
-        "❌ Insert failed:"
-      );
+  console.error(
+    "❌ Account insert failed:",
+    insertError
+  );
 
-      console.log(
-        insertError
-      );
-
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Failed to create account",
-          error:
-            insertError.message
-        });
-
-    }
-
-    console.log(
-      "✅ User inserted successfully"
-    );
-
-    // --------------------
-// SAVE USER LOCATION
-// --------------------
-
-if (signupLocation) {
-
+  // Remove the location row created by this request.
   const {
-    error: locationError
+    error: locationCleanupError
   } = await supabase
     .from("user_locations")
-    .insert({
-      user_id: userId,
+    .delete()
+    .eq("user_id", userId);
 
-      current_country:
-        signupLocation.country,
-
-      current_region:
-        signupLocation.region,
-
-      current_city:
-        signupLocation.city,
-
-      previous_country: null,
-      previous_region: null,
-      previous_city: null,
-
-      updated_at: new Date().toISOString()
-    });
-
-  if (locationError) {
+  if (locationCleanupError) {
 
     console.error(
-      "Location save failed:",
-      locationError.message
-    );
-
-  } else {
-
-    console.log(
-      "✅ User location saved"
+      "❌ Location cleanup failed:",
+      locationCleanupError.message
     );
 
   }
 
+  // Remove the newly created email Auth account.
+  // Google accounts are not deleted here.
+  if (
+    provider !== "google" &&
+    userId
+  ) {
+
+    const {
+      error: authCleanupError
+    } = await supabaseAdmin.auth.admin.deleteUser(
+      userId
+    );
+
+    if (authCleanupError) {
+
+      console.error(
+        "❌ Auth cleanup failed:",
+        authCleanupError.message
+      );
+
+    }
+
+  }
+
+  return res.status(500).json({
+    success: false,
+    code: "ACCOUNT_CREATION_FAILED",
+    message:
+      "We couldn't complete your signup. Please try again."
+  });
+
 }
+
+    console.log(
+      "✅ User inserted successfully"
+    );
 
     // --------------------
     // CREATE FAI MEMORY
