@@ -71,16 +71,11 @@ if (data.error) {
   );
 }
 
-    const data = await response.json();
-
-    if (
-      data.error ||
-      !data.country_name
-    ) {
-      throw new Error(
-        "We couldn't determine your location. Please try again."
-      );
-    }
+if (!data.country_name) {
+  throw new Error(
+    "We couldn't determine your location. Please try again."
+  );
+}
 
     return {
       country: data.country_name,
