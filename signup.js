@@ -14,14 +14,13 @@ const supabase =
   );
 
 
-// --------------------
+
+  // --------------------
 // GET LOCATION FROM IP
 // --------------------
 
 async function getUserLocation(req) {
-
   try {
-
     const forwardedFor =
       req.headers["x-forwarded-for"];
 
@@ -35,7 +34,7 @@ async function getUserLocation(req) {
       );
     }
 
-    // Reject basic local/private IPv4 addresses
+    // Reject local/private IPv4 addresses
     if (
       ip === "127.0.0.1" ||
       ip === "::1" ||
@@ -44,59 +43,58 @@ async function getUserLocation(req) {
       /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
     ) {
       throw new Error(
-        "We couldn't determine your location. Please try again using your normal internet connection."
+        "The connection IP address is private or unavailable."
       );
     }
 
     const response = await fetch(
-  `https://ipapi.co/${encodeURIComponent(ip)}/json/`
-);
+      `https://ipwho.is/${encodeURIComponent(ip)}`
+    );
 
-const responseText = await response.text();
+    const responseText = await response.text();
 
-console.log("IPAPI HTTP status:", response.status);
-console.log("IPAPI response:", responseText);
+    console.log(
+      "IPWHOIS HTTP status:",
+      response.status
+    );
 
-if (!response.ok) {
-  throw new Error(
-    `IPAPI request failed with status ${response.status}`
-  );
-}
+    console.log(
+      "IPWHOIS response:",
+      responseText
+    );
 
-const data = JSON.parse(responseText);
+    if (!response.ok) {
+      throw new Error(
+        `Location service returned HTTP ${response.status}.`
+      );
+    }
 
-if (data.error) {
-  throw new Error(
-    `IPAPI error: ${data.reason || data.message || "Unknown error"}`
-  );
-}
+    const data = JSON.parse(responseText);
 
-if (!data.country_name) {
-  throw new Error(
-    "We couldn't determine your location. Please try again."
-  );
-}
+    if (
+      data.success !== true ||
+      !data.country
+    ) {
+      throw new Error(
+        data.message ||
+        "Unable to determine your location."
+      );
+    }
 
     return {
-      country: data.country_name,
+      country: data.country,
       region: data.region || null,
       city: data.city || null
     };
 
   } catch (error) {
-
     console.error(
       "Location lookup failed:",
       error.message
     );
 
-    throw new Error(
-      error.message ||
-      "Unable to determine your location. Please try again."
-    );
-
+    throw error;
   }
-
 }
 
 export default async function signup(
