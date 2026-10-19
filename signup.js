@@ -13,6 +13,71 @@ const supabase =
     supabaseKey
   );
 
+// --------------------
+// GET LOCATION FROM IP
+// --------------------
+
+async function getUserLocation(req) {
+
+  try {
+
+    // Get the connecting IP address.
+    // Configure trusted proxy handling on your host.
+    const forwardedFor =
+      req.headers["x-forwarded-for"];
+
+    const ip = forwardedFor
+      ? forwardedFor.split(",")[0].trim()
+      : req.socket.remoteAddress;
+
+    if (!ip) {
+      return null;
+    }
+
+    // Ignore local/private addresses.
+    if (
+      ip === "127.0.0.1" ||
+      ip === "::1" ||
+      ip.startsWith("10.") ||
+      ip.startsWith("192.168.") ||
+      ip.startsWith("172.")
+    ) {
+      return null;
+    }
+
+    const response = await fetch(
+      `https://ipapi.co/${encodeURIComponent(ip)}/json/`
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      return null;
+    }
+
+    return {
+      country: data.country_name || null,
+      region: data.region || null,
+      city: data.city || null
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Location lookup failed:",
+      error.message
+    );
+
+    return null;
+
+  }
+
+}
+
 export default async function signup(
   req,
   res
@@ -102,6 +167,18 @@ if (
     console.log(
       "✅ Validation passed"
     );
+
+    // --------------------
+// GET SIGNUP LOCATION
+// --------------------
+
+const signupLocation =
+  await getUserLocation(req);
+
+console.log(
+  "Signup location:",
+  signupLocation
+);
 
     // --------------------
     // CHECK EMAIL
@@ -390,6 +467,52 @@ const status =
     console.log(
       "✅ User inserted successfully"
     );
+
+    // --------------------
+// SAVE USER LOCATION
+// --------------------
+
+if (signupLocation) {
+
+  const {
+    error: locationError
+  } = await supabase
+    .from("user_locations")
+    .insert({
+      user_id: userId,
+
+      current_country:
+        signupLocation.country,
+
+      current_region:
+        signupLocation.region,
+
+      current_city:
+        signupLocation.city,
+
+      previous_country: null,
+      previous_region: null,
+      previous_city: null,
+
+      updated_at: new Date().toISOString()
+    });
+
+  if (locationError) {
+
+    console.error(
+      "Location save failed:",
+      locationError.message
+    );
+
+  } else {
+
+    console.log(
+      "✅ User location saved"
+    );
+
+  }
+
+}
 
     // --------------------
     // CREATE FAI MEMORY
