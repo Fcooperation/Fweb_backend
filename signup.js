@@ -49,14 +49,27 @@ async function getUserLocation(req) {
     }
 
     const response = await fetch(
-      `https://ipapi.co/${encodeURIComponent(ip)}/json/`
-    );
+  `https://ipapi.co/${encodeURIComponent(ip)}/json/`
+);
 
-    if (!response.ok) {
-      throw new Error(
-        "Our location service is temporarily unavailable. Please try again."
-      );
-    }
+const responseText = await response.text();
+
+console.log("IPAPI HTTP status:", response.status);
+console.log("IPAPI response:", responseText);
+
+if (!response.ok) {
+  throw new Error(
+    `IPAPI request failed with status ${response.status}`
+  );
+}
+
+const data = JSON.parse(responseText);
+
+if (data.error) {
+  throw new Error(
+    `IPAPI error: ${data.reason || data.message || "Unknown error"}`
+  );
+}
 
     const data = await response.json();
 
