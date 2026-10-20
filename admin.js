@@ -158,32 +158,92 @@ return {
 // -------------------------
 if (action === "get_universities") {
 
-  const { data, error } =
-    await supabase
-      .from("fchatstudy")
-      .select("university");
+  const { data, error } = await supabase
+    .from("fstudy_universities")
+    .select("id, name, acronym, country, state, region")
+    .order("name", { ascending: true });
 
   if (error) {
-
     console.error(error);
 
     return {
       success: false,
       error: error.message
     };
-
   }
 
+  return {
+    success: true,
+    total: data.length,
+    universities: data
+  };
+
+}
+
+  // -------------------------
+// SEARCH UNIVERSITIES
+// -------------------------
+if (action === "search_universities") {
+
+  const query = String(body.query || "").trim();
+
+  if (!query) {
+    return {
+      success: true,
+      total: 0,
+      universities: []
+    };
+  }
+
+  // Search university names
+  const { data: nameResults, error: nameError } =
+    await supabase
+      .from("fstudy_universities")
+      .select("id, name, acronym, country, state, region")
+      .ilike("name", `%${query}%`)
+      .order("name", { ascending: true })
+      .limit(50);
+
+  if (nameError) {
+    console.error(nameError);
+
+    return {
+      success: false,
+      error: nameError.message
+    };
+  }
+
+  // Search university acronyms
+  const { data: acronymResults, error: acronymError } =
+    await supabase
+      .from("fstudy_universities")
+      .select("id, name, acronym, country, state, region")
+      .ilike("acronym", `%${query}%`)
+      .order("name", { ascending: true })
+      .limit(50);
+
+  if (acronymError) {
+    console.error(acronymError);
+
+    return {
+      success: false,
+      error: acronymError.message
+    };
+  }
+
+  // Combine results and remove duplicates
   const universities = [
-    ...new Set(
-      data
-        .map(row => row.university)
-        .filter(Boolean)
-    )
+    ...new Map(
+      [...nameResults, ...acronymResults].map(
+        university => [university.id, university]
+      )
+    ).values()
   ];
 
   return {
     success: true,
+    query,
+    total: universities.length,
     universities
   };
 
