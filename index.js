@@ -76,6 +76,7 @@ import {
   fmarketInbox
 } from "./fmarket-inbox.js";
 import { faiGameTest } from "./fai-game-test.js";
+import fmarketWithdraw from "./fmarket-withdraw.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -395,6 +396,9 @@ app.post(
   "/fmarket-inbox",
   fmarketInbox
 );
+
+//Fmarket withdraw
+app.post("/fmarket-withdraw", fmarketWithdraw);
 
 // ------------------------------
 // FAI IMAGE GENERATION
